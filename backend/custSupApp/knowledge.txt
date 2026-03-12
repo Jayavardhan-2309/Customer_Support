@@ -1,0 +1,39 @@
+Password recovery is available through the “Forgot Password” option on the login screen.
+
+Users can reset their password using their registered mobile number or email address.
+
+Debit cards can be used for ATM withdrawals, online purchases, and in-store payments.
+
+Credit cards allow users to spend up to a predefined credit limit and repay later through monthly billing cycles.
+
+Card transactions may fail due to insufficient balance, exceeded credit limit, expired card, incorrect PIN, or temporary network issues.
+
+One-time passwords (OTP) are required for most online transactions and may be delayed due to network or carrier issues.
+
+Fund transfers can be made between accounts using UPI, bank transfer, or card-based payments.
+
+UPI payments may fail due to bank server downtime, incorrect UPI ID, daily transaction limits, or connectivity issues.
+
+Account balance and recent transactions are available on the account summary page.
+
+Transaction history typically shows completed, pending, and failed transactions.
+
+Loan services may include personal loans, home loans, education loans, or vehicle loans.
+
+Loan eligibility depends on factors such as income, credit score, repayment history, and existing liabilities.
+
+Loan applications may take time to process due to verification and approval checks.
+
+Loan repayment schedules and outstanding balances are available in the loans section of the app.
+
+EMI payments can fail due to insufficient account balance or technical issues during auto-debit.
+
+Card blocking and unblocking options are available in the card management section.
+
+Users can update personal details such as address and contact information from the profile section.
+
+Security notifications are sent when there are new logins, password changes, or suspicious activities.
+
+The banking application may undergo maintenance, during which some services can be temporarily unavailable.
+
+Customer support is available for issues related to account access, transactions, cards, and loans.
