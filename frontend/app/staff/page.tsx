@@ -50,6 +50,7 @@ export default function StaffPage() {
       setIsLoggingOut(false)
     }
   }
+  
 
   const openTicket = (id: number) => {
     router.push(`/staff/ticket/${id}`)
