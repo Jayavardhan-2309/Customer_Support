@@ -581,7 +581,7 @@ class SubmitFeedbackView(APIView):
         # Mark ticket as CLOSED
         ticket.status = "closed"
         ticket.closed_at = timezone.now()  # optional but recommended
-        ticket.save(update_fields=["status", "closed_at"])
+        ticket.save(update_fields=["status"])
 
         return Response({
             "message": "Feedback submitted and ticket closed"
@@ -602,7 +602,7 @@ class UserResolvedTicketsView(APIView):
         for t in tickets:
             data.append({
                 "id": t.id,
-                "query": t.query,
+                "query": t.description or t.message,
                 "resolution_note": t.resolution_note or "None",
                 "staff_name": t.assigned_to.username if t.assigned_to else "Unknown",
                 "has_feedback": hasattr(t, "feedback")
