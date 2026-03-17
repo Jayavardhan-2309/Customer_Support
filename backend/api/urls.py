@@ -2,6 +2,7 @@ from django.urls import path
 from .views import SampleView, SignupView, LoginView, SupportAIView, LogoutView, MeView, ChatHistoryView, StaffTicketViewSet, StaffAnalyticsView, AdminSignupView, OrganizationListView
 from rest_framework.routers import DefaultRouter
 from . import views
+from .views import SubmitFeedbackView, UserResolvedTicketsView
 
 router= DefaultRouter()
 router.register(r'samples', SampleView, basename='sample')
@@ -14,5 +15,7 @@ urlpatterns=[path('login/', LoginView.as_view()), path("support-ai/", SupportAIV
              path("me/", MeView.as_view()), path('chat/history/', ChatHistoryView.as_view()),
              path("staff/analytics/", StaffAnalyticsView.as_view()),
              path("organizations/", OrganizationListView.as_view()),
+             path("tickets/<int:ticket_id>/feedback/", SubmitFeedbackView.as_view()),
+             path("user/resolved-tickets/", UserResolvedTicketsView.as_view()),
              ]
 urlpatterns+=router.urls

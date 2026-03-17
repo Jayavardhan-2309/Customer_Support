@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import User, ChatMessage, Organization
+from .models import User, ChatMessage, Organization, TicketFeedback
 from django.contrib.auth.hashers import make_password
 
 class UserSerializer(serializers.ModelSerializer):
@@ -37,3 +37,9 @@ class AdminSignupSerializer(serializers.ModelSerializer):
         )
 
         return user
+    
+class TicketFeedbackSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = TicketFeedback
+        fields = "__all__"
+        read_only_fields = ["user", "staff", "ticket"]

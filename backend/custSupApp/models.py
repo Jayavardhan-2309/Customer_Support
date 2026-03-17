@@ -141,3 +141,28 @@ class UploadedPDF(models.Model):
     )
 
     uploaded_at = models.DateTimeField(auto_now_add=True)
+
+class TicketFeedback(models.Model):
+    ticket = models.OneToOneField(
+        SupportTicket,
+        on_delete=models.CASCADE,
+        related_name="feedback"
+    )
+
+    staff = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="received_feedback"
+    )
+
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="given_feedback"
+    )
+
+    rating = models.IntegerField()  # 1–5 stars
+    comment = models.TextField(blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    closed_at = models.DateTimeField(null=True, blank=True)

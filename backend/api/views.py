@@ -21,6 +21,7 @@ from .models import Sample
 from .serializers import SampleSerializer, SignupSerializer, ChatMessageSerializer, SupportTicketListSerializer, SupportTicketDetailSerializer, StaffSerializer
 from custSupApp.models import User, ChatMessage, UploadedPDF, SupportTicket, Organization
 from custSupApp.serializers import AdminSignupSerializer
+from custSupApp.models import TicketFeedback
 
 # functions
 from custSupApp.ai import get_ai_response
@@ -549,3 +550,62 @@ class OrganizationListView(APIView):
     def get(self, request):
         orgs = Organization.objects.all().values("id", "name")
         return Response(orgs)
+    
+class SubmitFeedbackView(APIView):
+    authentication_classes = [CookieJWTAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, ticket_id):
+        ticket = get_object_or_404(
+            SupportTicket,
+            id=ticket_id,
+            user=request.user,
+            status="resolved"
+        )
+
+        if hasattr(ticket, "feedback"):
+            return Response({"detail": "Feedback already submitted"}, status=400)
+
+        rating = request.data.get("rating")
+        comment = request.data.get("comment", "")
+
+        # Create feedback
+        TicketFeedback.objects.create(
+            ticket=ticket,
+            staff=ticket.assigned_to,
+            user=request.user,
+            rating=rating,
+            comment=comment
+        )
+
+        # Mark ticket as CLOSED
+        ticket.status = "closed"
+        ticket.closed_at = timezone.now()  # optional but recommended
+        ticket.save(update_fields=["status", "closed_at"])
+
+        return Response({
+            "message": "Feedback submitted and ticket closed"
+        })
+
+class UserResolvedTicketsView(APIView):
+    authentication_classes = [CookieJWTAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        tickets = SupportTicket.objects.filter(
+            user=request.user,
+            status="resolved"
+        ).select_related("assigned_to")
+
+        data = []
+
+        for t in tickets:
+            data.append({
+                "id": t.id,
+                "query": t.query,
+                "resolution_note": t.resolution_note or "None",
+                "staff_name": t.assigned_to.username if t.assigned_to else "Unknown",
+                "has_feedback": hasattr(t, "feedback")
+            })
+
+        return Response(data)
