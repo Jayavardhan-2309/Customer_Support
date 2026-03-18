@@ -233,3 +233,69 @@ def get_ai_response(query, history=None, user_email=None, org_id=None):
     escalated = confidence < ESCALATION_CONFIDENCE_THRESHOLD
 
     return intent, reply, confidence, escalated
+
+VALID_PRIORITIES = {"low", "normal", "high"}
+VALID_CATEGORIES = {"authentication", "billing", "technical", "general"}
+
+
+def extract_ticket_structure_with_llm(query, history):
+
+    history_text = "\n".join(
+        f"{msg['role']}: {msg['content']}" for msg in history
+    )
+
+    prompt = f"""
+You are a support ticket classification system.
+
+Analyze the conversation and extract a structured ticket.
+
+Rules for priority:
+- high → user is frustrated, urgent, blocked
+- normal → user reports a problem but not blocked
+- low → informational or minor question
+
+Conversation:
+{history_text}
+
+Latest user query:
+{query}
+
+Return ONLY valid JSON:
+
+{{
+"category": "authentication | billing | technical | general",
+"priority": "low | normal | high",
+"description": "short issue description",
+"context_summary": "brief conversation summary"
+}}
+"""
+
+    text = call_groq(prompt) or call_openrouter(prompt)
+
+    if not text:
+        try:
+            text = call_ollama(prompt)
+        except Exception:
+            return None
+
+    try:
+        return json.loads(text)
+    except Exception:
+        return None
+
+
+def validate_ticket_structure(data):
+
+    if not data:
+        return False
+
+    if data.get("priority") not in VALID_PRIORITIES:
+        return False
+
+    if data.get("category") not in VALID_CATEGORIES:
+        return False
+
+    if not data.get("description"):
+        return False
+
+    return True
