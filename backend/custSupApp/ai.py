@@ -44,15 +44,17 @@ def search_similar_chunks(query, org_id, k=2):
     query_vector = EMBEDDINGS.embed_query(query)
 
     with connection.cursor() as cursor:
+        query_vector_str = "[" + ",".join(map(str, query_vector)) + "]"
+
         cursor.execute(
             """
             SELECT content
             FROM kb_chunks
             WHERE org_id = %s
-            ORDER BY embedding <-> %s
+            ORDER BY embedding <-> %s::vector
             LIMIT %s
             """,
-            [org_id, query_vector, k]
+            [org_id, query_vector_str, k]
         )
 
         return [row[0] for row in cursor.fetchall()]
@@ -221,10 +223,22 @@ def get_ai_response(query, history=None, user_email=None, org_id=None):
     if not text:
         raise RuntimeError("No AI backend available")
 
-    match = re.search(r"\{[\s\S]*", text)
-    json_text = match.group().strip()
+    match = re.search(r"\{.*\}", text, re.DOTALL)
 
-    data = json.loads(json_text)
+    if not match:
+        print("[ERROR] No JSON found in LLM response:", text)
+        return ("error", "Invalid response from AI", 0.0, False)
+
+    json_text = match.group()
+
+    # Clean invalid characters
+    json_text = json_text.replace("\n", " ").replace("\r", " ")
+
+    try:
+        data = json.loads(json_text)
+    except json.JSONDecodeError:
+        print("[ERROR] Invalid JSON from LLM:", json_text)
+        return ("error", "Sorry, something went wrong. Please try again.", 0.0, False)
 
     intent = data.get("intent", "unknown")
     reply = data.get("reply", "")
