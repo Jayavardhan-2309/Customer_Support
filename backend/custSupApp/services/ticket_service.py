@@ -3,16 +3,23 @@ import logging
 from custSupApp.models import SupportTicket
 from custSupApp.services.support_assignment import assign_least_busy_staff
 from custSupApp.tasks import send_ticket_email
+from django.conf import settings
 
 
 
 def notify_staff(ticket, staff_member, conversation_text, query):
-        send_ticket_email.delay(
-            ticket.id,
-            staff_member.email,
-            conversation_text,
-            query
-        ) # .delay sends the job to Celery worker
+        if settings.DEBUG:
+              send_ticket_email(ticket.id,
+                staff_member.email,
+                conversation_text,
+                query)
+        else:
+            send_ticket_email.delay(
+                ticket.id,
+                staff_member.email,
+                conversation_text,
+                query
+            ) # .delay sends the job to Celery worker
 
 logger= logging.getLogger(__name__)
 
