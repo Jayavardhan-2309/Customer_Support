@@ -6,8 +6,8 @@ import re
 from dotenv import load_dotenv
 load_dotenv()
 
-from langchain_community.vectorstores import FAISS
 from langchain_huggingface import HuggingFaceEmbeddings
+from django.db import connection
 
 # CONFIG
 
@@ -15,10 +15,8 @@ OLLAMA_URL = "http://localhost:11434/api/generate"
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
 
-# Confidence threshold — below this the query is escalated to support staff
 ESCALATION_CONFIDENCE_THRESHOLD = 0.4
 
-# Email address of the support personnel who receives escalated queries
 SUPPORT_STAFF_EMAIL = os.environ.get("SUPPORT_STAFF_EMAIL", "support@yourcompany.com")
 
 OPENROUTER_FREE_MODELS = [
@@ -35,32 +33,32 @@ GROQ_MODELS = [
     "mixtral-8x7b-32768",
 ]
 
-# VECTOR STORE
+# GLOBAL EMBEDDINGS (important for performance)
+EMBEDDINGS = HuggingFaceEmbeddings(
+    model_name="sentence-transformers/all-MiniLM-L6-v2"
+)
 
-_vectorstores = {}
+# ---------------- VECTOR SEARCH ---------------- #
 
+def search_similar_chunks(query, org_id, k=2):
+    query_vector = EMBEDDINGS.embed_query(query)
 
-def get_vectorstore(org_id):
-    global _vectorstores
-
-    if org_id not in _vectorstores:
-        base_dir = os.path.dirname(os.path.abspath(__file__))
-
-        embeddings = HuggingFaceEmbeddings(
-            model_name="sentence-transformers/all-MiniLM-L6-v2"
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """
+            SELECT content
+            FROM kb_chunks
+            WHERE org_id = %s
+            ORDER BY embedding <-> %s
+            LIMIT %s
+            """,
+            [org_id, query_vector, k]
         )
 
-        index_path = os.path.join(base_dir, "faiss_index", str(org_id))
+        return [row[0] for row in cursor.fetchall()]
 
-        _vectorstores[org_id] = FAISS.load_local(
-            index_path,
-            embeddings,
-            allow_dangerous_deserialization=True,
-        )
 
-    return _vectorstores[org_id]
-
-# PROMPT
+# ---------------- PROMPT ---------------- #
 
 def build_prompt(context: str, history: list[dict], query: str) -> str:
     recent_history = history[-6:] if len(history) > 6 else history
@@ -91,9 +89,7 @@ Return ONLY valid JSON:
 {{"intent": "...", "reply": "...", "confidence": 0.0}}"""
 
 
-# SENTIMENT DETECTION PROMPT
-# Separate small prompt just to detect frustration/negativity in a message.
-# We ask for a single word answer to keep it fast and cheap.
+# ---------------- SENTIMENT ---------------- #
 
 def build_sentiment_prompt(message: str) -> str:
     return f"""Analyze the sentiment of this customer support message.
@@ -104,14 +100,11 @@ Message: "{message}"
 Reply:"""
 
 
-# GROQ
-
 def call_groq(prompt, max_tokens=300, system_prompt=None):
     api_key = os.environ.get("GROQ_API_KEY")
     if not api_key:
         return None
 
-    # default system prompt forces JSON — but sentiment detection needs plain text
     if system_prompt is None:
         system_prompt = "You are a customer support AI. Be concise. Always reply in valid JSON only."
 
@@ -137,11 +130,10 @@ def call_groq(prompt, max_tokens=300, system_prompt=None):
             if response.status_code == 200:
                 return response.json()["choices"][0]["message"]["content"]
         except Exception:
-            continue # fails silently and at the end None is returned back
+            continue
 
     return None
 
-# OPENROUTER (FALLBACK 1)
 
 def call_openrouter(prompt):
     api_key = os.environ.get("OPENROUTER_API_KEY")
@@ -156,9 +148,6 @@ def call_openrouter(prompt):
                     "Authorization": f"Bearer {api_key}",
                     "Content-Type": "application/json",
                     "Accept": "application/json",
-                    "User-Agent": "customer-support-ai/1.0",
-                    "HTTP-Referer": "http://localhost",
-                    "X-Title": "customer-support-ai",
                 },
                 json={
                     "model": model,
@@ -177,8 +166,6 @@ def call_openrouter(prompt):
     return None
 
 
-# OLLAMA (FALLBACK 2)
-
 def call_ollama(prompt):
     response = requests.post(
         OLLAMA_URL,
@@ -194,162 +181,55 @@ def call_ollama(prompt):
     return response.json()["response"]
 
 
-# SENTIMENT DETECTION
-# Returns True if the user's message is frustrated or negative.
-# Uses a tiny prompt with max_tokens=5 so it's near-instant.
-
-
 def is_user_frustrated(message: str) -> bool:
     sentiment_prompt = build_sentiment_prompt(message)
 
     result = call_groq(
         sentiment_prompt,
         max_tokens=10,
-        system_prompt="You are a sentiment classifier. Reply with exactly one word only: frustrated, negative, or neutral. No JSON, no explanation."
+        system_prompt="Reply with exactly one word: frustrated, negative, or neutral.",
     )
 
     if not result:
         return False
 
     result = result.strip().lower()
-    print(f"[SENTIMENT] Detected: {result}")
-
-    return any(word in result for word in ["frustrated", "negative", "angry", "upset", "not satisfied", "dissatisfied"]) # returns true if any of the word is contained by the result generated
+    return any(word in result for word in ["frustrated", "negative", "angry", "upset"])
 
 
-# MAIN ENTRY
+# ---------------- MAIN ---------------- #
 
-def get_ai_response(query: str, history: list[dict] | None = None, user_email: str | None = None, org_id: int | None = None):
+def get_ai_response(query, history=None, user_email=None, org_id=None):
     if history is None:
         history = []
 
-    # --- Step 1: Sentiment check — signal escalation immediately if frustrated ---
-    user_is_frustrated = is_user_frustrated(query)
-
-    if user_is_frustrated:
-        reply = (
-            "I'm sorry you're not satisfied with the support so far. "
-            "Your query has been escalated to our support team. "
-            "They will reach out to you at your registered email address shortly."
+    if is_user_frustrated(query):
+        return (
+            "escalation",
+            "Your query has been escalated to support.",
+            0.0,
+            True,
         )
-        return ("escalation", reply, 0.0, True)  # True = escalated, view handles the email
 
-    # --- Step 2: Normal AI response flow ---
-    vectorstore = get_vectorstore(org_id)
-    docs = vectorstore.similarity_search(query, k=2)
-    context = "\n".join(d.page_content for d in docs)
+    docs = search_similar_chunks(query, org_id, k=2)
+    context = "\n".join(docs)
+
     prompt = build_prompt(context, history, query)
 
-    text = None
-
-    text = call_groq(prompt)
-    if not text:
-        text = call_openrouter(prompt)
-    if not text:
-        try:
-            text = call_ollama(prompt)
-        except Exception:
-            pass
+    text = call_groq(prompt) or call_openrouter(prompt) or call_ollama(prompt)
 
     if not text:
         raise RuntimeError("No AI backend available")
 
-    text = text.strip()
-
     match = re.search(r"\{[\s\S]*", text)
-    if not match:
-        raise ValueError(f"Invalid LLM response:\n{text}")
-
     json_text = match.group().strip()
-    if json_text.count("{") > json_text.count("}"):
-        json_text += "}"
 
-    try:
-        data = json.loads(json_text)
-    except json.JSONDecodeError as e:
-        raise ValueError(f"JSON parse failed:\n{json_text}") from e
+    data = json.loads(json_text)
 
     intent = data.get("intent", "unknown")
-    reply = data.get("reply", "No reply generated")
+    reply = data.get("reply", "")
     confidence = float(data.get("confidence", 0.0))
 
-    # --- Step 3: Low confidence — signal escalation, view handles email ---
-    escalated = False
-    if confidence < ESCALATION_CONFIDENCE_THRESHOLD:
-        reply += (
-            "\n\nI wasn't fully confident in this answer, so I've also forwarded "
-            "your query to our support team. They will follow up with you shortly."
-        )
-        escalated = True  # view will create ticket and send email
+    escalated = confidence < ESCALATION_CONFIDENCE_THRESHOLD
 
-    return (intent, reply, confidence, escalated)
-
-def extract_ticket_structure_with_llm(query, history):
-
-    history_text= "\n".join(
-        f"{msg['role']}: {msg['content']}" for msg in history
-    )
-
-    prompt = f"""
-        You are a support ticket classification system.
-
-        Analyze the conversation and extract a structured ticket.
-
-        Rules for priority:
-        - high → user is frustrated, urgent, blocked, demands immediate help
-        - normal → user reports a problem but is not blocked
-        - low → informational or minor question
-
-        Conversation:
-        {history_text}
-
-        Latest user query:
-        {query}
-
-        Return ONLY valid JSON:
-
-        {{
-        "category": "authentication | billing | technical | general",
-        "priority": "low | normal | high",
-        "description": "short issue description",
-        "context_summary": "brief conversation summary"
-        }}
-    """
-
-    text= call_groq(prompt)
-
-    if not text:
-        text= call_openrouter(prompt)
-    if not text:
-        try:
-            text= call_ollama(prompt)
-        except Exception:
-            return None
-    text= text.strip()
-    try:
-        data= json.loads(text)
-        return data
-    except Exception:
-        return None
-
-VALID_PRIORITIES={"low", "normal", "high"}
-VALID_CATEGORIES= {"authentication", "billing", "technical", "general"}
-
-
-# to prevent llm hallucination issues
-
-def validate_ticket_structure(data):
-
-    if not data:
-        return False
-    
-    if data.get("priority") not in VALID_PRIORITIES:
-        return False
-    
-    if data.get("category") not in VALID_CATEGORIES:
-        return False
-    
-    if not data.get("description"):
-        return False
-    
-    return True
+    return intent, reply, confidence, escalated
