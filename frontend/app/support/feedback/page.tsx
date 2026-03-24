@@ -38,6 +38,12 @@ export default function FeedbackPage(){
         <p className="mt-2">
           Contact our admin at <span className="font-bold">admin@gmail.com</span>
         </p>
+        <button
+            onClick={() => router.push("/support")}
+            className="px-4 py-2 bg-blue-500 text-blue border-2 rounded hover:bg-blue-600 cursor-pointer"
+        >
+            Dashboard
+        </button>
       </div>
     )
   }
@@ -49,7 +55,7 @@ export default function FeedbackPage(){
 
                 <button
                     onClick={() => router.push("/support")}
-                    className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+                    className="px-4 py-2 bg-blue-500 text-blue border-2 rounded hover:bg-blue-600"
                 >
                     Dashboard
                 </button>
