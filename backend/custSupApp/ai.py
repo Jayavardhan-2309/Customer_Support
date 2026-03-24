@@ -6,8 +6,36 @@ import re
 from dotenv import load_dotenv
 load_dotenv()
 
-from langchain_huggingface import HuggingFaceEmbeddings
+#from langchain_huggingface import HuggingFaceEmbeddings
 from django.db import connection
+
+import requests
+import os
+
+HF_URL = "https://router.huggingface.co/hf-inference/models/sentence-transformers/all-MiniLM-L6-v2"
+
+def embed_text(text):
+    headers = {
+        "Authorization": f"Bearer {os.getenv('HF_TOKEN')}"
+    }
+
+    response = requests.post(
+        HF_URL,
+        headers=headers,
+        json={"inputs": text},
+        timeout=8
+    )
+
+    if response.status_code != 200:
+        raise Exception(f"HF API error: {response.text}")
+
+    data = response.json()
+
+    # FIX: nested list issue
+    if isinstance(data[0], list):
+        data = data[0]
+
+    return data
 
 # CONFIG
 
@@ -34,14 +62,18 @@ GROQ_MODELS = [
 ]
 
 # GLOBAL EMBEDDINGS (important for performance)
-EMBEDDINGS = HuggingFaceEmbeddings(
-    model_name="sentence-transformers/all-MiniLM-L6-v2"
-)
+# EMBEDDINGS = HuggingFaceEmbeddings(
+#     model_name="sentence-transformers/all-MiniLM-L6-v2"
+# )
 
 # ---------------- VECTOR SEARCH ---------------- #
 
 def search_similar_chunks(query, org_id, k=2):
-    query_vector = EMBEDDINGS.embed_query(query)
+    try:
+        query_vector = embed_text(query)
+    except Exception as e:
+        print("[EMBED ERROR QUERY]", e)
+        return []
 
     with connection.cursor() as cursor:
         query_vector_str = "[" + ",".join(map(str, query_vector)) + "]"
@@ -127,7 +159,7 @@ def call_groq(prompt, max_tokens=300, system_prompt=None):
                     "temperature": 0.2,
                     "max_tokens": max_tokens,
                 },
-                timeout=15,
+                timeout=8,
             )
             if response.status_code == 200:
                 return response.json()["choices"][0]["message"]["content"]
@@ -157,7 +189,7 @@ def call_openrouter(prompt):
                     "temperature": 0.2,
                     "max_tokens": 300,
                 },
-                timeout=20,
+                timeout=8,
             )
 
             if response.status_code == 200:
@@ -176,7 +208,7 @@ def call_ollama(prompt):
             "prompt": prompt,
             "stream": False,
         },
-        timeout=30,
+        timeout=8,
     )
 
     response.raise_for_status()

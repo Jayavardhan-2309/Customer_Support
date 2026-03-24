@@ -9,15 +9,44 @@ if not os.environ.get("DJANGO_ALREADY_SETUP"):
     django.setup()
 
 from langchain_text_splitters import CharacterTextSplitter
-from langchain_huggingface import HuggingFaceEmbeddings
+# from langchain_huggingface import HuggingFaceEmbeddings
 from django.db import connection
 import pdfplumber
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-EMBEDDINGS = HuggingFaceEmbeddings(
-    model_name="sentence-transformers/all-MiniLM-L6-v2"
-)
+import requests
+
+HF_URL = "https://router.huggingface.co/hf-inference/models/sentence-transformers/all-MiniLM-L6-v2"
+
+def embed_text(text):
+    if not os.getenv("HF_TOKEN"):
+        print("[WARNING] HF_TOKEN missing")
+    headers = {
+        "Authorization": f"Bearer {os.getenv('HF_TOKEN')}"
+    }
+
+    response = requests.post(
+        HF_URL,
+        headers=headers,
+        json={"inputs": text},
+        timeout=8
+    )
+
+    if response.status_code != 200:
+        raise Exception(f"HF API error: {response.text}")
+
+    data = response.json()
+
+    # fix nested list
+    if isinstance(data[0], list):
+        data = data[0]
+
+    return data
+
+# EMBEDDINGS = HuggingFaceEmbeddings(
+#     model_name="sentence-transformers/all-MiniLM-L6-v2"
+# )
 
 
 def run_indexing(org_id):
@@ -52,20 +81,28 @@ def run_indexing(org_id):
     for text in all_texts:
         docs.extend(splitter.split_text(text))
 
-    vectors = EMBEDDINGS.embed_documents(docs)
-
     with connection.cursor() as cursor:
 
         # delete old org data
         cursor.execute("DELETE FROM kb_chunks WHERE org_id = %s", [org_id])
+        pairs = []
 
-        for text, vector in zip(docs, vectors):
+        for doc in docs:
+            try:
+                vec = embed_text(doc)
+                pairs.append((doc, vec))
+            except Exception as e:
+                print(f"[EMBED ERROR] {e}")
+
+        for text, vector in pairs:
+            vector_str = "[" + ",".join(map(str, vector)) + "]"
+
             cursor.execute(
                 """
                 INSERT INTO kb_chunks (content, embedding, org_id)
-                VALUES (%s, %s, %s)
+                VALUES (%s, %s::vector, %s)
                 """,
-                [text, vector, org_id]
+                [text, vector_str, org_id]
             )
 
     print(f"[INDEX] Org {org_id} indexed ({len(docs)} chunks)")
