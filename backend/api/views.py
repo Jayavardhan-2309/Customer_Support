@@ -31,6 +31,7 @@ from custSupApp.services.ticket_extraction import extract_ticket_structure_smart
 from django.core.mail import send_mail
 from custSupApp.services.ticket_service import create_structured_ticket, notify_staff
 from custSupApp.services.analytics.analytics_service import get_staff_analytics
+from custSupApp.services.analytics.admin_analytics import get_admin_staff_performance
 
 # general
 import threading
@@ -609,3 +610,16 @@ class UserResolvedTicketsView(APIView):
             })
 
         return Response(data)
+
+
+class AdminAnalyticsView(APIView):
+    authentication_classes = [CookieJWTAuthentication]
+    permission_classes = [IsAdmin]
+
+    def get(self, request):
+        data = get_admin_staff_performance(request.user.organization)
+
+        return Response({
+            "staff_performance": data
+        })
+
