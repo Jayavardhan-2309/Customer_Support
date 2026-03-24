@@ -6,36 +6,10 @@ import re
 from dotenv import load_dotenv
 load_dotenv()
 
-#from langchain_huggingface import HuggingFaceEmbeddings
 from django.db import connection
 
-import requests
-import os
-
-HF_URL = "https://router.huggingface.co/hf-inference/models/sentence-transformers/all-MiniLM-L6-v2"
-
-def embed_text(text):
-    headers = {
-        "Authorization": f"Bearer {os.getenv('HF_TOKEN')}"
-    }
-
-    response = requests.post(
-        HF_URL,
-        headers=headers,
-        json={"inputs": text},
-        timeout=8
-    )
-
-    if response.status_code != 200:
-        raise Exception(f"HF API error: {response.text}")
-
-    data = response.json()
-
-    # FIX: nested list issue
-    if isinstance(data[0], list):
-        data = data[0]
-
-    return data
+# ── Import embed_text from the new local embeddings module (no API key needed)
+from custSupApp.embeddings import embed_text          # ← changed
 
 # CONFIG
 
@@ -61,10 +35,6 @@ GROQ_MODELS = [
     "mixtral-8x7b-32768",
 ]
 
-# GLOBAL EMBEDDINGS (important for performance)
-# EMBEDDINGS = HuggingFaceEmbeddings(
-#     model_name="sentence-transformers/all-MiniLM-L6-v2"
-# )
 
 # ---------------- VECTOR SEARCH ---------------- #
 
@@ -201,18 +171,21 @@ def call_openrouter(prompt):
 
 
 def call_ollama(prompt):
-    response = requests.post(
-        OLLAMA_URL,
-        json={
-            "model": "mistral",
-            "prompt": prompt,
-            "stream": False,
-        },
-        timeout=8,
-    )
-
-    response.raise_for_status()
-    return response.json()["response"]
+    """Only used locally — will fail silently on Render (no Ollama installed)."""
+    try:
+        response = requests.post(
+            OLLAMA_URL,
+            json={
+                "model": "mistral",
+                "prompt": prompt,
+                "stream": False,
+            },
+            timeout=8,
+        )
+        response.raise_for_status()
+        return response.json()["response"]
+    except Exception:
+        return None
 
 
 def is_user_frustrated(message: str) -> bool:
@@ -262,8 +235,6 @@ def get_ai_response(query, history=None, user_email=None, org_id=None):
         return ("error", "Invalid response from AI", 0.0, False)
 
     json_text = match.group()
-
-    # Clean invalid characters
     json_text = json_text.replace("\n", " ").replace("\r", " ")
 
     try:
@@ -279,6 +250,7 @@ def get_ai_response(query, history=None, user_email=None, org_id=None):
     escalated = confidence < ESCALATION_CONFIDENCE_THRESHOLD
 
     return intent, reply, confidence, escalated
+
 
 VALID_PRIORITIES = {"low", "normal", "high"}
 VALID_CATEGORIES = {"authentication", "billing", "technical", "general"}

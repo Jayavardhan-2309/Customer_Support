@@ -44,14 +44,31 @@ next-env.d.ts
 # python
 __pycache__/
 *.pyc
+*.pyo
 env/
 venv/
 backend/env/
+
+# django
+staticfiles/
+backend/staticfiles/
 
 # media files
 media/
 backend/media/
 
-# faiss_index
+# faiss index (old, no longer used)
 faiss_index/
-backend/custSupApp/faiss_index
+backend/custSupApp/faiss_index/
+
+# fastembed model cache
+.cache/
+
+# celery
+celerybeat-schedule
+celerybeat.pid
+
+# pytest / coverage
+.pytest_cache/
+htmlcov/
+.coverage

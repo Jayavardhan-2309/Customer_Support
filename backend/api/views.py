@@ -26,15 +26,15 @@ from custSupApp.models import TicketFeedback
 # functions
 from custSupApp.ai import get_ai_response
 from custSupApp.authentication import CookieJWTAuthentication
-from custSupApp.index_knowledge import run_indexing
 from custSupApp.services.ticket_extraction import extract_ticket_structure_smart
-from django.core.mail import send_mail
 from custSupApp.services.ticket_service import create_structured_ticket, notify_staff
 from custSupApp.services.analytics.analytics_service import get_staff_analytics
 from custSupApp.services.analytics.admin_analytics import get_admin_staff_performance
 
+# ── Celery tasks (replaces threading.Thread)
+from custSupApp.tasks import reindex_org, send_ticket_email
+
 # general
-import threading
 import os
 from datetime import timedelta
 
@@ -45,7 +45,6 @@ from .pagination import TicketCursorPagination, StaffCursorPagination
 # ─── Custom Permissions
 
 class IsAdmin(BasePermission):
-    """Only allows users with role='admin'."""
     def has_permission(self, request, view):
         return bool(
             request.user and
@@ -55,31 +54,12 @@ class IsAdmin(BasePermission):
 
 
 class IsStaff(BasePermission):
-        def has_permission(self, request, view):
-            return bool(
-                request.user and
-                request.user.is_authenticated and
-                request.user.role == "staff"
-            )
-    
-
-
-# ─── Helper: re-index in background 
-
-def trigger_reindex(org_id):
-    """Runs index_knowledge.py in a background thread so the API responds immediately."""
-    def _run():
-        try:
-            import custSupApp.ai as ai_module
-            ai_module._vectorstores = {}   # clear cache
-
-            run_indexing(org_id)
-
-            print("[REINDEX] Done.")
-        except Exception as e:
-            print(f"[REINDEX] Failed: {e}")
-
-    threading.Thread(target=_run, daemon=True).start()
+    def has_permission(self, request, view):
+        return bool(
+            request.user and
+            request.user.is_authenticated and
+            request.user.role == "staff"
+        )
 
 
 # ─── Sample CRUD
@@ -89,7 +69,7 @@ class SampleView(ModelViewSet):
     serializer_class = SampleSerializer
 
 
-# ─── Signup (PUBLIC) 
+# ─── Signup (PUBLIC)
 
 class SignupView(CreateModelMixin, GenericViewSet):
     queryset = User.objects.all()
@@ -97,15 +77,15 @@ class SignupView(CreateModelMixin, GenericViewSet):
     permission_classes = [AllowAny]
 
 
-# Admin Signup
+# ─── Admin Signup
 
 class AdminSignupView(CreateModelMixin, GenericViewSet):
-
     queryset = User.objects.all()
     serializer_class = AdminSignupSerializer
     permission_classes = [AllowAny]
 
-# ─── Login 
+
+# ─── Login
 
 class LoginView(APIView):
     permission_classes = [AllowAny]
@@ -127,7 +107,7 @@ class LoginView(APIView):
                 "id": user.id,
                 "username": user.username,
                 "email": user.email,
-                "role": user.role,   # frontend uses this to redirect admin vs user
+                "role": user.role,
             }
         })
 
@@ -135,21 +115,21 @@ class LoginView(APIView):
             key="access",
             value=str(refresh.access_token),
             httponly=True,
-            secure=False,
+            secure=not settings.DEBUG,   # True on Render (HTTPS), False locally
             samesite="Lax",
         )
         response.set_cookie(
             key="refresh",
             value=str(refresh),
             httponly=True,
-            secure=False,
+            secure=not settings.DEBUG,
             samesite="Lax",
         )
 
         return response
 
 
-# ─── Support AI 
+# ─── Support AI
 
 class SupportAIView(APIView):
     authentication_classes = [CookieJWTAuthentication]
@@ -163,9 +143,9 @@ class SupportAIView(APIView):
 
         previous = ChatMessage.objects.filter(
             user=request.user
-        ).order_by("-created_at")[:10].values("sender", "message") # for most recent we only take recent 10 msgs, -created_at takes care of recent messages
+        ).order_by("-created_at")[:10].values("sender", "message")
 
-        history = [{"role": msg["sender"], "content": msg["message"]} for msg in previous][::-1] # chronological ordering for oldest to newest chats
+        history = [{"role": msg["sender"], "content": msg["message"]} for msg in previous][::-1]
 
         ChatMessage.objects.create(user=request.user, sender="user", message=query)
 
@@ -177,18 +157,13 @@ class SupportAIView(APIView):
         )
 
         if escalated:
-
-            # Assign staff safely (inside service uses select_for_update + atomic)
-
-            structured_data= extract_ticket_structure_smart(query, history)
+            structured_data = extract_ticket_structure_smart(query, history)
 
             ticket, staff_member = create_structured_ticket(
                 request.user,
                 query,
                 structured_data
             )
-            # print(f"getting in {ticket_data}") # testing the ticket_data
-
 
             recent_messages = ChatMessage.objects.filter(
                 user=request.user,
@@ -196,18 +171,21 @@ class SupportAIView(APIView):
             ).order_by("created_at")
 
             conversation_lines = []
-
             for msg in recent_messages:
                 if msg.sender == "user":
                     conversation_lines.append(f"User: {msg.message}")
                 else:
                     conversation_lines.append(f"AI: {msg.message}")
-
             conversation_text = "\n".join(conversation_lines)
 
             if staff_member:
-                notify_staff(ticket, staff_member, conversation_text, query)
-
+                # ── Fire-and-forget via Celery — web worker returns immediately
+                send_ticket_email.delay(
+                    ticket_id=ticket.id,
+                    staff_email=staff_member.email,
+                    conversation_text=conversation_text,
+                    query=query,
+                )
             else:
                 print("[ESCALATION] No available staff found.")
 
@@ -218,8 +196,9 @@ class SupportAIView(APIView):
             "confidence": confidence,
             "escalated": escalated,
         })
-    
-# ─── Logout 
+
+
+# ─── Logout
 
 class LogoutView(APIView):
     permission_classes = [AllowAny]
@@ -231,7 +210,7 @@ class LogoutView(APIView):
         return response
 
 
-# ─── Me 
+# ─── Me
 
 class MeView(APIView):
     authentication_classes = [CookieJWTAuthentication]
@@ -247,7 +226,7 @@ class MeView(APIView):
         })
 
 
-# ─── Chat History 
+# ─── Chat History
 
 class ChatHistoryView(APIView):
     authentication_classes = [CookieJWTAuthentication]
@@ -261,8 +240,7 @@ class ChatHistoryView(APIView):
         return Response(serializer.data)
 
 
-# ─── Admin: PDF Upload 
-
+# ─── Admin: PDF Upload
 
 class PDFViewSet(ListModelMixin, DestroyModelMixin, GenericViewSet):
     authentication_classes = [CookieJWTAuthentication]
@@ -271,10 +249,9 @@ class PDFViewSet(ListModelMixin, DestroyModelMixin, GenericViewSet):
 
     def get_queryset(self):
         return UploadedPDF.objects.filter(
-            organization=self.request.user.organization   # FIX 1
+            organization=self.request.user.organization
         ).order_by("-uploaded_at")
 
-    # LIST — GET /admin/pdfs/
     def list(self, request):
         pdfs = self.get_queryset()
         data = [
@@ -289,7 +266,6 @@ class PDFViewSet(ListModelMixin, DestroyModelMixin, GenericViewSet):
         ]
         return Response(data)
 
-    # UPLOAD — POST /admin/pdfs/upload/
     @action(detail=False, methods=["post"], url_path="upload")
     def upload(self, request):
         file = request.FILES.get("file")
@@ -305,10 +281,11 @@ class PDFViewSet(ListModelMixin, DestroyModelMixin, GenericViewSet):
             title=file.name,
             file=file,
             uploaded_by=request.user,
-            organization=request.user.organization   # FIX 2
+            organization=request.user.organization
         )
 
-        trigger_reindex(request.user.organization_id)  # FIX 3
+        # ── Queue reindex as a Celery task — returns immediately to the user
+        reindex_org.delay(request.user.organization_id)
 
         return Response({
             "id": pdf.id,
@@ -317,12 +294,11 @@ class PDFViewSet(ListModelMixin, DestroyModelMixin, GenericViewSet):
             "message": "PDF uploaded. Knowledge base is being re-indexed.",
         }, status=201)
 
-    # DELETE — DELETE /admin/pdfs/{id}/
     def destroy(self, request, pk=None):
         try:
             pdf = UploadedPDF.objects.get(
                 id=pk,
-                organization=request.user.organization   # SECURITY FIX
+                organization=request.user.organization
             )
         except UploadedPDF.DoesNotExist:
             return Response({"detail": "PDF not found"}, status=404)
@@ -332,18 +308,13 @@ class PDFViewSet(ListModelMixin, DestroyModelMixin, GenericViewSet):
 
         pdf.delete()
 
-        trigger_reindex(request.user.organization_id)  # FIX 4
+        # ── Queue reindex as a Celery task
+        reindex_org.delay(request.user.organization_id)
 
         return Response({"message": "PDF deleted. Knowledge base is being re-indexed."})
 
+
 class StaffViewSet(ListModelMixin, CreateModelMixin, DestroyModelMixin, GenericViewSet):
-    """
-    Admin-only ViewSet to manage staff users.
-    GET    /admin/staff/           → list all staff
-    POST   /admin/staff/           → create staff user
-    DELETE /admin/staff/{id}/      → remove staff user
-    PATCH  /admin/staff/{id}/toggle/ → toggle availability
-    """
     authentication_classes = [CookieJWTAuthentication]
     permission_classes = [IsAdmin]
     serializer_class = StaffSerializer
@@ -355,19 +326,15 @@ class StaffViewSet(ListModelMixin, CreateModelMixin, DestroyModelMixin, GenericV
             organization=self.request.user.organization
         ).order_by("username")
 
-    # LIST
     def list(self, request):
         queryset = self.get_queryset()
-
         page = self.paginate_queryset(queryset)
         if page is not None:
             serializer = self.get_serializer(page, many=True)
             return self.get_paginated_response(serializer.data)
-
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data)
 
-    # CREATE STAFF USER
     def create(self, request):
         username = request.data.get("username", "").strip()
         email = request.data.get("email", "").strip()
@@ -401,7 +368,6 @@ class StaffViewSet(ListModelMixin, CreateModelMixin, DestroyModelMixin, GenericV
             "active_tickets": staff.active_tickets,
         }, status=201)
 
-    # DELETE STAFF
     def destroy(self, request, pk=None):
         try:
             staff = User.objects.get(
@@ -415,7 +381,6 @@ class StaffViewSet(ListModelMixin, CreateModelMixin, DestroyModelMixin, GenericV
         staff.delete()
         return Response({"message": "Staff user removed"})
 
-    # TOGGLE AVAILABILITY
     @action(detail=True, methods=["patch"], url_path="toggle")
     def toggle(self, request, pk=None):
         try:
@@ -437,83 +402,69 @@ class StaffViewSet(ListModelMixin, CreateModelMixin, DestroyModelMixin, GenericV
             "is_available": staff.is_available,
             "active_tickets": staff.active_tickets,
         })
-    
 
 
 class StaffTicketViewSet(GenericViewSet, ListModelMixin):
     authentication_classes = [CookieJWTAuthentication]
     permission_classes = [IsStaff]
-    pagination_class= TicketCursorPagination
+    pagination_class = TicketCursorPagination
 
     def get_queryset(self):
-        return SupportTicket.objects.select_related("user").filter( # select_related prevents N+1 queries
+        return SupportTicket.objects.select_related("user").filter(
             assigned_to=self.request.user,
             status__in=["open", "in_progress"]
         ).order_by("-created_at")
 
-    def get_serializer_class(self): # generic api viewset contains this method and we are overriding it
-        if self.action == "retrieve": # variable of viewsetmixin, this is automatically set by it, based on the action performed
+    def get_serializer_class(self):
+        if self.action == "retrieve":
             return SupportTicketDetailSerializer
         return SupportTicketListSerializer
 
-    def list(self, request): # similar to http get method but it is drf mapped function and not http method
+    def list(self, request):
         queryset = self.get_queryset()
-
         page = self.paginate_queryset(queryset)
         if page is not None:
             serializer = self.get_serializer(page, many=True)
             return self.get_paginated_response(serializer.data)
-
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data)
 
-    def retrieve(self, request, pk=None): # similar to get/{id} method, but it is also a mapped drf mapped function
+    def retrieve(self, request, pk=None):
         ticket = get_object_or_404(
             SupportTicket,
             id=pk,
             assigned_to=request.user
         )
-
         serializer = self.get_serializer(ticket)
         return Response(serializer.data)
 
     @action(detail=True, methods=["patch"], url_path="resolve")
     def resolve(self, request, pk=None):
-
         note = request.data.get("resolution_note", "")
-
         ticket = get_object_or_404(
             SupportTicket,
             id=pk,
             assigned_to=request.user
         )
-
         ticket.status = "resolved"
         ticket.resolution_note = note
         ticket.resolved_at = timezone.now()
         ticket.save(update_fields=["status", "resolution_note", "resolved_at"])
 
-        return Response({
-            "message": "Ticket resolved",
-            "ticket_id": ticket.id
-        })
+        return Response({"message": "Ticket resolved", "ticket_id": ticket.id})
+
     @action(detail=True, methods=["patch"], url_path="start")
     def start_progress(self, request, pk=None):
-
         ticket = get_object_or_404(
             SupportTicket,
             id=pk,
             assigned_to=request.user
         )
-
         ticket.status = "in_progress"
         ticket.save(update_fields=["status"])
 
-        return Response({
-            "message": "Ticket marked as in progress",
-            "ticket_id": ticket.id
-        })
-    
+        return Response({"message": "Ticket marked as in progress", "ticket_id": ticket.id})
+
     @action(detail=True, methods=["get"], url_path="messages")
     def messages(self, request, pk=None):
         ticket = get_object_or_404(
@@ -521,37 +472,34 @@ class StaffTicketViewSet(GenericViewSet, ListModelMixin):
             id=pk,
             assigned_to=request.user
         )
-        
-        from datetime import timedelta
         cutoff = ticket.created_at - timedelta(minutes=15)
-        
         messages = ChatMessage.objects.filter(
             user=ticket.user,
             created_at__gte=cutoff,
             created_at__lte=ticket.created_at
         ).order_by("created_at")
-        
+
         data = [{"sender": m.sender, "message": m.message, "created_at": m.created_at} for m in messages]
         return Response(data)
 
+
 class StaffAnalyticsView(APIView):
-    authentication_classes=[CookieJWTAuthentication]
-    permission_classes=[IsStaff]
+    authentication_classes = [CookieJWTAuthentication]
+    permission_classes = [IsStaff]
 
     def get(self, request):
-
-        data= get_staff_analytics(request.user)
+        data = get_staff_analytics(request.user)
         return Response(data)
 
 
 class OrganizationListView(APIView):
-
     permission_classes = [AllowAny]
 
     def get(self, request):
         orgs = Organization.objects.all().values("id", "name")
         return Response(orgs)
-    
+
+
 class SubmitFeedbackView(APIView):
     authentication_classes = [CookieJWTAuthentication]
     permission_classes = [IsAuthenticated]
@@ -570,7 +518,6 @@ class SubmitFeedbackView(APIView):
         rating = request.data.get("rating")
         comment = request.data.get("comment", "")
 
-        # Create feedback
         TicketFeedback.objects.create(
             ticket=ticket,
             staff=ticket.assigned_to,
@@ -579,14 +526,12 @@ class SubmitFeedbackView(APIView):
             comment=comment
         )
 
-        # Mark ticket as CLOSED
         ticket.status = "closed"
-        ticket.closed_at = timezone.now()  # optional but recommended
+        ticket.closed_at = timezone.now()
         ticket.save(update_fields=["status"])
 
-        return Response({
-            "message": "Feedback submitted and ticket closed"
-        })
+        return Response({"message": "Feedback submitted and ticket closed"})
+
 
 class UserResolvedTicketsView(APIView):
     authentication_classes = [CookieJWTAuthentication]
@@ -599,7 +544,6 @@ class UserResolvedTicketsView(APIView):
         ).select_related("assigned_to")
 
         data = []
-
         for t in tickets:
             data.append({
                 "id": t.id,
@@ -618,8 +562,4 @@ class AdminAnalyticsView(APIView):
 
     def get(self, request):
         data = get_admin_staff_performance(request.user.organization)
-
-        return Response({
-            "staff_performance": data
-        })
-
+        return Response({"staff_performance": data})
