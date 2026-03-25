@@ -13,7 +13,7 @@ On Render: the model is downloaded on first request and cached for the lifetime
 of the instance. Cold starts will be ~5–10s slower on the very first request only.
 """
 
-from fastembed import TextEmbedding
+from fastembed.text import TextEmbedding
 
 _model = None
 
