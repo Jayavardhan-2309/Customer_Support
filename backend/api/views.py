@@ -116,7 +116,7 @@ class LoginView(APIView):
             value=str(refresh.access_token),
             httponly=True,
             #secure=not settings.DEBUG,   # True on Render (HTTPS), False locally
-            samesite="None"
+            samesite="None",
             secure=True,
         )
         response.set_cookie(
@@ -124,7 +124,7 @@ class LoginView(APIView):
             value=str(refresh),
             httponly=True,
             #secure=not settings.DEBUG,
-            samesite="None"
+            samesite="None",
             secure=True,
         )
 
