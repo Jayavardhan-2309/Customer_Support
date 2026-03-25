@@ -1,12 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
+import api from "@/src/lib/axios";
+const baseUrl= api.defaults.baseURL;
 
 // GET /api/admin/staff — list all staff
 export async function GET(req: NextRequest) {
     const cookies = req.headers.get("cookie") ?? "";
 
-    const djangoRes = await fetch("http://localhost:8000/api/v1/admin/staff/", {
+    const djangoRes = await fetch(`${baseUrl}/api/v1/admin/staff/`, {
         method: "GET",
         headers: { "Cookie": cookies },
+        credentials: "include",
     });
 
     const data = await djangoRes.json();
@@ -19,7 +22,7 @@ export async function POST(req: NextRequest) {
     const cookies = req.headers.get("cookie") ?? "";
     const body = await req.json();
 
-    const djangoRes = await fetch("http://localhost:8000/api/v1/admin/staff/", {
+    const djangoRes = await fetch(`${baseUrl}/api/v1/admin/staff/`, {
         method: "POST",
         headers: {
             "Cookie": cookies,

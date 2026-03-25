@@ -39,10 +39,25 @@ export default function SignupPage() {
   const [organizationId, setOrganizationId] = useState("");
 
   useEffect(() => {
-    api.get("organizations/").then(res => {
+  api.get("organizations/")
+    .then(res => {
+      console.log("SUCCESS:", res.data);
       setOrganizations(res.data);
+    })
+    .catch(err => {
+      console.error("FULL ERROR:", err);
+
+      if (err.response) {
+        console.error("STATUS:", err.response.status);
+        console.error("DATA:", err.response.data);   // 🔥 THIS IS IMPORTANT
+        console.error("HEADERS:", err.response.headers);
+      } else if (err.request) {
+        console.error("NO RESPONSE RECEIVED:", err.request);
+      } else {
+        console.error("REQUEST SETUP ERROR:", err.message);
+      }
     });
-  }, []);
+}, []);
 
   const handleSignup = async (e: any) => {
     e.preventDefault();
