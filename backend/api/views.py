@@ -496,8 +496,15 @@ class OrganizationListView(APIView):
     permission_classes = [AllowAny]
 
     def get(self, request):
-        orgs = Organization.objects.all().values("id", "name")
-        return Response(list(orgs))
+        try:
+            orgs = Organization.objects.all().values("id", "name")
+            return Response(list(orgs))
+        except Exception as e:
+            import traceback
+            return Response({
+                "error": str(e),
+                "trace": traceback.format_exc()
+            }, status=500)
 
 
 class SubmitFeedbackView(APIView):
