@@ -497,7 +497,7 @@ class OrganizationListView(APIView):
 
     def get(self, request):
         orgs = Organization.objects.all().values("id", "name")
-        return Response(orgs)
+        return Response(list(orgs))
 
 
 class SubmitFeedbackView(APIView):
