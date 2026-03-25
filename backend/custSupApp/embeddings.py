@@ -1,37 +1,48 @@
 """
-embeddings.py — drop-in replacement for the HuggingFace API embed_text function.
+embeddings.py — uses Google Gemini text-embedding-004 for vector embeddings.
 
-Uses fastembed (https://github.com/qdrant/fastembed) which:
-  - Downloads the model once (~22 MB) on first use and caches it in /tmp
-  - Runs entirely in-process — no API key, no external HTTP calls
-  - Uses the same sentence-transformers/all-MiniLM-L6-v2 model you had before
-  - Is free forever
+Free tier: 1,500 requests/day, no credit card needed.
+Model: text-embedding-004 — 768-dimensional vectors.
+API key: set CUSTOMER_API in your .env / Render env vars.
 
-Install: pip install fastembed
-
-On Render: the model is downloaded on first request and cached for the lifetime
-of the instance. Cold starts will be ~5–10s slower on the very first request only.
+NOTE: Your pgvector column must be vector(768).
+If you were previously using all-MiniLM-L6-v2 (384-dim), run this in Supabase:
+    ALTER TABLE kb_chunks ALTER COLUMN embedding TYPE vector(768) USING NULL;
+    Then re-trigger indexing for each org.
 """
 
-from fastembed.text import TextEmbedding
+import os
+import requests
 
-_model = None
-
-
-def _get_model():
-    global _model
-    if _model is None:
-        # Downloads ~22 MB on first call, then cached in ~/.cache/fastembed
-        _model = TextEmbedding(model_name="sentence-transformers/all-MiniLM-L6-v2")
-    return _model
+GEMINI_EMBED_URL = (
+    "https://generativelanguage.googleapis.com/v1beta/models/"
+    "text-embedding-004:embedContent"
+)
 
 
 def embed_text(text: str) -> list[float]:
     """
-    Returns a 384-dimensional embedding vector for the given text.
-    Drop-in replacement for the old HuggingFace API version.
+    Returns a 768-dimensional embedding vector using Gemini text-embedding-004.
+    Raises on API error so the caller (index_knowledge, ai.py) can handle it.
     """
-    model = _get_model()
-    # fastembed returns a generator of numpy arrays
-    embeddings = list(model.embed([text]))
-    return embeddings[0].tolist()
+    api_key = os.environ.get("CUSTOMER_API")
+    if not api_key:
+        raise RuntimeError("CUSTOMER_API environment variable is not set")
+
+    response = requests.post(
+        GEMINI_EMBED_URL,
+        headers={"Content-Type": "application/json"},
+        params={"key": api_key},
+        json={
+            "model": "models/text-embedding-004",
+            "content": {"parts": [{"text": text}]},
+        },
+        timeout=10,
+    )
+
+    if response.status_code != 200:
+        raise RuntimeError(
+            f"Gemini embedding API error {response.status_code}: {response.text}"
+        )
+
+    return response.json()["embedding"]["values"]
