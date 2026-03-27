@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 // DELETE /api/admin/staff/{id} — remove a staff member
+const baseUrl= process.env.DJANGO_BASE_URL;
 export async function DELETE(
     req: NextRequest,
     { params }: { params: Promise<{ id: string }> }
@@ -9,7 +10,7 @@ export async function DELETE(
     const { id } = await params;
 
     const djangoRes = await fetch(
-        `http://localhost:8000/api/v1/admin/staff/${id}/`,
+        `${baseUrl}/api/v1/admin/staff/${id}/`,
         {
             method: "DELETE",
             headers: { "Cookie": cookies },
