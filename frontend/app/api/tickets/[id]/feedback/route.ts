@@ -2,10 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 
 const baseUrl = process.env.DJANGO_BASE_URL;
 
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;  // await params
   const body = await req.json();
 
-  const backendRes = await fetch(`${baseUrl}/api/v1/tickets/${params.id}/feedback/`, {
+  const backendRes = await fetch(`${baseUrl}/api/v1/tickets/${id}/feedback/`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
