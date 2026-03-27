@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import api from "@/src/lib/axios";
-const baseUrl= api.defaults.baseURL;
+
+const baseUrl = process.env.DJANGO_BASE_URL;
 
 export async function POST(req: NextRequest) {
     const body = await req.json();

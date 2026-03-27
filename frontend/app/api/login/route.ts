@@ -1,12 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import api from "@/src/lib/axios";
 
-const baseUrl = api.defaults.baseURL?.replace(/\/api\/v1\/?$/, "");
+const baseUrl = process.env.DJANGO_BASE_URL;
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
 
-  console.log("login baseUrl:", baseUrl);
 
   const djangoRes = await fetch(`${baseUrl}/api/v1/login/`, {
     method: "POST",

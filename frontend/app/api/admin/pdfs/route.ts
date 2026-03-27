@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import api from "@/src/lib/axios";
-const baseUrl= api.defaults.baseURL;
+const baseUrl = process.env.DJANGO_BASE_URL;
 
 export async function GET(req: NextRequest) {
     const cookies = req.headers.get("cookie") ?? "";
