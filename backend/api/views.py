@@ -118,6 +118,7 @@ class LoginView(APIView):
             #secure=not settings.DEBUG,   # True on Render (HTTPS), False locally
             samesite="None",
             secure=True,
+            domain=".onrender.com",
         )
         response.set_cookie(
             key="refresh",
@@ -126,6 +127,7 @@ class LoginView(APIView):
             #secure=not settings.DEBUG,
             samesite="None",
             secure=True,
+            domain=".onrender.com",
         )
 
         return response

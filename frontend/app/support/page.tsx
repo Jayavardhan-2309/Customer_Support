@@ -148,6 +148,7 @@ export default function Support() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ message: trimmed }),
+      credentials: "include",
     });
     const data = await res.json();
     setIsLoading(false);
