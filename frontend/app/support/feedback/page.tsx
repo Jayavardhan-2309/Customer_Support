@@ -14,14 +14,14 @@ export default function FeedbackPage(){
 
   useEffect(()=>{
     const load = async ()=>{
-      const res = await api.get("/user/resolved-tickets/")
+      const res = await api.get("user/resolved-tickets/")
       setTickets(res.data)
     }
     load()
   }, [])
 
   const submitFeedback = async ()=>{
-    await api.post(`/tickets/${selectedTicket.id}/feedback/`, {
+    await api.post(`tickets/${selectedTicket.id}/feedback/`, {
       rating,
       comment
     })
