@@ -9,7 +9,7 @@ export async function GET(req: NextRequest) {
     console.log("pdfs baseUrl:", baseUrl);
     console.log("pdfs cookies:", cookies);
 
-    const djangoRes = await fetch(`${baseUrl}/api/v1/pdfs/`, {
+    const djangoRes = await fetch(`${baseUrl}/api/v1/admin/pdfs/`, {
       headers: { "Cookie": cookies },
     });
 

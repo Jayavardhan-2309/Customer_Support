@@ -7,7 +7,7 @@ export async function DELETE(
     const cookies = req.headers.get("cookie") ?? "";
     const { id } = await params;
 
-    const djangoRes = await fetch(`${baseUrl}/api/v1/pdfs/${id}/`, {
+    const djangoRes = await fetch(`${baseUrl}/api/v1/admin/pdfs/${id}/`, {
         method: "DELETE",
         headers: { "Cookie": cookies },
     });
