@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
+import api from "@/src/lib/axios";
 
-const baseUrl = process.env.DJANGO_BASE_URL; 
+const baseUrl = api.defaults.baseURL;
 // set this in Vercel env vars as https://customer-support-1nng.onrender.com
 
 export async function POST(req: NextRequest) {
