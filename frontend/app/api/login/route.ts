@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import api from "@/src/lib/axios";
 
-const baseUrl = api.defaults.baseURL;
+const baseUrl = api.defaults.baseURL?.replace(/\/api\/v1\/?$/, "");
 // set this in Vercel env vars as https://customer-support-1nng.onrender.com
 
 export async function POST(req: NextRequest) {
