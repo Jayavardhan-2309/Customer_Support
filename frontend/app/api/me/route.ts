@@ -3,6 +3,8 @@ import api from "@/src/lib/axios";
 const baseUrl= api.defaults.baseURL;
 
 export async function GET(req: Request) {
+  console.log("me baseUrl:", baseUrl);
+  console.log("cookies:", req.headers.get("cookie"));
   const backendRes = await fetch(`${baseUrl}/api/v1/me/`, {
     headers: {
       cookie: req.headers.get("cookie") || "",

@@ -115,19 +115,19 @@ class LoginView(APIView):
             key="access",
             value=str(refresh.access_token),
             httponly=True,
-            #secure=not settings.DEBUG,   # True on Render (HTTPS), False locally
-            samesite="None",
             secure=True,
-            domain=".onrender.com",
+            samesite="Lax",
+            path="/",
+            max_age=60 * 500,
         )
         response.set_cookie(
             key="refresh",
             value=str(refresh),
             httponly=True,
-            #secure=not settings.DEBUG,
-            samesite="None",
             secure=True,
-            domain=".onrender.com",
+            samesite="Lax",
+            path="/",
+            max_age=60 * 60 * 24,
         )
 
         return response

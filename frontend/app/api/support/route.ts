@@ -8,6 +8,8 @@ export async function POST(req: NextRequest) {
     // Get cookies from the incoming request to forward to Django
     // Django needs these to authenticate the user (access token)
     const cookies = req.headers.get("cookie") ?? "";
+    console.log("baseUrl:", baseUrl);
+    console.log("cookies:", req.headers.get("cookie"));
 
     const djangoRes = await fetch(`${baseUrl}/api/v1/support-ai/`, {
         method: "POST",
