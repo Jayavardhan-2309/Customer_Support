@@ -4,7 +4,7 @@ const baseUrl = process.env.DJANGO_BASE_URL;
 export async function GET(req: NextRequest) {
     const cookies = req.headers.get("cookie") ?? "";
 
-    const djangoRes = await fetch(`${baseUrl}/api/v1/admin/pdfs/`, {
+    const djangoRes = await fetch(`${baseUrl}/api/v1/pdfs/`, {
         method: "GET",
         headers: {
             "Cookie": cookies,

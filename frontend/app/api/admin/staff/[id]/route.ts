@@ -9,16 +9,20 @@ export async function DELETE(
     const cookies = req.headers.get("cookie") ?? "";
     const { id } = await params;
 
-    const djangoRes = await fetch(
-        `${baseUrl}/api/v1/staff/${id}/`,
-        {
-            method: "DELETE",
-            headers: { "Cookie": cookies },
-        }
-    );
+    const djangoRes = await fetch(`${baseUrl}/api/v1/staff/${id}/`, {
+        method: "DELETE",
+        headers: { "Cookie": cookies },
+    });
+
+    if (djangoRes.status === 204) {
+        return NextResponse.json({ message: "Deleted" });
+    }
 
     const data = await djangoRes.json();
-    if (!djangoRes.ok) return NextResponse.json(data, { status: djangoRes.status });
+    if (!djangoRes.ok) {
+        return NextResponse.json(data, { status: djangoRes.status });
+    }
+
     return NextResponse.json(data);
 }
 
