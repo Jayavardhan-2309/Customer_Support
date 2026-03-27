@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
+const baseUrl = process.env.DJANGO_BASE_URL;
 export async function DELETE(
     req: NextRequest,
     { params }: { params: Promise<{ id: string }> }
@@ -8,7 +9,7 @@ export async function DELETE(
     const { id } = await params;  // params is a Promise in Next.js 15
 
     const djangoRes = await fetch(
-        `http://localhost:8000/api/v1/admin/pdfs/${id}/`,  // router generates /pdfs/{id}/ not /pdfs/{id}/delete/
+        `${baseUrl}/api/v1/admin/pdfs/${id}/`,  // router generates /pdfs/{id}/ not /pdfs/{id}/delete/
         {
             method: "DELETE",
             headers: {
