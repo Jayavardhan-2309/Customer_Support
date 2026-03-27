@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 
+const baseUrl = process.env.DJANGO_BASE_URL;
 export async function POST(req: Request) {
   const backendRes = await fetch(
-    "http://localhost:8000/api/v1/logout/",
+    `${baseUrl}/api/v1/logout/`,
     {
       method: "POST",
       headers: {
