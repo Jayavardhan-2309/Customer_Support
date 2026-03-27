@@ -7,7 +7,7 @@ export async function POST(req: NextRequest) {
 
     const formData = await req.formData();
 
-    const djangoRes = await fetch(`${baseUrl}/api/v1/admin/pdfs/upload/`, {
+    const djangoRes = await fetch(`${baseUrl}/api/v1/pdfs/upload/`, {
         method: "POST",
         headers: {
             "Cookie": cookies,

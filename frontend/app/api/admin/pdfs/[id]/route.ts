@@ -9,7 +9,7 @@ export async function DELETE(
     const { id } = await params;  // params is a Promise in Next.js 15
 
     const djangoRes = await fetch(
-        `${baseUrl}/api/v1/admin/pdfs/${id}/`,  // router generates /pdfs/{id}/ not /pdfs/{id}/delete/
+        `${baseUrl}/api/v1/pdfs/${id}/`,  // router generates /pdfs/{id}/ not /pdfs/{id}/delete/
         {
             method: "DELETE",
             headers: {

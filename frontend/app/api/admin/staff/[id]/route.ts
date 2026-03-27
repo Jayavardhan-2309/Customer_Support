@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-// DELETE /api/admin/staff/{id} — remove a staff member
+// DELETE /api/staff/{id} — remove a staff member
 const baseUrl= process.env.DJANGO_BASE_URL;
 export async function DELETE(
     req: NextRequest,
@@ -10,7 +10,7 @@ export async function DELETE(
     const { id } = await params;
 
     const djangoRes = await fetch(
-        `${baseUrl}/api/v1/admin/staff/${id}/`,
+        `${baseUrl}/api/v1/staff/${id}/`,
         {
             method: "DELETE",
             headers: { "Cookie": cookies },
@@ -22,7 +22,7 @@ export async function DELETE(
     return NextResponse.json(data);
 }
 
-// PATCH /api/admin/staff/{id} — toggle availability
+// PATCH /api/staff/{id} — toggle availability
 export async function PATCH(
     req: NextRequest,
     { params }: { params: Promise<{ id: string }> }
@@ -31,7 +31,7 @@ export async function PATCH(
     const { id } = await params;
 
     const djangoRes = await fetch(
-        `http://localhost:8000/api/v1/admin/staff/${id}/toggle/`,
+        `${baseUrl}/api/v1/staff/${id}/toggle/`,
         {
             method: "PATCH",
             headers: { "Cookie": cookies },
