@@ -136,7 +136,7 @@ export default function AnalyticsPage() {
   const router = useRouter()
 
   useEffect(() => {
-    api.get("/staff/analytics/").then(r => setAnalytics(r.data)).catch(console.error)
+    api.get("staff/analytics/").then(r => setAnalytics(r.data)).catch(console.error)
   }, [])
 
   if (!analytics)
