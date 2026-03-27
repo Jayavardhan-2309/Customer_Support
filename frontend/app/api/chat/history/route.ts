@@ -1,20 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import api from "@/src/lib/axios";
+const baseUrl = process.env.DJANGO_BASE_URL;
 
 export async function GET(req: NextRequest) {
-    try{
-        const {data}= await api.get('/chat/history/', {
-            headers:{
-                cookie: req.headers.get("cookie") || "", // forwards cookie to django
-            },
-        });
-        return NextResponse.json(data);
+  try {
+    const backendRes = await fetch(`${baseUrl}/api/v1/chat/history/`, {
+      headers: {
+        "Cookie": req.headers.get("cookie") || "",
+      },
+    });
+
+    if (!backendRes.ok) {
+      return NextResponse.json({ detail: "Unauthorized" }, { status: backendRes.status });
     }
-    catch(err: any){
-        console.log("chat history error: "+err);
-        return NextResponse.json({
-            detail: "failed to get chat history",
-        }, {status: 500});
-    }
+
+    const data = await backendRes.json();
+    return NextResponse.json(data);
+
+  } catch (err) {
+    console.error("chat history error:", err);
+    return NextResponse.json({ detail: "failed to get chat history" }, { status: 500 });
+  }
 }
