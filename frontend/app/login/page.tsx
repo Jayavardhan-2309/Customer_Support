@@ -18,10 +18,22 @@ export default function LoginPage() {
         setLoading(true);
 
         try {
-            const res = await api.post("login/", { username, password });
+            const res = await fetch("/api/login", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ username, password }),
+            credentials: "include",
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+            setError("Invalid username or password");
+            return;
+        }
 
             // Login returns the user's role — use it to redirect to the right page
-            const role = res.data?.user?.role;
+            const role = data?.user?.role;
 
             if (role === "admin") {
                 router.push("/admin");       // admin goes to context management page
