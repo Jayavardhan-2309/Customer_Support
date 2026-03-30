@@ -43,11 +43,11 @@ def send_ticket_email(self, ticket_id, staff_email, conversation_text, query):
 
 @shared_task(bind=True, max_retries=3, default_retry_delay=10)
 def reindex_org(self, org_id):
-    from custSupApp.models import Organisation  # adjust to your actual model
+    from custSupApp.models import Organization  # adjust to your actual model
     from custSupApp.index_knowledge import run_indexing
 
     # Validate before doing any work — no point retrying a bad org_id
-    if not Organisation.objects.filter(id=org_id).exists():
+    if not Organization.objects.filter(id=org_id).exists():
         logger.error(f"[reindex_org] Org #{org_id} does not exist, aborting.")
         return
 
