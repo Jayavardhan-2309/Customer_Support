@@ -9,7 +9,7 @@ from custSupApp.models import SupportTicket
 logger = get_task_logger(__name__)
 
 
-@shared_task(bind=True, max_retries=3, default_retry_delay=10)
+#@shared_task(bind=True, max_retries=3, default_retry_delay=10)
 def send_ticket_email(self, ticket_id, staff_email, conversation_text, query):
     try:
         ticket = SupportTicket.objects.get(id=ticket_id)
