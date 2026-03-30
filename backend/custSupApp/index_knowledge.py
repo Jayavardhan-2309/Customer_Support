@@ -34,6 +34,7 @@ def run_indexing(org_id):
 
     for pdf in pdfs:
         try:
+            print(f"[INDEX] Trying to open: {pdf.file.path} — exists: {os.path.exists(pdf.file.path)}")
             with pdfplumber.open(pdf.file.path) as pdf_doc:
                 text = "\n".join(page.extract_text() or "" for page in pdf_doc.pages)
                 if text.strip():
