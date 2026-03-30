@@ -258,16 +258,19 @@ class PDFViewSet(ListModelMixin, DestroyModelMixin, GenericViewSet):
 
     def list(self, request):
         pdfs = self.get_queryset()
-        data = [
-            {
+        data = []
+        for pdf in pdfs:
+            try:
+                size_kb = round(pdf.file.size / 1024, 1) if pdf.file else 0
+            except Exception:
+                size_kb = 0  # file deleted from Render's ephemeral disk
+            data.append({
                 "id": pdf.id,
                 "title": pdf.title,
                 "uploaded_at": pdf.uploaded_at,
                 "uploaded_by": pdf.uploaded_by.username if pdf.uploaded_by else "unknown",
-                "size_kb": round(pdf.file.size / 1024, 1) if pdf.file else 0,
-            }
-            for pdf in pdfs
-        ]
+                "size_kb": size_kb,
+            })
         return Response(data)
 
     @action(detail=False, methods=["post"], url_path="upload")
