@@ -14,7 +14,7 @@ def notify_staff(ticket, staff_member, conversation_text, query):
                 conversation_text,
                 query)
         else:
-            send_ticket_email(
+            send_ticket_email.delay(
                 ticket.id,
                 staff_member.email,
                 conversation_text,

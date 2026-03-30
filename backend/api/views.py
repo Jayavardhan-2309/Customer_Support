@@ -184,7 +184,7 @@ class SupportAIView(APIView):
 
             if staff_member:
                 # ── Fire-and-forget via Celery — web worker returns immediately
-                send_ticket_email(
+                send_ticket_email.delay(
                     ticket_id=ticket.id,
                     staff_email=staff_member.email,
                     conversation_text=conversation_text,

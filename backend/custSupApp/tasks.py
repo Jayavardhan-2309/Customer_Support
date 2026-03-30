@@ -10,7 +10,19 @@ logger = get_task_logger(__name__)
 
 
 # Plain function — called directly from the view (no Celery)
-def send_ticket_email(ticket_id, staff_email, conversation_text, query):
+import logging
+from celery import shared_task
+from celery.utils.log import get_task_logger
+from django.core.mail import EmailMultiAlternatives
+from django.template.loader import render_to_string
+from django.conf import settings
+from custSupApp.models import SupportTicket
+
+logger = get_task_logger(__name__)
+
+
+@shared_task(bind=True, max_retries=3, default_retry_delay=60)
+def send_ticket_email(self, ticket_id, staff_email, conversation_text, query):
     try:
         ticket = SupportTicket.objects.get(id=ticket_id)
 
@@ -38,17 +50,15 @@ def send_ticket_email(ticket_id, staff_email, conversation_text, query):
         logger.info(f"[send_ticket_email] Email sent for ticket #{ticket_id} to {staff_email}")
 
     except SupportTicket.DoesNotExist:
-        logger.warning(f"[send_ticket_email] Ticket #{ticket_id} not found, skipping email.")
+        logger.warning(f"[send_ticket_email] Ticket #{ticket_id} not found, skipping.")
 
     except Exception as exc:
-        # No self/retry available — just log the full traceback
         logger.error(
-            f"[send_ticket_email] Email failed for ticket #{ticket_id}: {exc}",
+            f"[send_ticket_email] Attempt {self.request.retries + 1}/"
+            f"{self.max_retries + 1} failed for ticket #{ticket_id}: {exc}",
             exc_info=True,
         )
-        # Re-raise so the view gets a 500 rather than silently swallowing it
-        raise
-
+        raise self.retry(exc=exc)
 
 @shared_task(bind=True, max_retries=3, default_retry_delay=10)
 def reindex_org(self, org_id):
