@@ -15,7 +15,7 @@ import os
 import requests
 
 GEMINI_EMBED_URL = (
-    "https://generativelanguage.googleapis.com/v1beta/models/"
+    "https://generativelanguage.googleapis.com/v1/models/"
     "text-embedding-004:embedContent"
 )
 
