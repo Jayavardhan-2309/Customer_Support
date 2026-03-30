@@ -9,7 +9,7 @@ from custSupApp.models import SupportTicket
 logger = get_task_logger(__name__)
 
 
-#@shared_task(bind=True, max_retries=3, default_retry_delay=10)
+# Plain function — called directly from the view (no Celery)
 def send_ticket_email(ticket_id, staff_email, conversation_text, query):
     try:
         ticket = SupportTicket.objects.get(id=ticket_id)
@@ -38,24 +38,23 @@ def send_ticket_email(ticket_id, staff_email, conversation_text, query):
         logger.info(f"[send_ticket_email] Email sent for ticket #{ticket_id} to {staff_email}")
 
     except SupportTicket.DoesNotExist:
-        # Ticket was deleted before the task ran — don't retry
         logger.warning(f"[send_ticket_email] Ticket #{ticket_id} not found, skipping email.")
 
     except Exception as exc:
+        # No self/retry available — just log the full traceback
         logger.error(
-            f"[send_ticket_email] Email failed for ticket #{ticket_id} "
-            f"(attempt {self.request.retries + 1}/{self.max_retries + 1}): {exc}",
-            exc_info=True,  # includes full traceback in logs
+            f"[send_ticket_email] Email failed for ticket #{ticket_id}: {exc}",
+            exc_info=True,
         )
-        raise self.retry(exc=exc)
+        # Re-raise so the view gets a 500 rather than silently swallowing it
+        raise
 
 
 @shared_task(bind=True, max_retries=3, default_retry_delay=10)
 def reindex_org(self, org_id):
-    from custSupApp.models import Organisation  # adjust to your actual model
+    from custSupApp.models import Organisation
     from custSupApp.index_knowledge import run_indexing
 
-    # Validate before doing any work — no point retrying a bad org_id
     if not Organisation.objects.filter(id=org_id).exists():
         logger.error(f"[reindex_org] Org #{org_id} does not exist, aborting.")
         return
