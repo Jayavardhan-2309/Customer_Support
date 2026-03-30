@@ -10,11 +10,12 @@ import os
 logger = get_task_logger(__name__)
 
 
-import resend
 
-resend.api_key = os.environ["RESEND_API_KEY"]
 
+@shared_task(bind=True, max_retries=3, default_retry_delay=60)
 def send_ticket_email(self, ticket_id, staff_email, conversation_text, query):
+    import resend
+    resend.api_key = os.environ["RESEND_API_KEY"]
     try:
         ticket = SupportTicket.objects.get(id=ticket_id)
         html_content = render_to_string(
