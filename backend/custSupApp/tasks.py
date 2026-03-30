@@ -6,6 +6,7 @@ from django.core.mail import EmailMultiAlternatives
 from django.template.loader import render_to_string
 from django.conf import settings
 from custSupApp.models import SupportTicket
+import os
 
 logger = get_task_logger(__name__)
 
