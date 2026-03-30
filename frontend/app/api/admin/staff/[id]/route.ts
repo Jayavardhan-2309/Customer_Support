@@ -9,7 +9,7 @@ export async function DELETE(
     const cookies = req.headers.get("cookie") ?? "";
     const { id } = await params;
 
-    const djangoRes = await fetch(`${baseUrl}/api/v1/staff/${id}/`, {
+    const djangoRes = await fetch(`${baseUrl}/api/v1/admin/staff/${id}/`, {
         method: "DELETE",
         headers: { "Cookie": cookies },
     });
@@ -35,7 +35,7 @@ export async function PATCH(
     const { id } = await params;
 
     const djangoRes = await fetch(
-        `${baseUrl}/api/v1/staff/${id}/toggle/`,
+        `${baseUrl}/api/v1/admin/staff/${id}/toggle/`,
         {
             method: "PATCH",
             headers: { "Cookie": cookies },

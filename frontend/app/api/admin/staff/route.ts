@@ -6,7 +6,7 @@ const baseUrl = process.env.DJANGO_BASE_URL;
 export async function GET(req: NextRequest) {
     const cookies = req.headers.get("cookie") ?? "";
 
-    const djangoRes = await fetch(`${baseUrl}/api/v1/staff/`, {
+    const djangoRes = await fetch(`${baseUrl}/api/v1/admin/staff/`, {
         method: "GET",
         headers: { "Cookie": cookies },
         credentials: "include",
@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
     const cookies = req.headers.get("cookie") ?? "";
     const body = await req.json();
 
-    const djangoRes = await fetch(`${baseUrl}/api/v1/staff/`, {
+    const djangoRes = await fetch(`${baseUrl}/api/v1/admin/staff/`, {
         method: "POST",
         headers: {
             "Cookie": cookies,
