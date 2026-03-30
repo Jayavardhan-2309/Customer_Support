@@ -16,18 +16,22 @@ logger = get_task_logger(__name__)
 def send_ticket_email(self, ticket_id, staff_email, conversation_text, query):
     import resend
     resend.api_key = os.environ["RESEND_API_KEY"]
+
     try:
         ticket = SupportTicket.objects.get(id=ticket_id)
+
         html_content = render_to_string(
             "emails/support_ticket.html",
             {"ticket": ticket, "conversation_text": conversation_text, "query": query},
         )
+
         resend.Emails.send({
-            "from": "onboarding@resend.dev",  # swap for your domain later
-            "to": [staff_email],
+            "from": "onboarding@resend.dev",
+            "to": [os.environ["SUPPORT_STAFF_EMAIL"]],  # always your own email on free tier
             "subject": f"[Ticket #{ticket.id}] New Support Ticket",
             "html": html_content,
         })
+
         logger.info(f"[send_ticket_email] Email sent for ticket #{ticket_id}")
 
     except SupportTicket.DoesNotExist:
@@ -36,7 +40,6 @@ def send_ticket_email(self, ticket_id, staff_email, conversation_text, query):
     except Exception as exc:
         logger.error(f"[send_ticket_email] Failed for ticket #{ticket_id}: {exc}", exc_info=True)
         raise self.retry(exc=exc)
-
 
 @shared_task(bind=True, max_retries=3, default_retry_delay=10)
 def reindex_org(self, org_id):
