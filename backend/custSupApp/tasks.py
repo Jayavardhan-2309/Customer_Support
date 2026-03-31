@@ -1,7 +1,8 @@
 import logging
+import os
+import requests
 from celery import shared_task
 from celery.utils.log import get_task_logger
-from django.core.mail import EmailMultiAlternatives
 from django.template.loader import render_to_string
 from django.conf import settings
 from custSupApp.models import SupportTicket
@@ -19,14 +20,23 @@ def send_ticket_email(self, ticket_id, staff_email, conversation_text, query):
             {"ticket": ticket, "conversation_text": conversation_text, "query": query},
         )
 
-        email = EmailMultiAlternatives(
-            subject=f"[Ticket #{ticket.id}] New Support Ticket",
-            body="New support ticket created.",
-            from_email=settings.DEFAULT_FROM_EMAIL,
-            to=[staff_email],  # ← actual staff email restored
+        response = requests.post(
+            "https://api.brevo.com/v3/smtp/email",
+            headers={
+                "api-key": os.environ["BREVO_API_KEY"],
+                "Content-Type": "application/json",
+            },
+            json={
+                "sender": {"name": "Support System", "email": os.environ["BREVO_SMTP_USER"]},
+                "to": [{"email": staff_email}],
+                "subject": f"[Ticket #{ticket.id}] New Support Ticket",
+                "htmlContent": html_content,
+            },
+            timeout=15,
         )
-        email.attach_alternative(html_content, "text/html")
-        email.send()
+
+        if response.status_code not in (200, 201):
+            raise Exception(f"Brevo API error {response.status_code}: {response.text}")
 
         logger.info(f"[send_ticket_email] Email sent for ticket #{ticket_id} to {staff_email}")
 

@@ -135,15 +135,9 @@ SESSION_COOKIE_SECURE = not DEBUG
 CSRF_COOKIE_SECURE = not DEBUG
 
 # ── Email (Brevo — free tier, sends to any recipient, works on Render)
-EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-EMAIL_HOST = 'smtp-relay.brevo.com'
-EMAIL_PORT = 587
-EMAIL_USE_TLS = True
-EMAIL_USE_SSL = False
-EMAIL_HOST_USER = os.getenv('BREVO_SMTP_USER')
-EMAIL_HOST_PASSWORD = os.getenv('BREVO_SMTP_PASSWORD')
-DEFAULT_FROM_EMAIL = os.getenv('BREVO_SMTP_USER')
-EMAIL_TIMEOUT = 10
+# ── Email (Brevo HTTP API — no SMTP, works on Render)
+BREVO_API_KEY = os.getenv("BREVO_API_KEY")
+BREVO_SENDER_EMAIL = os.getenv("BREVO_SMTP_USER")
 
 # ── Supabase Storage (for persistent PDF uploads)
 SUPABASE_URL = os.getenv("SUPABASE_URL")
