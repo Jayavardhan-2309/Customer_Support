@@ -10,9 +10,9 @@ If you were previously using all-MiniLM-L6-v2 (384-dim), run this in Supabase:
     ALTER TABLE kb_chunks ALTER COLUMN embedding TYPE vector(768) USING NULL;
     Then re-trigger indexing for each org.
 """
-
 import os
 from google import genai
+from google.genai import types
 
 def embed_text(text: str) -> list[float]:
     api_key = os.environ.get("CUSTOMER_API")
@@ -24,6 +24,7 @@ def embed_text(text: str) -> list[float]:
     result = client.models.embed_content(
         model="gemini-embedding-001",
         contents=text,
+        config=types.EmbedContentConfig(output_dimensionality=768)
     )
 
     return result.embeddings[0].values
