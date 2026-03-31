@@ -54,3 +54,6 @@ python-dateutil==2.9.0.post0
 PyYAML==6.0.3
 packaging==26.0
 typing_extensions==4.15.0
+
+# embeddings
+google-genai==1.10.0
