@@ -27,7 +27,7 @@ def send_ticket_email(self, ticket_id, staff_email, conversation_text, query):
                 "Content-Type": "application/json",
             },
             json={
-                "sender": {"name": "Support System", "email": os.environ["BREVO_SMTP_USER"]},
+                "sender": {"name": "Support System", "email": os.environ["BREVO_SENDER_EMAIL"]},
                 "to": [{"email": staff_email}],
                 "subject": f"[Ticket #{ticket.id}] New Support Ticket",
                 "htmlContent": html_content,
