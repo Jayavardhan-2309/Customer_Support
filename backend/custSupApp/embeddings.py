@@ -12,37 +12,18 @@ If you were previously using all-MiniLM-L6-v2 (384-dim), run this in Supabase:
 """
 
 import os
-import requests
-
-GEMINI_EMBED_URL = (
-    "https://generativelanguage.googleapis.com/v1/models/"
-    "text-embedding-004:embedContent"
-)
-
+from google import genai
 
 def embed_text(text: str) -> list[float]:
-    """
-    Returns a 768-dimensional embedding vector using Gemini text-embedding-004.
-    Raises on API error so the caller (index_knowledge, ai.py) can handle it.
-    """
     api_key = os.environ.get("CUSTOMER_API")
     if not api_key:
         raise RuntimeError("CUSTOMER_API environment variable is not set")
 
-    response = requests.post(
-        GEMINI_EMBED_URL,
-        headers={"Content-Type": "application/json"},
-        params={"key": api_key},
-        json={
-            "model": "models/text-embedding-004",
-            "content": {"text": text},  # ✅ FIXED
-        },
-        timeout=10,
+    client = genai.Client(api_key=api_key)
+
+    result = client.models.embed_content(
+        model="gemini-embedding-001",
+        contents=text,
     )
 
-    if response.status_code != 200:
-        raise RuntimeError(
-            f"Gemini embedding API error {response.status_code}: {response.text}"
-        )
-
-    return response.json()["embedding"]["values"]
+    return result.embeddings[0].values
