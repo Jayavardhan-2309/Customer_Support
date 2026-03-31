@@ -35,7 +35,7 @@ def embed_text(text: str) -> list[float]:
         params={"key": api_key},
         json={
             "model": "models/text-embedding-004",
-            "content": {"parts": [{"text": text}]},
+            "content": {"text": text},  # ✅ FIXED
         },
         timeout=10,
     )
