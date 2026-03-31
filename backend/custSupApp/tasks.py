@@ -5,18 +5,12 @@ from django.core.mail import EmailMultiAlternatives
 from django.template.loader import render_to_string
 from django.conf import settings
 from custSupApp.models import SupportTicket
-import os
 
 logger = get_task_logger(__name__)
 
 
-
-
 @shared_task(bind=True, max_retries=3, default_retry_delay=60)
 def send_ticket_email(self, ticket_id, staff_email, conversation_text, query):
-    import resend
-    resend.api_key = os.environ["RESEND_API_KEY"]
-
     try:
         ticket = SupportTicket.objects.get(id=ticket_id)
 
@@ -25,28 +19,33 @@ def send_ticket_email(self, ticket_id, staff_email, conversation_text, query):
             {"ticket": ticket, "conversation_text": conversation_text, "query": query},
         )
 
-        resend.Emails.send({
-            "from": "onboarding@resend.dev",
-            "to": [os.environ["SUPPORT_STAFF_EMAIL"]],  # always your own email on free tier
-            "subject": f"[Ticket #{ticket.id}] New Support Ticket",
-            "html": html_content,
-        })
+        email = EmailMultiAlternatives(
+            subject=f"[Ticket #{ticket.id}] New Support Ticket",
+            body="New support ticket created.",
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            to=[staff_email],  # ← actual staff email restored
+        )
+        email.attach_alternative(html_content, "text/html")
+        email.send()
 
-        logger.info(f"[send_ticket_email] Email sent for ticket #{ticket_id}")
+        logger.info(f"[send_ticket_email] Email sent for ticket #{ticket_id} to {staff_email}")
 
     except SupportTicket.DoesNotExist:
         logger.warning(f"[send_ticket_email] Ticket #{ticket_id} not found, skipping.")
 
     except Exception as exc:
-        logger.error(f"[send_ticket_email] Failed for ticket #{ticket_id}: {exc}", exc_info=True)
+        logger.error(
+            f"[send_ticket_email] Failed for ticket #{ticket_id} "
+            f"(attempt {self.request.retries + 1}/{self.max_retries + 1}): {exc}",
+            exc_info=True,
+        )
         raise self.retry(exc=exc)
 
 @shared_task(bind=True, max_retries=3, default_retry_delay=10)
 def reindex_org(self, org_id):
-    from custSupApp.models import Organization  # adjust to your actual model
+    from custSupApp.models import Organization
     from custSupApp.index_knowledge import run_indexing
 
-    # Validate before doing any work — no point retrying a bad org_id
     if not Organization.objects.filter(id=org_id).exists():
         logger.error(f"[reindex_org] Org #{org_id} does not exist, aborting.")
         return
@@ -62,3 +61,4 @@ def reindex_org(self, org_id):
             exc_info=True,
         )
         raise self.retry(exc=exc)
+    
