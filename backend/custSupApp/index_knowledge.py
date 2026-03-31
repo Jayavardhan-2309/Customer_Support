@@ -14,8 +14,7 @@ import pdfplumber
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-# ── Use local fastembed — no API key needed
-from custSupApp.embeddings import embed_text          # ← changed
+from custSupApp.embeddings import embed_texts_batch
 
 
 def run_indexing(org_id):
@@ -34,13 +33,13 @@ def run_indexing(org_id):
 
     for pdf in pdfs:
         try:
-            print(f"[INDEX] Trying to open: {pdf.file.path} — exists: {os.path.exists(pdf.file.path)}")
+            print(f"[INDEX] Opening: {pdf.file.path} — exists: {os.path.exists(pdf.file.path)}")
             with pdfplumber.open(pdf.file.path) as pdf_doc:
                 text = "\n".join(page.extract_text() or "" for page in pdf_doc.pages)
                 if text.strip():
                     all_texts.append(text)
         except Exception as e:
-            print(f"[INDEX] Failed {pdf.title}: {e}")
+            print(f"[INDEX] Failed to read {pdf.title}: {e}")
 
     if not all_texts:
         print(f"[INDEX] No content found for org {org_id}, skipping.")
@@ -48,32 +47,30 @@ def run_indexing(org_id):
 
     splitter = CharacterTextSplitter(chunk_size=300, chunk_overlap=50)
     docs = []
-
     for text in all_texts:
         docs.extend(splitter.split_text(text))
 
+    print(f"[INDEX] Embedding {len(docs)} chunks in one batch call...")
+
+    try:
+        vectors = embed_texts_batch(docs)
+    except Exception as e:
+        print(f"[EMBED ERROR BATCH] {e}")
+        return
+
+    pairs = list(zip(docs, vectors))
+
     with connection.cursor() as cursor:
-
-        # Delete old org data
         cursor.execute("DELETE FROM kb_chunks WHERE org_id = %s", [org_id])
-        pairs = []
-
-        for doc in docs:
-            try:
-                vec = embed_text(doc)
-                pairs.append((doc, vec))
-            except Exception as e:
-                print(f"[EMBED ERROR] {e}")
 
         for text, vector in pairs:
             vector_str = "[" + ",".join(map(str, vector)) + "]"
-
             cursor.execute(
                 """
                 INSERT INTO kb_chunks (content, embedding, org_id)
                 VALUES (%s, %s::vector, %s)
                 """,
-                [text, vector_str, org_id]
+                [text, vector_str, org_id],
             )
 
     print(f"[INDEX] Org {org_id} indexed ({len(docs)} chunks)")

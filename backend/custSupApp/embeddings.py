@@ -14,17 +14,31 @@ import os
 from google import genai
 from google.genai import types
 
-def embed_text(text: str) -> list[float]:
+
+def get_client():
     api_key = os.environ.get("CUSTOMER_API")
     if not api_key:
         raise RuntimeError("CUSTOMER_API environment variable is not set")
+    return genai.Client(api_key=api_key, http_options={"timeout": 30000})
 
-    client = genai.Client(api_key=api_key)
 
+def embed_text(text: str) -> list[float]:
+    """Single embedding — used for query embedding at search time."""
+    client = get_client()
     result = client.models.embed_content(
         model="gemini-embedding-001",
         contents=text,
-        config=types.EmbedContentConfig(output_dimensionality=768)
+        config=types.EmbedContentConfig(output_dimensionality=768),
     )
-
     return result.embeddings[0].values
+
+
+def embed_texts_batch(texts: list[str]) -> list[list[float]]:
+    """Batch embedding — used during indexing to embed all chunks in one API call."""
+    client = get_client()
+    result = client.models.embed_content(
+        model="gemini-embedding-001",
+        contents=texts,
+        config=types.EmbedContentConfig(output_dimensionality=768),
+    )
+    return [e.values for e in result.embeddings]
