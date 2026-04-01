@@ -4,6 +4,9 @@ const baseUrl = process.env.DJANGO_BASE_URL;
 
 export async function POST(req: NextRequest) {
   console.log("BASE URL:", baseUrl);
+  if (!baseUrl) {
+  return NextResponse.json({ error: "DJANGO_BASE_URL not set" }, { status: 500 });
+}
   const body = await req.json();
 
 
