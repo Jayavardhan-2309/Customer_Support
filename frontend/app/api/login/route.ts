@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 const baseUrl = process.env.DJANGO_BASE_URL;
 
 export async function POST(req: NextRequest) {
+  console.log("BASE URL:", baseUrl);
   const body = await req.json();
 
 
