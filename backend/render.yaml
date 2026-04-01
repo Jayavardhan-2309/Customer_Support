@@ -1,0 +1,48 @@
+services:
+  # ── Web service (gunicorn)
+  - type: web
+    name: custsupport-backend
+    runtime: python
+    buildCommand: |
+      pip install -r requirements.txt
+      python manage.py collectstatic --noinput
+      python manage.py migrate --noinput
+    startCommand: gunicorn custSupport.wsgi:application --bind 0.0.0.0:$PORT --workers 2 --timeout 120
+    envVars:
+      - key: DJANGO_SETTINGS_MODULE
+        value: custSupport.settings
+      - key: DEBUG
+        value: "False"
+      - key: REDIS_URL
+        fromService:
+          name: custsupport-redis
+          type: redis
+          property: connectionString
+
+  # ── Celery worker service (background tasks)
+  - type: worker
+    name: custsupport-celery
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: celery -A custSupport worker --loglevel=info --concurrency=2
+    envVars:
+      - key: DJANGO_SETTINGS_MODULE
+        value: custSupport.settings
+      - key: DEBUG
+        value: "False"
+      - key: REDIS_URL
+        fromService:
+          name: custsupport-redis
+          type: redis
+          property: connectionString
+
+  # ── Redis instance
+  - type: redis
+    name: custsupport-redis
+    plan: free
+    maxmemoryPolicy: allkeys-lru
+
+# Set these in Render dashboard for BOTH web + celery services:
+#   SECRET_KEY, DATABASE_URL, GROQ_API_KEY, OPENROUTER_API_KEY,
+#   EMAIL_HOST_USER, EMAIL_HOST_PASSWORD,
+#   CORS_ALLOWED_ORIGINS, ALLOWED_HOSTS
