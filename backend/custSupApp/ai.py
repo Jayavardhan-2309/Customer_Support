@@ -39,15 +39,16 @@ GROQ_MODELS = [
 # ---------------- VECTOR SEARCH ---------------- #
 
 def search_similar_chunks(query, org_id, k=2):
+    print(f"[SEARCH] org_id={org_id}, query={query[:50]}")
     try:
         query_vector = embed_text(query)
+        print(f"[SEARCH] embedded query, vector dim={len(query_vector)}")
     except Exception as e:
         print("[EMBED ERROR QUERY]", e)
         return []
 
     with connection.cursor() as cursor:
         query_vector_str = "[" + ",".join(map(str, query_vector)) + "]"
-
         cursor.execute(
             """
             SELECT content
@@ -58,9 +59,11 @@ def search_similar_chunks(query, org_id, k=2):
             """,
             [org_id, query_vector_str, k]
         )
-
-        return [row[0] for row in cursor.fetchall()]
-
+        rows = cursor.fetchall()
+        print(f"[SEARCH] found {len(rows)} chunks")
+        for row in rows:
+            print(f"[SEARCH] chunk: {row[0][:80]}")
+        return [row[0] for row in rows]
 
 # ---------------- PROMPT ---------------- #
 
