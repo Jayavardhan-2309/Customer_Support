@@ -585,7 +585,7 @@ class AdminAnalyticsView(APIView):
 
     def get(self, request):
         data = get_admin_analytics(request.user.organization)
-        return Response({"staff_performance": data})
+        return Response(data)
 
 
 class AdminStaffDetailView(APIView):
