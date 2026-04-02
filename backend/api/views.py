@@ -3,6 +3,8 @@ from django.contrib.auth import authenticate
 from django.utils import timezone
 from django.conf import settings
 from django.shortcuts import get_object_or_404
+from supabase import create_client
+import os
 
 # drf
 from rest_framework.viewsets import ModelViewSet, GenericViewSet
@@ -262,7 +264,7 @@ class PDFViewSet(ListModelMixin, DestroyModelMixin, GenericViewSet):
         data = []
         for pdf in pdfs:
             try:
-                size_kb = round(pdf.file.size / 1024, 1) if pdf.file else 0
+                size_kb = 0  # file is now remote (Supabase)
             except Exception:
                 size_kb = 0  # file deleted from Render's ephemeral disk
             data.append({
@@ -285,9 +287,28 @@ class PDFViewSet(ListModelMixin, DestroyModelMixin, GenericViewSet):
         if file.size > 10 * 1024 * 1024:
             return Response({"detail": "File too large. Max size is 10MB"}, status=400)
 
+        supabase = create_client(
+            os.environ["SUPABASE_URL"],
+            os.environ["SUPABASE_SERVICE_KEY"]
+        )
+
+        file_bytes = file.read()
+        file_name = f"{request.user.id}_{file.name}"
+
+        # Upload to Supabase Storage
+        supabase.storage.from_("pdfs").upload(
+            file_name,
+            file_bytes,
+            {"upsert": True}
+        )
+
+        # Public URL
+        file_url = f"{os.environ['SUPABASE_URL']}/storage/v1/object/public/pdfs/{file_name}"
+
+        # Save ONLY URL
         pdf = UploadedPDF.objects.create(
             title=file.name,
-            file=file,
+            file_url=file_url,
             uploaded_by=request.user,
             organization=request.user.organization
         )
@@ -312,16 +333,22 @@ class PDFViewSet(ListModelMixin, DestroyModelMixin, GenericViewSet):
         except UploadedPDF.DoesNotExist:
             return Response({"detail": "PDF not found"}, status=404)
 
-        if pdf.file and os.path.exists(pdf.file.path):
-            os.remove(pdf.file.path)
+        supabase = create_client(
+            os.environ["SUPABASE_URL"],
+            os.environ["SUPABASE_SERVICE_KEY"]
+        )
+
+        try:
+            file_name = pdf.file_url.split("/")[-1]
+            supabase.storage.from_("pdfs").remove([file_name])
+        except Exception as e:
+            print(f"[DELETE ERROR] {e}")
 
         pdf.delete()
 
-        # ── Queue reindex as a Celery task
         safe_reindex(request.user.organization_id)
 
-        return Response({"message": "PDF deleted. Knowledge base is being re-indexed."})
-
+        return Response({"message": "PDF deleted and storage cleaned"})
 
 class StaffViewSet(ListModelMixin, CreateModelMixin, DestroyModelMixin, GenericViewSet):
     authentication_classes = [CookieJWTAuthentication]

@@ -124,7 +124,9 @@ class UploadedPDF(models.Model):
 
     title = models.CharField(max_length=200)
 
-    file = models.FileField(upload_to="pdfs/")
+    file = models.FileField(upload_to="pdfs/", null=True, blank=True)  # keep optional
+
+    file_url = models.TextField(null=True, blank=True)
 
     organization = models.ForeignKey(
         Organization,

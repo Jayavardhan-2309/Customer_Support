@@ -38,12 +38,31 @@ def run_indexing(org_id):
         try:
             logger.info(f"[INDEX] Processing PDF: {pdf.title}")
 
-            with pdfplumber.open(pdf.file.path) as pdf_doc:
+            import requests
+            from io import BytesIO
+
+            try:
+                response = requests.get(pdf.file_url, timeout=15)
+                response.raise_for_status()
+            except Exception as e:
+                logger.error(f"[FETCH ERROR] {pdf.file_url} | {e}")
+                continue
+
+            if response.status_code != 200:
+                logger.error(f"[INDEX ERROR] Failed to fetch PDF: {pdf.file_url}")
+                continue
+
+            pdf_stream = BytesIO(response.content)
+
+            with pdfplumber.open(pdf_stream) as pdf_doc:
 
                 batch_size_pages = 2
                 current_batch = []
 
                 for i, page in enumerate(pdf_doc.pages):
+                    if i > 150:  # limit pages
+                        logger.warning(f"[INDEX LIMIT] Skipping remaining pages for {pdf.title}")
+                        break
                     page_text = page.extract_text() or ""
 
                     if page_text.strip():
@@ -74,10 +93,11 @@ def process_text_batch(text_batch, org_id):
 
     batch_size = 10  # smaller
 
+    import math
     for i in range(0, len(docs), batch_size):
         embed_and_store.delay(
             docs[i:i+batch_size],
             org_id,
             i // batch_size,
-            len(docs) // batch_size + 1
+            total_batches = math.ceil(len(docs) / batch_size)
         )
