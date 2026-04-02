@@ -47,7 +47,23 @@ def run_indexing(org_id):
             logger.info(f"[INDEX] Reading PDF: {pdf.title}")
 
             with pdfplumber.open(pdf.file.path) as pdf_doc:
-                text = "\n".join(page.extract_text() or "" for page in pdf_doc.pages)
+                batch_size_pages = 5
+                current_batch = []
+
+                for i, page in enumerate(pdf_doc.pages):
+                    page_text = page.extract_text() or ""
+
+                    if page_text.strip():
+                        current_batch.append(page_text)
+
+                    # Every 5 pages → process immediately
+                    if len(current_batch) >= batch_size_pages:
+                        process_text_batch(current_batch, org_id)
+                        current_batch = []
+
+                # Remaining pages
+                if current_batch:
+                    process_text_batch(current_batch, org_id)
 
                 if text.strip():
                     all_texts.append(text)
@@ -91,3 +107,21 @@ def run_indexing(org_id):
 
     end_time = time.time()
     logger.info(f"[INDEX COMPLETE] org_id={org_id} | time={end_time - start_time:.2f}s")
+
+def process_text_batch(text_batch, org_id):
+    from custSupApp.tasks import embed_and_store
+    splitter = CharacterTextSplitter(chunk_size=300, chunk_overlap=50)
+
+    docs = []
+    for text in text_batch:
+        docs.extend(splitter.split_text(text))
+
+    batch_size = 20
+
+    for i in range(0, len(docs), batch_size):
+        embed_and_store.delay(
+            docs[i:i+batch_size],
+            org_id,
+            0,
+            0
+        )
