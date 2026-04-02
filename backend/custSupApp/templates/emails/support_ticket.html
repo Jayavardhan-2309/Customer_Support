@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+<body style="font-family: Arial, sans-serif; background:#f6f6f6; padding:20px;">
+    <table width="100%" style="max-width:600px;margin:auto;background:white;border-radius:8px;padding:20px">
+
+    <tr>
+        <td>
+
+        <h2 style="color:#333;">New Support Ticket</h2>
+
+        <p>A new support request has been escalated.</p>
+
+        <hr>
+
+        <h3>Ticket Details</h3>
+
+        <table style="width:100%; border-collapse:collapse">
+
+        <tr>
+            <td><b>Ticket ID</b></td>
+            <td>{{ ticket.id }}</td>
+        </tr>
+
+        <tr>
+            <td><b>Customer</b></td>
+            <td>{{ ticket.user.username }}</td>
+        </tr>
+
+        <tr>
+            <td><b>Email</b></td>
+            <td>{{ ticket.user.email }}</td>
+        </tr>
+
+        <tr>
+            <td><b>Category</b></td>
+            <td>{{ ticket.category }}</td>
+        </tr>
+
+        <tr>
+            <td><b>Priority</b></td>
+            <td>{{ ticket.priority }}</td>
+        </tr>
+
+        </table>
+
+        <hr>
+
+        <h3>Description</h3>
+
+        <p>{{ ticket.description }}</p>
+
+        <hr>
+
+        <h3>Recent Conversation</h3>
+
+        <pre style="background:#f4f4f4;padding:10px;border-radius:5px">
+        {{ conversation_text }}
+        </pre>
+
+        <hr>
+
+        <h3>Latest Query</h3>
+
+        <p>{{ query }}</p>
+
+        </td>
+    </tr>
+
+</table>
+
+</body>
+</html>
