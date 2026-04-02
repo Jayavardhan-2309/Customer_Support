@@ -299,7 +299,7 @@ class PDFViewSet(ListModelMixin, DestroyModelMixin, GenericViewSet):
         supabase.storage.from_("pdfs").upload(
             file_name,
             file_bytes,
-            {"upsert": True}
+            {"upsert": "true"}
         )
 
         # Public URL
