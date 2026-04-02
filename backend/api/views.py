@@ -293,7 +293,7 @@ class PDFViewSet(ListModelMixin, DestroyModelMixin, GenericViewSet):
         )
 
         # ── Queue reindex as a Celery task — returns immediately to the user
-        safe_reindex.delay(request.user.organization_id)
+        safe_reindex(request.user.organization_id)
 
         return Response({
             "id": pdf.id,
@@ -318,7 +318,7 @@ class PDFViewSet(ListModelMixin, DestroyModelMixin, GenericViewSet):
         pdf.delete()
 
         # ── Queue reindex as a Celery task
-        safe_reindex.delay(request.user.organization_id)
+        safe_reindex(request.user.organization_id)
 
         return Response({"message": "PDF deleted. Knowledge base is being re-indexed."})
 
