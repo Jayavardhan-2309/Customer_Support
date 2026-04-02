@@ -70,11 +70,23 @@ def reindex_org(self, org_id):
     key = f"reindex_lock_{org_id}"
 
     try:
-        ...
+        if not Organization.objects.filter(id=org_id).exists():
+            logger.error(f"[reindex_org] Org #{org_id} does not exist")
+            return
+
+        logger.info(f"[REINDEX START] org={org_id}")
+
         run_indexing(org_id)
 
+        logger.info(f"[REINDEX COMPLETE] org={org_id}")
+
+    except Exception as exc:
+        logger.error(f"[REINDEX ERROR] org={org_id} error={exc}", exc_info=True)
+        raise self.retry(exc=exc)
+
     finally:
-        cache.delete(key)  # 🔥 VERY IMPORTANT
+        cache.delete(key)
+        logger.info(f"[REINDEX LOCK RELEASED] org={org_id}")
 
 @shared_task(bind=True, max_retries=2, default_retry_delay=5)
 def embed_and_store(self, chunks, org_id, batch_number, total_batches):
