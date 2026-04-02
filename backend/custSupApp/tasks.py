@@ -72,3 +72,46 @@ def reindex_org(self, org_id):
         )
         raise self.retry(exc=exc)
     
+@shared_task(bind=True, max_retries=2, default_retry_delay=5)
+def embed_and_store(self, chunks, org_id, batch_number, total_batches):
+    import time
+    from custSupApp.embeddings import embed_texts_batch
+    from django.db import connection
+
+    start_time = time.time()
+
+    logger.info(
+        f"[EMBED START] org={org_id} batch={batch_number}/{total_batches} size={len(chunks)}"
+    )
+
+    try:
+        vectors = embed_texts_batch(chunks)
+
+        logger.info(f"[EMBED] Received embeddings for batch {batch_number}")
+
+        with connection.cursor() as cursor:
+            for text, vector in zip(chunks, vectors):
+                vector_str = "[" + ",".join(map(str, vector)) + "]"
+
+                cursor.execute(
+                    """
+                    INSERT INTO kb_chunks (content, embedding, org_id)
+                    VALUES (%s, %s::vector, %s)
+                    """,
+                    [text, vector_str, org_id],
+                )
+
+        end_time = time.time()
+
+        logger.info(
+            f"[EMBED SUCCESS] org={org_id} batch={batch_number} "
+            f"time={end_time - start_time:.2f}s"
+        )
+
+    except Exception as exc:
+        logger.error(
+            f"[EMBED ERROR] org={org_id} batch={batch_number} error={exc}",
+            exc_info=True,
+        )
+        raise self.retry(exc=exc)
+
