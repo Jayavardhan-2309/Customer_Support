@@ -33,7 +33,7 @@ from custSupApp.services.analytics.admin_analytics import get_admin_analytics
 from custSupApp.services.analytics.staff_detail_service import get_staff_detail
 
 # ── Celery tasks (replaces threading.Thread)
-from custSupApp.tasks import reindex_org, send_ticket_email
+from custSupApp.tasks import send_ticket_email, safe_reindex
 
 # general
 import os
@@ -293,7 +293,7 @@ class PDFViewSet(ListModelMixin, DestroyModelMixin, GenericViewSet):
         )
 
         # ── Queue reindex as a Celery task — returns immediately to the user
-        reindex_org.delay(request.user.organization_id)
+        safe_reindex.delay(request.user.organization_id)
 
         return Response({
             "id": pdf.id,
@@ -318,7 +318,7 @@ class PDFViewSet(ListModelMixin, DestroyModelMixin, GenericViewSet):
         pdf.delete()
 
         # ── Queue reindex as a Celery task
-        reindex_org.delay(request.user.organization_id)
+        safe_reindex.delay(request.user.organization_id)
 
         return Response({"message": "PDF deleted. Knowledge base is being re-indexed."})
 

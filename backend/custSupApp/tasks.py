@@ -6,6 +6,20 @@ from celery.utils.log import get_task_logger
 from django.template.loader import render_to_string
 from django.conf import settings
 from custSupApp.models import SupportTicket
+from custSupApp.models import Organization
+from custSupApp.index_knowledge import run_indexing
+
+from django.core.cache import cache
+
+def safe_reindex(org_id):
+    key = f"reindex_lock_{org_id}"
+
+    if cache.get(key):
+        logger.warning("Reindex already running")
+        return
+
+    cache.set(key, True, timeout=600)
+    reindex_org.delay(org_id)
 
 logger = get_task_logger(__name__)
 
@@ -53,25 +67,15 @@ def send_ticket_email(self, ticket_id, staff_email, conversation_text, query):
 
 @shared_task(bind=True, max_retries=3, default_retry_delay=10)
 def reindex_org(self, org_id):
-    from custSupApp.models import Organization
-    from custSupApp.index_knowledge import run_indexing
-
-    if not Organization.objects.filter(id=org_id).exists():
-        logger.error(f"[reindex_org] Org #{org_id} does not exist, aborting.")
-        return
+    key = f"reindex_lock_{org_id}"
 
     try:
+        ...
         run_indexing(org_id)
-        logger.info(f"[reindex_org] Reindex complete for org #{org_id}")
 
-    except Exception as exc:
-        logger.error(
-            f"[reindex_org] Reindex failed for org #{org_id} "
-            f"(attempt {self.request.retries + 1}/{self.max_retries + 1}): {exc}",
-            exc_info=True,
-        )
-        raise self.retry(exc=exc)
-    
+    finally:
+        cache.delete(key)  # 🔥 VERY IMPORTANT
+
 @shared_task(bind=True, max_retries=2, default_retry_delay=5)
 def embed_and_store(self, chunks, org_id, batch_number, total_batches):
     import time
