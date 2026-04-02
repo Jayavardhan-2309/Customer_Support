@@ -15,7 +15,8 @@ def safe_reindex(org_id):
     key = f"reindex_lock_{org_id}"
 
     if cache.get(key):
-        logger.warning("Reindex already running")
+        logger.warning("Reindex already running → retrying in 5s")
+        reindex_org.apply_async((org_id,), countdown=5)
         return
 
     cache.set(key, True, timeout=600)
