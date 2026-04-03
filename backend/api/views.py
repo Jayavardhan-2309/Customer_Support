@@ -35,7 +35,7 @@ from custSupApp.services.analytics.admin_analytics import get_admin_analytics
 from custSupApp.services.analytics.staff_detail_service import get_staff_detail
 
 # ── Celery tasks (replaces threading.Thread)
-from custSupApp.tasks import send_ticket_email, safe_reindex
+from custSupApp.tasks import send_ticket_email, index_pdf
 
 # general
 import os
@@ -309,11 +309,12 @@ class PDFViewSet(ListModelMixin, DestroyModelMixin, GenericViewSet):
             title=file.name,
             file_url=file_url,
             uploaded_by=request.user,
-            organization=request.user.organization
+            organization=request.user.organization,
+            status="queued"
         )
 
-        # ── Queue reindex as a Celery task — returns immediately to the user
-        safe_reindex(request.user.organization_id)
+        # 🔥 trigger indexing
+        index_pdf.delay(pdf.id)
 
         return Response({
             "id": pdf.id,

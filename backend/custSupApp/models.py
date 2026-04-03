@@ -144,6 +144,11 @@ class UploadedPDF(models.Model):
 
     uploaded_at = models.DateTimeField(auto_now_add=True)
 
+    status = models.CharField(max_length=20, default="queued", db_index=True)
+    last_processed_page = models.IntegerField(default=0)
+    total_pages = models.IntegerField(null=True, blank=True)
+    is_indexed = models.BooleanField(default=False)
+
 class TicketFeedback(models.Model):
     ticket = models.OneToOneField(
         SupportTicket,
