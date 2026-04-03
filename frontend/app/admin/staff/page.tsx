@@ -31,7 +31,6 @@ export default function AdminStaffPage() {
         setTimeout(() => setToast(null), 3000);
     };
 
-    // Auth check
     useEffect(() => {
         fetch("/api/me", { credentials: "include" }).then(async (res) => {
             if (!res.ok) { router.replace("/login"); return; }
@@ -49,7 +48,7 @@ export default function AdminStaffPage() {
         setLoadingStaff(true);
         try {
             const res = await fetch("/api/admin/staff", { credentials: "include" });
-            const data= await res.json();
+            const data = await res.json();
             if (res.ok) setStaff(data.results);
         } catch {
             showToast("Failed to load staff", "error");
@@ -63,26 +62,18 @@ export default function AdminStaffPage() {
             showToast("Name, email and password are required", "error");
             return;
         }
-
         setAdding(true);
         try {
             const res = await fetch("/api/admin/staff", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 credentials: "include",
-                body: JSON.stringify({
-                username: name.trim(),
-                email: email.trim(),
-                password: password.trim(),
-            }),
+                body: JSON.stringify({ username: name.trim(), email: email.trim(), password: password.trim() }),
             });
-
             const data = await res.json();
             if (res.ok) {
                 setStaff((prev) => [...prev, data]);
-                setName("");
-                setEmail("");
-                setPassword("");
+                setName(""); setEmail(""); setPassword("");
                 showToast(`${data.username} added to support team`, "success");
             } else {
                 showToast(data.detail ?? "Failed to add staff", "error");
@@ -96,21 +87,11 @@ export default function AdminStaffPage() {
 
     const deleteStaff = async (id: number, staffName: string) => {
         if (!confirm(`Remove ${staffName} from the support team?`)) return;
-
         setDeletingId(id);
         try {
-            const res = await fetch(`/api/admin/staff/${id}`, {
-                method: "DELETE",
-                credentials: "include",
-            });
-
-            if (res.ok) {
-                setStaff((prev) => prev.filter((s) => s.id !== id));
-                showToast(`${staffName} removed`, "success");
-            } else {
-                const data = await res.json();
-                showToast(data.detail ?? "Failed to remove staff", "error");
-            }
+            const res = await fetch(`/api/admin/staff/${id}`, { method: "DELETE", credentials: "include" });
+            if (res.ok) { setStaff((prev) => prev.filter((s) => s.id !== id)); showToast(`${staffName} removed`, "success"); }
+            else { const data = await res.json(); showToast(data.detail ?? "Failed to remove staff", "error"); }
         } catch {
             showToast("Failed to remove staff. Try again.", "error");
         } finally {
@@ -121,21 +102,11 @@ export default function AdminStaffPage() {
     const toggleAvailability = async (id: number) => {
         setTogglingId(id);
         try {
-            const res = await fetch(`/api/admin/staff/${id}`, {
-                method: "PATCH",
-                credentials: "include",
-            });
-
+            const res = await fetch(`/api/admin/staff/${id}`, { method: "PATCH", credentials: "include" });
             const data = await res.json();
             if (res.ok) {
-                // Update just this staff member in state
-                setStaff((prev) =>
-                    prev.map((s) => s.id === id ? { ...s, is_available: data.is_available } : s)
-                );
-                showToast(
-                    `${data.username} marked as ${data.is_available ? "available" : "unavailable"}`,
-                    "success"
-                );
+                setStaff((prev) => prev.map((s) => s.id === id ? { ...s, is_available: data.is_available } : s));
+                showToast(`${data.username} marked as ${data.is_available ? "available" : "unavailable"}`, "success");
             } else {
                 showToast(data.detail ?? "Failed to update availability", "error");
             }
@@ -153,11 +124,7 @@ export default function AdminStaffPage() {
     };
 
     if (checkingAuth) {
-        return (
-            <div className="h-screen flex items-center justify-center text-gray-500">
-                Checking authentication...
-            </div>
-        );
+        return <div className="h-screen flex items-center justify-center text-gray-500">Checking authentication...</div>;
     }
 
     const availableCount = staff.filter((s) => s.is_available).length;
@@ -167,48 +134,43 @@ export default function AdminStaffPage() {
 
             {/* Toast */}
             {toast && (
-                <div className={`fixed top-4 right-4 z-50 px-5 py-3 rounded-lg text-sm shadow-lg transition-all
+                <div className={`fixed top-4 right-4 left-4 sm:left-auto z-50 px-5 py-3 rounded-lg text-sm shadow-lg transition-all
                     ${toast.type === "success" ? "bg-emerald-500 text-white" : "bg-red-500 text-white"}`}>
                     {toast.message}
                 </div>
             )}
 
             {/* Header */}
-            <header className="border-b border-slate-800 px-8 py-5 flex items-center justify-between">
-                <div>
-                    <h1 className="text-xl font-bold tracking-tight text-white">
-                        Support Staff
-                    </h1>
-                    <p className="text-slate-400 text-xs mt-0.5">
-                        Admin · Staff Management
-                    </p>
-                </div>
-                <div className="flex items-center gap-4">
-                    <button
-                        onClick={() => router.push("/admin")}
-                        className="text-xs text-slate-400 hover:text-white border border-slate-700 hover:border-slate-500 px-4 py-2 rounded transition-all"
-                    >
-                        ← Knowledge Base
-                    </button>
-                    <button
-                        onClick={logout}
-                        disabled={isLoggingOut}
-                        className="text-xs text-slate-400 hover:text-red-400 border border-slate-700 hover:border-red-800 px-4 py-2 rounded transition-all disabled:opacity-50"
-                    >
-                        {isLoggingOut ? "Logging out..." : "Logout"}
-                    </button>
+            <header className="border-b border-slate-800 px-4 sm:px-8 py-4 sm:py-5">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                    <div>
+                        <h1 className="text-lg sm:text-xl font-bold tracking-tight text-white">Support Staff</h1>
+                        <p className="text-slate-400 text-xs mt-0.5">Admin · Staff Management</p>
+                    </div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                        <button
+                            onClick={() => router.push("/admin")}
+                            className="text-xs text-slate-400 hover:text-white border border-slate-700 hover:border-slate-500 px-3 py-2 rounded transition-all"
+                        >
+                            ← Knowledge Base
+                        </button>
+                        <button
+                            onClick={logout}
+                            disabled={isLoggingOut}
+                            className="text-xs text-slate-400 hover:text-red-400 border border-slate-700 hover:border-red-800 px-3 py-2 rounded transition-all disabled:opacity-50"
+                        >
+                            {isLoggingOut ? "Logging out..." : "Logout"}
+                        </button>
+                    </div>
                 </div>
             </header>
 
-            <main className="max-w-3xl mx-auto px-6 py-10 space-y-10">
+            <main className="max-w-3xl mx-auto px-4 sm:px-6 py-8 sm:py-10 space-y-8 sm:space-y-10">
 
                 {/* Add Staff Form */}
                 <section>
-                    <h2 className="text-xs uppercase tracking-widest text-slate-500 mb-4">
-                        Add Staff Member
-                    </h2>
-
-                    <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 space-y-4">
+                    <h2 className="text-xs uppercase tracking-widest text-slate-500 mb-4">Add Staff Member</h2>
+                    <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 sm:p-6 space-y-4">
                         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                             <div>
                                 <label className="text-xs text-slate-500 block mb-1.5">Full Name</label>
@@ -232,10 +194,8 @@ export default function AdminStaffPage() {
                                     className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 transition-colors"
                                 />
                             </div>
-                            <div>
-                                <label className="text-xs text-slate-500 block mb-1.5">
-                                    Temporary Password
-                                </label>
+                            <div className="sm:col-span-2">
+                                <label className="text-xs text-slate-500 block mb-1.5">Temporary Password</label>
                                 <input
                                     type="password"
                                     placeholder="Set initial password"
@@ -246,7 +206,6 @@ export default function AdminStaffPage() {
                                 />
                             </div>
                         </div>
-
                         <button
                             onClick={addStaff}
                             disabled={adding}
@@ -260,19 +219,13 @@ export default function AdminStaffPage() {
                 {/* Staff List */}
                 <section>
                     <div className="flex items-center justify-between mb-4">
-                        <h2 className="text-xs uppercase tracking-widest text-slate-500">
-                            Team Members
-                        </h2>
-                        <span className="text-xs text-slate-600">
-                            {availableCount} of {staff.length} available
-                        </span>
+                        <h2 className="text-xs uppercase tracking-widest text-slate-500">Team Members</h2>
+                        <span className="text-xs text-slate-600">{availableCount} of {staff.length} available</span>
                     </div>
 
                     {loadingStaff ? (
                         <div className="space-y-3">
-                            {[1, 2, 3].map((i) => (
-                                <div key={i} className="h-16 bg-slate-800/50 rounded-lg animate-pulse" />
-                            ))}
+                            {[1, 2, 3].map((i) => <div key={i} className="h-16 bg-slate-800/50 rounded-lg animate-pulse" />)}
                         </div>
                     ) : staff.length === 0 ? (
                         <div className="text-center py-12 text-slate-600 text-sm border border-slate-800 rounded-xl">
@@ -281,24 +234,15 @@ export default function AdminStaffPage() {
                     ) : (
                         <div className="space-y-2">
                             {staff.map((s) => (
-                                <div
-                                    key={s.id}
-                                    className="flex items-center justify-between bg-slate-900 border border-slate-800 rounded-lg px-5 py-4 hover:border-slate-700 transition-all"
-                                >
-                                    <div className="flex items-center gap-4 min-w-0">
-                                        {/* Availability dot */}
-                                        <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${
-                                            s.is_available ? "bg-emerald-400" : "bg-slate-600"
-                                        }`} />
-
+                                <div key={s.id} className="flex flex-col sm:flex-row sm:items-center justify-between bg-slate-900 border border-slate-800 rounded-lg px-4 sm:px-5 py-4 hover:border-slate-700 transition-all gap-3">
+                                    <div className="flex items-center gap-3 sm:gap-4 min-w-0">
+                                        <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${s.is_available ? "bg-emerald-400" : "bg-slate-600"}`} />
                                         <div className="min-w-0">
                                             <p className="text-sm text-white font-medium">{s.username}</p>
-                                            <p className="text-xs text-slate-500 mt-0.5">{s.email}</p>
+                                            <p className="text-xs text-slate-500 mt-0.5 truncate">{s.email}</p>
                                         </div>
                                     </div>
-
-                                    <div className="flex items-center gap-2 ml-4 shrink-0">
-                                        {/* Toggle availability */}
+                                    <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
                                         <button
                                             onClick={() => toggleAvailability(s.id)}
                                             disabled={togglingId === s.id}
@@ -308,13 +252,8 @@ export default function AdminStaffPage() {
                                                     : "text-slate-500 border-slate-700 hover:bg-slate-800"
                                             }`}
                                         >
-                                            {togglingId === s.id
-                                                ? "..."
-                                                : s.is_available ? "Available" : "Unavailable"
-                                            }
+                                            {togglingId === s.id ? "..." : s.is_available ? "Available" : "Unavailable"}
                                         </button>
-
-                                        {/* Delete */}
                                         <button
                                             onClick={() => deleteStaff(s.id, s.username)}
                                             disabled={deletingId === s.id}
@@ -330,7 +269,7 @@ export default function AdminStaffPage() {
                 </section>
 
                 {/* Info box */}
-                <section className="bg-slate-900 border border-slate-800 rounded-xl px-6 py-5 text-xs text-slate-500 space-y-1.5">
+                <section className="bg-slate-900 border border-slate-800 rounded-xl px-4 sm:px-6 py-5 text-xs text-slate-500 space-y-1.5">
                     <p className="text-slate-400 font-semibold text-sm mb-2">How escalation works</p>
                     <p>• When a user expresses frustration or the AI's confidence is low, a support ticket is created automatically.</p>
                     <p>• The first <span className="text-emerald-400">available</span> staff member receives an email with the user's query and contact details.</p>
