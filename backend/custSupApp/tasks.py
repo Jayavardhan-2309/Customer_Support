@@ -93,7 +93,7 @@ def index_pdf(self, pdf_id):
                 ]
 
                 if texts:
-                    process_text_batch_sync(texts, pdf.organization_id)
+                    process_text_batch_sync(texts, pdf.organization_id, pdf.id)
 
                 # ✅ SAVE PROGRESS
                 pdf.last_processed_page = i + BATCH_PAGES
@@ -114,7 +114,7 @@ def index_pdf(self, pdf_id):
         logger.error(f"[INDEX ERROR] {pdf.title} | {exc}", exc_info=True)
         raise self.retry(exc=exc)
 
-def process_text_batch_sync(text_batch, org_id):
+def process_text_batch_sync(text_batch, org_id, pdf_id):
     from custSupApp.embeddings import embed_texts_batch
     from django.db import connection
     from langchain_text_splitters import CharacterTextSplitter
@@ -138,8 +138,8 @@ def process_text_batch_sync(text_batch, org_id):
 
                 cursor.execute(
                     """
-                    INSERT INTO kb_chunks (content, embedding, org_id)
-                    VALUES (%s, %s::vector, %s)
+                    INSERT INTO kb_chunks (content, embedding, org_id, pdf_id)
+                    VALUES (%s, %s::vector, %s, %s)
                     """,
-                    [text, vector_str, org_id],
+                    [text, vector_str, org_id, pdf_id],
                 )

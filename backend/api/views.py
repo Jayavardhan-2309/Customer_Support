@@ -344,11 +344,17 @@ class PDFViewSet(ListModelMixin, DestroyModelMixin, GenericViewSet):
         except Exception as e:
             print(f"[DELETE ERROR] {e}")
 
+        # ✅ DELETE ONLY THIS PDF’s embeddings
+        from django.db import connection
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "DELETE FROM kb_chunks WHERE pdf_id = %s",
+                [pdf.id]
+            )
+
         pdf.delete()
 
-        safe_reindex(request.user.organization_id)
-
-        return Response({"message": "PDF deleted and storage cleaned"})
+        return Response({"message": "PDF deleted and cleaned"})
 
 class StaffViewSet(ListModelMixin, CreateModelMixin, DestroyModelMixin, GenericViewSet):
     authentication_classes = [CookieJWTAuthentication]
