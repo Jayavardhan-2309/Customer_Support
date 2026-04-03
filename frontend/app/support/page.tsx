@@ -66,29 +66,28 @@ function useSpeechRecognition() {
 
   const stop = () => { stoppedRef.current = true; recognitionRef.current?.stop(); };
 
-  return { transcript, interimTranscript, isListening, setTranscript, start, stop }; // these are destructured while used, this is object destructuring
+  return { transcript, interimTranscript, isListening, setTranscript, start, stop };
 }
 
 // Chat History Hook
 function useChatHistory() {
-  const [messages, setMessages] = useState<Message[]>([]); // array destructuring, since useState returns an array format
-  const [loadingHistory, setLoadingHistory] = useState(true); // array destructuring, since useState returns an array format
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(true);
 
   useEffect(() => {
     const load = async () => {
       try {
-        const res = await fetch("/api/chat/history", { credentials: "include" }); // runs only once on render for the first time
+        const res = await fetch("/api/chat/history", { credentials: "include" });
         if (res.ok) {
           const data = await res.json();
-          // Expects: [{ role: "user"|"ai", content: string }]
           const mapped = (data ?? []).map((msg: any) => ({
             role: msg.sender as "user" | "ai",
             content: msg.message,
-            }));
-            setMessages(mapped);
+          }));
+          setMessages(mapped);
         }
       } catch {
-        // silently fail — history is non-critical
+        // silently fail
       } finally {
         setLoadingHistory(false);
       }
@@ -102,16 +101,15 @@ function useChatHistory() {
 }
 
 // Page
-
 export default function Support() {
   const router = useRouter();
   const [checkingAuth, setCheckingAuth] = useState(true);
-  const [isLoading, setIsLoading] = useState(false); // for disabling submit button and other buttons, when clicked send message or submit button, this is activated
-  const [isLogout, setLoggingOut]= useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isLogout, setLoggingOut] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  const speech = useSpeechRecognition(); // function is called and the result is stored, here the result is an object literal
-  const chat = useChatHistory(); // function is called and the result is stored
+  const speech = useSpeechRecognition();
+  const chat = useChatHistory();
 
   // Auth check
   useEffect(() => {
@@ -123,11 +121,15 @@ export default function Support() {
 
   // Auto-scroll to bottom on new messages
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" }); // scrollIntoView is a dom element function given for almost all dom elements
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chat.messages, speech.transcript, speech.interimTranscript]);
 
-  if (checkingAuth) { // default auth check screen for users to wait while authentication of the user is verified
-    return <div className="h-screen flex items-center justify-center text-gray-500">Checking authentication...</div>;
+  if (checkingAuth) {
+    return (
+      <div className="h-screen flex items-center justify-center text-gray-500 text-sm animate-pulse">
+        Checking authentication...
+      </div>
+    );
   }
 
   const logout = async () => {
@@ -157,56 +159,54 @@ export default function Support() {
 
   const handleStopAndSend = () => {
     speech.stop();
-    // onDone callback will not fire here since we're manually stopping;
-    // use transcript that is already accumulated
     setTimeout(() => sendMessage(speech.transcript), 300);
   };
 
   return (
-    <div className="text-black bg-gray-50 min-h-screen flex flex-col" style={{ padding: "0" }}>
+    <div className="text-black bg-gray-50 min-h-screen flex flex-col">
 
       {/* Header */}
-      <header className="sticky top-0 z-10 bg-white border-b px-6 py-4 flex items-center justify-between shadow-sm">
-        <div>
-          <h1 className="text-2xl font-bold">Support</h1>
-          <p className="text-gray-500 text-sm">Speak or type your issue and get help.</p>
+      <header className="sticky top-0 z-10 bg-white border-b border-gray-200 px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between shadow-sm">
+        <div className="min-w-0">
+          <h1 className="text-lg sm:text-2xl font-bold text-gray-900 leading-tight">Support</h1>
+          <p className="text-gray-500 text-xs sm:text-sm hidden sm:block">Speak or type your issue and get help.</p>
         </div>
-        <div className="flex items-center gap-2">
-
+        <div className="flex items-center gap-2 shrink-0">
           <button
             onClick={() => router.push("/support/feedback")}
-            className="text-sm text-blue-600 border px-4 py-2 rounded hover:bg-blue-50 cursor-pointer"
+            className="text-xs sm:text-sm text-blue-600 border border-blue-200 px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg hover:bg-blue-50 cursor-pointer transition font-medium"
           >
             Feedback
           </button>
-
           <button
             disabled={isLogout}
             onClick={logout}
-            className="text-sm text-red-500 border px-4 py-2 rounded hover:bg-red-50 cursor-pointer"
+            className="text-xs sm:text-sm text-red-500 border border-red-200 px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg hover:bg-red-50 cursor-pointer disabled:opacity-50 transition font-medium"
           >
-            {isLogout ? "Logging out" : "Logout"}
+            {isLogout ? "Logging out..." : "Logout"}
           </button>
-
         </div>
       </header>
 
       {/* Messages */}
-      <main className="flex-1 overflow-y-auto px-4 py-6 space-y-4 max-w-3xl w-full mx-auto">
+      <main className="flex-1 overflow-y-auto px-3 sm:px-4 py-4 sm:py-6 space-y-3 sm:space-y-4 max-w-3xl w-full mx-auto">
         {chat.loadingHistory ? (
-          <p className="text-center text-sm text-gray-400 animate-pulse">Loading conversation history...</p>
+          <p className="text-center text-sm text-gray-400 animate-pulse mt-8">Loading conversation history...</p>
         ) : chat.messages.length === 0 && !speech.transcript && !speech.interimTranscript ? (
-          <p className="text-center text-sm text-gray-400">Start typing or speak to get help.</p>
+          <div className="flex flex-col items-center justify-center mt-12 sm:mt-20 gap-3 text-center px-4">
+            <div className="text-4xl">💬</div>
+            <p className="text-sm text-gray-400">Start typing or speak to get help.</p>
+          </div>
         ) : null}
 
-        {/* Historical + new messages */}
+        {/* Messages */}
         {chat.messages.map((msg, i) => (
           <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
             <div
-              className={`max-w-[75%] px-4 py-2 rounded-2xl text-sm ${
+              className={`max-w-[85%] sm:max-w-[75%] px-3 sm:px-4 py-2 sm:py-2.5 rounded-2xl text-sm leading-relaxed ${
                 msg.role === "user"
                   ? "bg-blue-600 text-white rounded-br-sm"
-                  : "bg-white border text-gray-800 rounded-bl-sm"
+                  : "bg-white border border-gray-200 text-gray-800 rounded-bl-sm shadow-sm"
               }`}
             >
               {msg.content}
@@ -217,20 +217,25 @@ export default function Support() {
         {/* Live transcription preview */}
         {(speech.transcript || speech.interimTranscript) && (
           <div className="flex justify-end">
-            <div className="max-w-[75%] px-4 py-2 rounded-2xl rounded-br-sm bg-blue-500 text-white text-sm opacity-80">
+            <div className="max-w-[85%] sm:max-w-[75%] px-3 sm:px-4 py-2 rounded-2xl rounded-br-sm bg-blue-500 text-white text-sm opacity-80">
               {speech.transcript}
-              {speech.interimTranscript && ( // this is for checking whether interimTranscript is set or not, this is boolean condition
+              {speech.interimTranscript && (
                 <span className="opacity-60 italic"> {speech.interimTranscript}</span>
               )}
             </div>
           </div>
         )}
 
-        {/* AI proccessing indicator */}
+        {/* AI processing indicator */}
         {isLoading && (
           <div className="flex justify-start">
-            <div className="bg-white border px-4 py-2 rounded-2xl rounded-bl-sm text-sm text-gray-400 animate-pulse">
-              Processing...
+            <div className="bg-white border border-gray-200 px-4 py-2.5 rounded-2xl rounded-bl-sm text-sm text-gray-400 shadow-sm flex items-center gap-2">
+              <span className="flex gap-1">
+                <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
+                <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
+                <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
+              </span>
+              Processing
             </div>
           </div>
         )}
@@ -239,10 +244,10 @@ export default function Support() {
       </main>
 
       {/* Footer Input */}
-      <footer className="sticky bottom-0 bg-white border-t px-4 py-3 shadow-md">
+      <footer className="sticky bottom-0 bg-white border-t border-gray-200 px-3 sm:px-4 py-3 shadow-md">
         <div className="flex items-center gap-2 max-w-3xl mx-auto">
           <input
-            className="flex-1 border rounded-full px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="flex-1 min-w-0 border border-gray-300 rounded-full px-3 sm:px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
             value={speech.transcript}
             placeholder="Type or record..."
             onChange={(e) => speech.setTranscript(e.target.value)}
@@ -253,25 +258,27 @@ export default function Support() {
             <button
               disabled={isLoading}
               onClick={() => speech.start((final) => sendMessage(final))}
-              className="text-red-400 bg-white border border-black rounded px-3 py-1.5 text-sm cursor-pointer disabled:opacity-50"
+              className="shrink-0 text-red-500 bg-white border border-gray-300 rounded-lg px-2.5 sm:px-3 py-2 text-xs sm:text-sm cursor-pointer disabled:opacity-50 hover:bg-gray-50 transition font-medium flex items-center gap-1"
             >
-              Record
+              <span>🎙</span>
+              <span className="hidden sm:inline">Record</span>
             </button>
           ) : (
             <button
               onClick={handleStopAndSend}
-              className="text-white bg-red-500 border border-red-500 rounded px-3 py-1.5 text-sm cursor-pointer animate-pulse"
+              className="shrink-0 text-white bg-red-500 border border-red-500 rounded-lg px-2.5 sm:px-3 py-2 text-xs sm:text-sm cursor-pointer animate-pulse font-medium flex items-center gap-1"
             >
-              Stop
+              <span>⏹</span>
+              <span className="hidden sm:inline">Stop</span>
             </button>
           )}
 
           <button
             disabled={speech.isListening || isLoading}
             onClick={() => sendMessage(speech.transcript)}
-            className="text-green-600 bg-amber-50 border border-black rounded px-3 py-1.5 text-sm cursor-pointer disabled:opacity-50"
+            className="shrink-0 text-green-700 bg-green-50 border border-green-300 rounded-lg px-2.5 sm:px-4 py-2 text-xs sm:text-sm cursor-pointer disabled:opacity-50 hover:bg-green-100 transition font-medium"
           >
-            {isLoading ? "Submitted..." : "Submit"}
+            {isLoading ? <span className="hidden sm:inline">Sending...</span> : <span>Send</span>}
           </button>
         </div>
       </footer>

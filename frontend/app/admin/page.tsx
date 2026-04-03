@@ -215,7 +215,7 @@ export default function AdminPage() {
                                         <span className="text-xl shrink-0 mt-0.5 sm:mt-0">📑</span>
                                         <div className="min-w-0">
                                             <p className="text-sm text-white truncate font-medium">{pdf.title}</p>
-                                            <p className="text-xs text-slate-500 mt-0.5 break-words">
+                                            <p className="text-xs text-slate-500 mt-0.5 wrap-break-word">
                                                 {pdf.size_kb} KB · {formatDate(pdf.uploaded_at)} · by {pdf.uploaded_by}
                                             </p>
                                         </div>
