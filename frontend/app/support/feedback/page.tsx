@@ -46,7 +46,7 @@ function StarRating({ value, onChange }: { value: number; onChange: (v: number) 
         })}
       </div>
       <span
-        className="text-xs font-semibold uppercase tracking-widest transition-colors min-h-[18px]"
+        className="text-xs font-semibold uppercase tracking-widest transition-colors min-h-4.5"
         style={{ color: hovered || value ? "#f59e0b" : "#9ca3af" }}
       >
         {labels[hovered || value] ?? ""}
