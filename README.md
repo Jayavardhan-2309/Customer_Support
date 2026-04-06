@@ -426,9 +426,8 @@ A license can be added if the project is open-sourced or deployed publicly.
 
 ---
 
-<<<<<<< HEAD
+
 *Active development. Core architecture, authentication, AI integration, and admin knowledge base management are stable and working end-to-end.*
->>>>>>> personal/backup-snapshot
-=======
+
 *Active development. Core architecture, authentication, AI integration, and admin knowledge base management are stable and working end-to-end.*
->>>>>>> local-progress
+
