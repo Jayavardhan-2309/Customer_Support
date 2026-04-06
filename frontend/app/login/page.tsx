@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import api from "@/src/lib/axios";
 
 export default function LoginPage() {
     const router = useRouter();
@@ -19,30 +18,23 @@ export default function LoginPage() {
 
         try {
             const res = await fetch("/api/login", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ username, password }),
-            credentials: "include",
-        });
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ username, password }),
+                credentials: "include",
+            });
 
-        const data = await res.json();
+            const data = await res.json();
 
-        if (!res.ok) {
-            setError("Invalid username or password");
-            return;
-        }
+            if (!res.ok) {
+                setError("Invalid username or password");
+                return;
+            }
 
-            // Login returns the user's role — use it to redirect to the right page
             const role = data?.user?.role;
-
-            if (role === "admin") {
-                router.push("/admin");       // admin goes to context management page
-            } else if(role==="staff"){
-                router.push("/staff");
-            }
-            else {
-                router.push("/support");     // regular user goes to support chat
-            }
+            if (role === "admin") router.push("/admin");
+            else if (role === "staff") router.push("/staff");
+            else router.push("/support");
         } catch (err) {
             console.error(err);
             setError("Invalid username or password");
@@ -52,9 +44,9 @@ export default function LoginPage() {
     };
 
     return (
-        <div className="min-h-screen bg-gray-100 flex items-center justify-center text-black">
-            <div className="w-full max-w-md bg-white shadow rounded-lg p-8">
-                <h1 className="text-2xl font-semibold mb-6 text-center">
+        <div className="min-h-screen bg-gray-100 flex items-center justify-center px-4 py-8 text-black">
+            <div className="w-full max-w-md bg-white shadow rounded-lg p-6 sm:p-8">
+                <h1 className="text-xl sm:text-2xl font-semibold mb-6 text-center">
                     Login to get Support
                 </h1>
 
@@ -64,7 +56,7 @@ export default function LoginPage() {
                         placeholder="Username"
                         value={username}
                         onChange={(e) => setUsername(e.target.value)}
-                        className="border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-gray-300"
+                        className="border rounded px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-gray-300 text-sm sm:text-base"
                         required
                     />
                     <input
@@ -72,36 +64,34 @@ export default function LoginPage() {
                         placeholder="Password"
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
-                        className="border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-gray-300"
+                        className="border rounded px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-gray-300 text-sm sm:text-base"
                         required
                     />
                     <button
                         type="submit"
                         disabled={loading}
-                        className="bg-black text-white py-2 rounded hover:bg-gray-800 transition disabled:opacity-60"
+                        className="bg-black text-white py-2.5 rounded hover:bg-gray-800 transition disabled:opacity-60 text-sm sm:text-base font-medium"
                     >
                         {loading ? "Logging in..." : "Login"}
                     </button>
                 </form>
-                
-                <div className="flex flex-col">
-                    <p className="text-black text-center mt-6">
+
+                <div className="flex flex-col items-center gap-2 mt-6">
+                    <p className="text-black text-center text-sm">
                         Don't have an account?{" "}
                         <span
-                            className="text-blue-600 cursor-pointer hover:underline"
+                            className="text-blue-600 cursor-pointer hover:underline font-medium"
                             onClick={() => router.push("/signup")}
                         >
                             Signup
                         </span>
                     </p>
-
-                    <p className="text-black text-center mt-2">
-                        Home?{" "}
+                    <p className="text-black text-center text-sm">
                         <span
                             className="text-blue-600 cursor-pointer hover:underline"
                             onClick={() => router.push("/")}
                         >
-                            Home
+                            ← Back to Home
                         </span>
                     </p>
                 </div>
@@ -110,7 +100,7 @@ export default function LoginPage() {
                     <p className="mt-4 text-sm text-red-600 text-center">{error}</p>
                 )}
 
-                <p className="mt-6 text-sm text-center text-gray-600">
+                <p className="mt-6 text-xs sm:text-sm text-center text-gray-500">
                     Authorized users only
                 </p>
             </div>

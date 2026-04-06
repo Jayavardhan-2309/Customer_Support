@@ -1,6 +1,9 @@
 import os
 import sys
 import django
+import logging
+
+logger= logging.getLogger("custSupApp.indexing")
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "custSupport.settings")
@@ -18,59 +21,83 @@ from custSupApp.embeddings import embed_texts_batch
 
 
 def run_indexing(org_id):
-    all_texts = []
-
-    # knowledge.txt
-    knowledge_path = os.path.join(BASE_DIR, "knowledge.txt")
-    if os.path.exists(knowledge_path):
-        with open(knowledge_path, "r", encoding="utf-8") as f:
-            all_texts.append(f.read())
-
-    # PDFs from DB
     from custSupApp.models import UploadedPDF
+    import time
+
+    logger.info(f"[INDEX START] org_id={org_id}")
 
     pdfs = UploadedPDF.objects.filter(organization_id=org_id)
+    logger.info(f"[INDEX] Found {pdfs.count()} PDFs")
 
-    for pdf in pdfs:
-        try:
-            print(f"[INDEX] Opening: {pdf.file.path} — exists: {os.path.exists(pdf.file.path)}")
-            with pdfplumber.open(pdf.file.path) as pdf_doc:
-                text = "\n".join(page.extract_text() or "" for page in pdf_doc.pages)
-                if text.strip():
-                    all_texts.append(text)
-        except Exception as e:
-            print(f"[INDEX] Failed to read {pdf.title}: {e}")
-
-    if not all_texts:
-        print(f"[INDEX] No content found for org {org_id}, skipping.")
-        return
-
-    splitter = CharacterTextSplitter(chunk_size=300, chunk_overlap=50)
-    docs = []
-    for text in all_texts:
-        docs.extend(splitter.split_text(text))
-
-    print(f"[INDEX] Embedding {len(docs)} chunks in one batch call...")
-
-    try:
-        vectors = embed_texts_batch(docs)
-    except Exception as e:
-        print(f"[EMBED ERROR BATCH] {e}")
-        return
-
-    pairs = list(zip(docs, vectors))
-
+    # ❗ Clear DB ONCE
+    from django.db import connection
     with connection.cursor() as cursor:
         cursor.execute("DELETE FROM kb_chunks WHERE org_id = %s", [org_id])
 
-        for text, vector in pairs:
-            vector_str = "[" + ",".join(map(str, vector)) + "]"
-            cursor.execute(
-                """
-                INSERT INTO kb_chunks (content, embedding, org_id)
-                VALUES (%s, %s::vector, %s)
-                """,
-                [text, vector_str, org_id],
-            )
+    for pdf in pdfs:
+        try:
+            logger.info(f"[INDEX] Processing PDF: {pdf.title}")
 
-    print(f"[INDEX] Org {org_id} indexed ({len(docs)} chunks)")
+            import requests
+            from io import BytesIO
+
+            try:
+                response = requests.get(pdf.file_url, timeout=15)
+                response.raise_for_status()
+            except Exception as e:
+                logger.error(f"[FETCH ERROR] {pdf.file_url} | {e}")
+                continue
+
+            if response.status_code != 200:
+                logger.error(f"[INDEX ERROR] Failed to fetch PDF: {pdf.file_url}")
+                continue
+
+            pdf_stream = BytesIO(response.content)
+
+            with pdfplumber.open(pdf_stream) as pdf_doc:
+
+                batch_size_pages = 2
+                current_batch = []
+
+                for i, page in enumerate(pdf_doc.pages):
+                    if i > 150:  # limit pages
+                        logger.warning(f"[INDEX LIMIT] Skipping remaining pages for {pdf.title}")
+                        break
+                    page_text = page.extract_text() or ""
+
+                    if page_text.strip():
+                        current_batch.append(page_text)
+
+                    if len(current_batch) >= batch_size_pages:
+                        process_text_batch(current_batch, org_id)
+                        current_batch = []
+
+                        time.sleep(0.5)  # 👈 backpressure
+
+                if current_batch:
+                    process_text_batch(current_batch, org_id)
+
+        except Exception as e:
+            logger.error(f"[INDEX ERROR] {pdf.title} | {e}", exc_info=True)
+
+    logger.info(f"[INDEX COMPLETE] org_id={org_id}")
+
+def process_text_batch(text_batch, org_id):
+    from custSupApp.tasks import embed_and_store
+
+    splitter = CharacterTextSplitter(chunk_size=300, chunk_overlap=50)
+
+    docs = []
+    for text in text_batch:
+        docs.extend(splitter.split_text(text))
+
+    batch_size = 10  # smaller
+
+    import math
+    for i in range(0, len(docs), batch_size):
+        embed_and_store.delay(
+            docs[i:i+batch_size],
+            org_id,
+            i // batch_size,
+            total_batches = math.ceil(len(docs) / batch_size)
+        )

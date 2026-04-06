@@ -3,10 +3,13 @@ import { NextRequest, NextResponse } from "next/server";
 const baseUrl = process.env.DJANGO_BASE_URL;
 
 export async function POST(req: NextRequest) {
+<<<<<<< HEAD
   console.log("BASE URL:", baseUrl);
   if (!baseUrl) {
   return NextResponse.json({ error: "DJANGO_BASE_URL not set" }, { status: 500 });
 }
+=======
+>>>>>>> deploy-test2
   const body = await req.json();
 
 

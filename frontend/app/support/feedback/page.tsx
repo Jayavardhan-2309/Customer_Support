@@ -8,16 +8,12 @@ function StarRating({ value, onChange }: { value: number; onChange: (v: number) 
   const [hovered, setHovered] = useState(0)
 
   const labels: Record<number, string> = {
-    1: "Poor",
-    2: "Fair",
-    3: "Good",
-    4: "Great",
-    5: "Excellent",
+    1: "Poor", 2: "Fair", 3: "Good", 4: "Great", 5: "Excellent",
   }
 
   return (
     <div className="flex flex-col items-center gap-3 py-4">
-      <div className="flex gap-2">
+      <div className="flex gap-1 sm:gap-2">
         {[1, 2, 3, 4, 5].map((star) => {
           const filled = star <= (hovered || value)
           return (
@@ -27,19 +23,13 @@ function StarRating({ value, onChange }: { value: number; onChange: (v: number) 
               onClick={() => onChange(star)}
               onMouseEnter={() => setHovered(star)}
               onMouseLeave={() => setHovered(0)}
-              style={{
-                background: "none",
-                border: "none",
-                cursor: "pointer",
-                padding: "2px",
-                transition: "transform 0.15s ease",
-                transform: filled ? "scale(1.2)" : "scale(1)",
-              }}
+              className="bg-transparent border-none cursor-pointer p-0.5 transition-transform"
+              style={{ transform: filled ? "scale(1.2)" : "scale(1)" }}
               aria-label={`${star} star`}
             >
               <svg
-                width="40"
-                height="40"
+                width="36"
+                height="36"
                 viewBox="0 0 24 24"
                 fill={filled ? "#f59e0b" : "none"}
                 stroke={filled ? "#f59e0b" : "#d1d5db"}
@@ -56,15 +46,8 @@ function StarRating({ value, onChange }: { value: number; onChange: (v: number) 
         })}
       </div>
       <span
-        style={{
-          fontSize: "13px",
-          fontWeight: 600,
-          color: hovered || value ? "#f59e0b" : "#9ca3af",
-          letterSpacing: "0.08em",
-          textTransform: "uppercase",
-          minHeight: "18px",
-          transition: "color 0.15s ease",
-        }}
+        className="text-xs font-semibold uppercase tracking-widest transition-colors min-h-4.5"
+        style={{ color: hovered || value ? "#f59e0b" : "#9ca3af" }}
       >
         {labels[hovered || value] ?? ""}
       </span>
@@ -120,23 +103,26 @@ export default function FeedbackPage() {
 
   if (loading) {
     return (
-      <div style={styles.centered}>
-        <div style={styles.spinner} />
-        <p style={{ color: "#6b7280", marginTop: 16, fontSize: 14 }}>Loading your tickets…</p>
+      <div className="min-h-[60vh] flex flex-col items-center justify-center gap-4 p-8">
+        <div className="w-8 h-8 border-[3px] border-gray-200 border-t-gray-900 rounded-full animate-spin" />
+        <p className="text-gray-500 text-sm">Loading your tickets…</p>
       </div>
     )
   }
 
   if (tickets.length === 0) {
     return (
-      <div style={styles.centered}>
-        <div style={{ fontSize: 48, marginBottom: 12 }}>🎉</div>
-        <h2 style={{ fontSize: 20, fontWeight: 700, color: "#111827" }}>All caught up!</h2>
-        <p style={{ color: "#6b7280", marginTop: 6, fontSize: 14 }}>
+      <div className="min-h-[60vh] flex flex-col items-center justify-center text-center p-8 gap-3">
+        <div className="text-5xl">🎉</div>
+        <h2 className="text-xl font-bold text-gray-900">All caught up!</h2>
+        <p className="text-gray-500 text-sm">
           No pending feedback. Need help?{" "}
-          <span style={{ fontWeight: 600, color: "#374151" }}>admin@gmail.com</span>
+          <span className="font-semibold text-gray-700">admin@gmail.com</span>
         </p>
-        <button onClick={() => router.push("/support")} style={styles.btnPrimary}>
+        <button
+          onClick={() => router.push("/support")}
+          className="mt-4 bg-gray-900 text-white px-5 py-2.5 rounded-lg text-sm font-semibold hover:bg-gray-800 transition"
+        >
           Back to Dashboard
         </button>
       </div>
@@ -144,33 +130,51 @@ export default function FeedbackPage() {
   }
 
   return (
-    <div style={styles.page}>
+    <div className="min-h-screen bg-gray-50">
+
       {/* Header */}
-      <div style={styles.header}>
-        <div>
-          <h1 style={styles.title}>Feedback</h1>
-          <p style={styles.subtitle}>{tickets.length} ticket{tickets.length !== 1 ? "s" : ""} awaiting your review</p>
+      <div className="bg-white border-b border-gray-200 px-4 sm:px-8 py-4 sticky top-0 z-10">
+        <div className="max-w-2xl mx-auto flex items-center justify-between">
+          <div>
+            <h1 className="text-xl sm:text-2xl font-extrabold text-gray-900 tracking-tight">Feedback</h1>
+            <p className="text-gray-500 text-xs sm:text-sm mt-0.5">
+              {tickets.length} ticket{tickets.length !== 1 ? "s" : ""} awaiting your review
+            </p>
+          </div>
+          <button
+            onClick={() => router.push("/support")}
+            className="bg-white text-gray-700 border border-gray-300 rounded-lg px-3 sm:px-4 py-2 text-xs sm:text-sm font-semibold hover:bg-gray-50 transition"
+          >
+            ← Dashboard
+          </button>
         </div>
-        <button onClick={() => router.push("/support")} style={styles.btnOutline}>
-          ← Dashboard
-        </button>
       </div>
 
       {/* Ticket list */}
-      <div style={styles.grid}>
+      <div className="max-w-2xl mx-auto px-4 sm:px-6 py-6 space-y-4">
         {tickets.map((ticket) => (
-          <div key={ticket.id} style={styles.card}>
-            <div style={styles.cardTop}>
-              <span style={styles.badge}>Resolved</span>
+          <div
+            key={ticket.id}
+            className="bg-white border border-gray-200 rounded-2xl px-4 sm:px-6 py-5 shadow-sm"
+          >
+            <div className="mb-3">
+              <span className="bg-green-100 text-green-800 text-[11px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wide">
+                Resolved
+              </span>
             </div>
-            <h3 style={styles.cardTitle}>{ticket.query}</h3>
-            <p style={styles.cardMeta}>Handled by <strong>{ticket.staff_name}</strong></p>
-            <div style={styles.resolutionBox}>
-              <p style={styles.resolutionLabel}>Resolution</p>
-              <p style={styles.resolutionText}>{ticket.resolution_note}</p>
+            <h3 className="text-sm sm:text-base font-bold text-gray-900 mb-1">{ticket.query}</h3>
+            <p className="text-xs sm:text-sm text-gray-500 mb-3">
+              Handled by <strong className="text-gray-700">{ticket.staff_name}</strong>
+            </p>
+            <div className="bg-gray-50 border border-gray-200 rounded-lg px-3 sm:px-4 py-3 mb-4">
+              <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-1">Resolution</p>
+              <p className="text-sm text-gray-700 leading-relaxed">{ticket.resolution_note}</p>
             </div>
             {!ticket.has_feedback && (
-              <button onClick={() => openModal(ticket)} style={styles.btnFeedback}>
+              <button
+                onClick={() => openModal(ticket)}
+                className="bg-gray-900 text-white text-xs sm:text-sm font-semibold px-4 py-2.5 rounded-lg hover:bg-gray-800 transition cursor-pointer"
+              >
                 ★ Leave Feedback
               </button>
             )}
@@ -180,44 +184,66 @@ export default function FeedbackPage() {
 
       {/* Modal */}
       {selectedTicket && (
-        <div style={styles.overlay} onClick={(e) => e.target === e.currentTarget && setSelectedTicket(null)}>
-          <div style={styles.modal}>
+        <div
+          className="fixed inset-0 bg-black/45 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-0 sm:p-4"
+          onClick={(e) => e.target === e.currentTarget && setSelectedTicket(null)}
+        >
+          <div className="bg-white w-full sm:max-w-md rounded-t-3xl sm:rounded-2xl px-5 sm:px-7 pt-6 pb-8 sm:py-7 shadow-2xl">
+
+            {/* Mobile drag handle */}
+            <div className="sm:hidden w-10 h-1 bg-gray-200 rounded-full mx-auto mb-5" />
+
             {submitted ? (
-              <div style={styles.successBox}>
-                <div style={{ fontSize: 48 }}>✓</div>
-                <p style={{ fontWeight: 700, fontSize: 18, color: "#065f46", marginTop: 8 }}>Thank you!</p>
-                <p style={{ color: "#6b7280", fontSize: 14 }}>Your feedback has been submitted.</p>
+              <div className="text-center py-6 sm:py-8 space-y-2">
+                <div className="text-5xl">✓</div>
+                <p className="font-bold text-lg text-green-800 mt-2">Thank you!</p>
+                <p className="text-gray-500 text-sm">Your feedback has been submitted.</p>
               </div>
             ) : (
               <>
-                <div style={styles.modalHeader}>
-                  <h2 style={styles.modalTitle}>Rate your experience</h2>
-                  <button onClick={() => setSelectedTicket(null)} style={styles.closeBtn}>✕</button>
+                <div className="flex items-center justify-between mb-2">
+                  <h2 className="text-base sm:text-lg font-extrabold text-gray-900 tracking-tight">Rate your experience</h2>
+                  <button
+                    onClick={() => setSelectedTicket(null)}
+                    className="w-7 h-7 flex items-center justify-center bg-gray-100 hover:bg-gray-200 rounded-md text-gray-500 text-xs transition"
+                  >
+                    ✕
+                  </button>
                 </div>
 
-                <p style={styles.modalTicketLabel}>"{selectedTicket.query}"</p>
+                <p className="text-xs text-gray-400 italic truncate mb-1">"{selectedTicket.query}"</p>
 
-                <div style={styles.divider} />
+                <div className="h-px bg-gray-100 my-4" />
 
-                <p style={styles.sectionLabel}>How would you rate the support?</p>
+                <p className="text-sm font-bold text-gray-700 mb-1">How would you rate the support?</p>
                 <StarRating value={rating} onChange={setRating} />
 
-                <div style={styles.divider} />
+                <div className="h-px bg-gray-100 my-4" />
 
-                <p style={styles.sectionLabel}>Additional comments <span style={{ color: "#9ca3af", fontWeight: 400 }}>(optional)</span></p>
+                <p className="text-sm font-bold text-gray-700 mb-1">
+                  Additional comments{" "}
+                  <span className="text-gray-400 font-normal">(optional)</span>
+                </p>
                 <textarea
-                  style={styles.textarea}
+                  className="w-full mt-2 border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-900 bg-gray-50 resize-none focus:outline-none focus:ring-2 focus:ring-gray-300 placeholder-gray-400"
                   placeholder="Tell us what went well or what could be improved…"
                   value={comment}
                   onChange={(e) => setComment(e.target.value)}
                   rows={3}
                 />
 
-                <div style={styles.modalFooter}>
-                  <button onClick={() => setSelectedTicket(null)} style={styles.btnCancel}>
+                <div className="flex justify-end gap-2.5 mt-5">
+                  <button
+                    onClick={() => setSelectedTicket(null)}
+                    className="bg-gray-100 text-gray-700 border-none rounded-lg px-4 py-2.5 text-sm font-semibold hover:bg-gray-200 transition cursor-pointer"
+                  >
                     Cancel
                   </button>
-                  <button onClick={submitFeedback} disabled={submitting} style={styles.btnSubmit}>
+                  <button
+                    onClick={submitFeedback}
+                    disabled={submitting}
+                    className="bg-gray-900 text-white rounded-lg px-5 py-2.5 text-sm font-semibold hover:bg-gray-800 disabled:opacity-60 transition cursor-pointer"
+                  >
                     {submitting ? "Submitting…" : "Submit Feedback"}
                   </button>
                 </div>
@@ -226,255 +252,6 @@ export default function FeedbackPage() {
           </div>
         </div>
       )}
-
-      <style>{`
-        @keyframes spin { to { transform: rotate(360deg); } }
-      `}</style>
     </div>
   )
-}
-
-const styles: Record<string, React.CSSProperties> = {
-  page: {
-    minHeight: "100vh",
-    background: "#f9fafb",
-    padding: "32px 24px",
-    maxWidth: 720,
-    margin: "0 auto",
-    fontFamily: "'Geist', 'Inter', sans-serif",
-  },
-  header: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    marginBottom: 32,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: 800,
-    color: "#111827",
-    margin: 0,
-    letterSpacing: "-0.5px",
-  },
-  subtitle: {
-    fontSize: 14,
-    color: "#6b7280",
-    marginTop: 4,
-  },
-  grid: {
-    display: "flex",
-    flexDirection: "column",
-    gap: 16,
-  },
-  card: {
-    background: "#ffffff",
-    border: "1px solid #e5e7eb",
-    borderRadius: 14,
-    padding: "20px 24px",
-    boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
-  },
-  cardTop: {
-    marginBottom: 10,
-  },
-  badge: {
-    background: "#d1fae5",
-    color: "#065f46",
-    fontSize: 11,
-    fontWeight: 700,
-    padding: "3px 10px",
-    borderRadius: 99,
-    letterSpacing: "0.06em",
-    textTransform: "uppercase",
-  },
-  cardTitle: {
-    fontSize: 16,
-    fontWeight: 700,
-    color: "#111827",
-    margin: "0 0 6px",
-  },
-  cardMeta: {
-    fontSize: 13,
-    color: "#6b7280",
-    margin: "0 0 14px",
-  },
-  resolutionBox: {
-    background: "#f9fafb",
-    border: "1px solid #e5e7eb",
-    borderRadius: 8,
-    padding: "10px 14px",
-    marginBottom: 16,
-  },
-  resolutionLabel: {
-    fontSize: 11,
-    fontWeight: 700,
-    color: "#9ca3af",
-    letterSpacing: "0.08em",
-    textTransform: "uppercase",
-    margin: "0 0 4px",
-  },
-  resolutionText: {
-    fontSize: 14,
-    color: "#374151",
-    margin: 0,
-    lineHeight: 1.5,
-  },
-  btnFeedback: {
-    background: "#111827",
-    color: "#fff",
-    border: "none",
-    borderRadius: 8,
-    padding: "9px 18px",
-    fontSize: 13,
-    fontWeight: 600,
-    cursor: "pointer",
-    letterSpacing: "0.01em",
-  },
-  btnPrimary: {
-    background: "#111827",
-    color: "#fff",
-    border: "none",
-    borderRadius: 8,
-    padding: "10px 20px",
-    fontSize: 14,
-    fontWeight: 600,
-    cursor: "pointer",
-    marginTop: 20,
-  },
-  btnOutline: {
-    background: "#fff",
-    color: "#374151",
-    border: "1px solid #d1d5db",
-    borderRadius: 8,
-    padding: "8px 16px",
-    fontSize: 13,
-    fontWeight: 600,
-    cursor: "pointer",
-  },
-  centered: {
-    minHeight: "60vh",
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-    justifyContent: "center",
-    textAlign: "center",
-    padding: 32,
-  },
-  spinner: {
-    width: 32,
-    height: 32,
-    border: "3px solid #e5e7eb",
-    borderTop: "3px solid #111827",
-    borderRadius: "50%",
-    animation: "spin 0.8s linear infinite",
-  },
-  overlay: {
-    position: "fixed",
-    inset: 0,
-    background: "rgba(0,0,0,0.45)",
-    backdropFilter: "blur(4px)",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    zIndex: 50,
-    padding: 16,
-  },
-  modal: {
-    background: "#fff",
-    borderRadius: 18,
-    padding: "28px 28px 24px",
-    width: "100%",
-    maxWidth: 440,
-    boxShadow: "0 20px 60px rgba(0,0,0,0.2)",
-  },
-  modalHeader: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 10,
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: 800,
-    color: "#111827",
-    margin: 0,
-    letterSpacing: "-0.3px",
-  },
-  closeBtn: {
-    background: "#f3f4f6",
-    border: "none",
-    borderRadius: 6,
-    width: 28,
-    height: 28,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    cursor: "pointer",
-    fontSize: 12,
-    color: "#6b7280",
-  },
-  modalTicketLabel: {
-    fontSize: 13,
-    color: "#6b7280",
-    margin: "0 0 4px",
-    fontStyle: "italic",
-    overflow: "hidden",
-    whiteSpace: "nowrap",
-    textOverflow: "ellipsis",
-  },
-  divider: {
-    height: 1,
-    background: "#f3f4f6",
-    margin: "16px 0",
-  },
-  sectionLabel: {
-    fontSize: 13,
-    fontWeight: 700,
-    color: "#374151",
-    marginBottom: 4,
-  },
-  textarea: {
-    width: "100%",
-    border: "1px solid #e5e7eb",
-    borderRadius: 10,
-    padding: "10px 12px",
-    fontSize: 14,
-    color: "#111827",
-    resize: "vertical",
-    outline: "none",
-    fontFamily: "inherit",
-    marginTop: 8,
-    background: "#fafafa",
-    boxSizing: "border-box",
-  },
-  modalFooter: {
-    display: "flex",
-    justifyContent: "flex-end",
-    gap: 10,
-    marginTop: 20,
-  },
-  btnCancel: {
-    background: "#f3f4f6",
-    color: "#374151",
-    border: "none",
-    borderRadius: 8,
-    padding: "9px 18px",
-    fontSize: 13,
-    fontWeight: 600,
-    cursor: "pointer",
-  },
-  btnSubmit: {
-    background: "#111827",
-    color: "#fff",
-    border: "none",
-    borderRadius: 8,
-    padding: "9px 20px",
-    fontSize: 13,
-    fontWeight: 600,
-    cursor: "pointer",
-    opacity: 1,
-  },
-  successBox: {
-    textAlign: "center",
-    padding: "24px 0 12px",
-  },
 }

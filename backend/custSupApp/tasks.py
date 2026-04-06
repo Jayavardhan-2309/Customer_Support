@@ -6,6 +6,12 @@ from celery.utils.log import get_task_logger
 from django.template.loader import render_to_string
 from django.conf import settings
 from custSupApp.models import SupportTicket
+from custSupApp.models import Organization
+from custSupApp.index_knowledge import run_indexing
+
+from django.core.cache import cache
+
+
 
 logger = get_task_logger(__name__)
 
@@ -52,23 +58,88 @@ def send_ticket_email(self, ticket_id, staff_email, conversation_text, query):
         raise self.retry(exc=exc)
 
 @shared_task(bind=True, max_retries=3, default_retry_delay=10)
-def reindex_org(self, org_id):
-    from custSupApp.models import Organization
-    from custSupApp.index_knowledge import run_indexing
+def index_pdf(self, pdf_id):
+    from custSupApp.models import UploadedPDF
+    import requests
+    from io import BytesIO
+    import pdfplumber
 
-    if not Organization.objects.filter(id=org_id).exists():
-        logger.error(f"[reindex_org] Org #{org_id} does not exist, aborting.")
-        return
+    pdf = UploadedPDF.objects.get(id=pdf_id)
+
+    logger.info(f"[INDEX START] PDF={pdf.title}")
 
     try:
-        run_indexing(org_id)
-        logger.info(f"[reindex_org] Reindex complete for org #{org_id}")
+        response = requests.get(pdf.file_url, timeout=15)
+        response.raise_for_status()
+
+        pdf_stream = BytesIO(response.content)
+
+        with pdfplumber.open(pdf_stream) as pdf_doc:
+
+            if not pdf.total_pages:
+                pdf.total_pages = len(pdf_doc.pages)
+                pdf.save(update_fields=["total_pages"])
+
+            start = pdf.last_processed_page
+            BATCH_PAGES = 2
+
+            for i in range(start, len(pdf_doc.pages), BATCH_PAGES):
+
+                pages = pdf_doc.pages[i:i+BATCH_PAGES]
+
+                texts = [
+                    p.extract_text() or ""
+                    for p in pages if (p.extract_text() or "").strip()
+                ]
+
+                if texts:
+                    process_text_batch_sync(texts, pdf.organization_id, pdf.id)
+
+                # ✅ SAVE PROGRESS
+                pdf.last_processed_page = i + BATCH_PAGES
+                pdf.save(update_fields=["last_processed_page"])
+
+                # 🔥 continue later
+                index_pdf.delay(pdf.id)
+                return
+
+            # ✅ DONE
+            pdf.status = "completed"
+            pdf.is_indexed = True
+            pdf.save(update_fields=["status", "is_indexed"])
+
+            logger.info(f"[INDEX COMPLETE] PDF={pdf.title}")
 
     except Exception as exc:
-        logger.error(
-            f"[reindex_org] Reindex failed for org #{org_id} "
-            f"(attempt {self.request.retries + 1}/{self.max_retries + 1}): {exc}",
-            exc_info=True,
-        )
+        logger.error(f"[INDEX ERROR] {pdf.title} | {exc}", exc_info=True)
         raise self.retry(exc=exc)
-    
+
+def process_text_batch_sync(text_batch, org_id, pdf_id):
+    from custSupApp.embeddings import embed_texts_batch
+    from django.db import connection
+    from langchain_text_splitters import CharacterTextSplitter
+
+    splitter = CharacterTextSplitter(chunk_size=300, chunk_overlap=50)
+
+    docs = []
+    for text in text_batch:
+        docs.extend(splitter.split_text(text))
+
+    BATCH_SIZE = 5
+
+    for i in range(0, len(docs), BATCH_SIZE):
+        mini_batch = docs[i:i+BATCH_SIZE]
+
+        vectors = embed_texts_batch(mini_batch)
+
+        with connection.cursor() as cursor:
+            for text, vector in zip(mini_batch, vectors):
+                vector_str = "[" + ",".join(map(str, vector)) + "]"
+
+                cursor.execute(
+                    """
+                    INSERT INTO kb_chunks (content, embedding, org_id, pdf_id)
+                    VALUES (%s, %s::vector, %s, %s)
+                    """,
+                    [text, vector_str, org_id, pdf_id],
+                )

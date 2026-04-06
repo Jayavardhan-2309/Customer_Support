@@ -124,7 +124,9 @@ class UploadedPDF(models.Model):
 
     title = models.CharField(max_length=200)
 
-    file = models.FileField(upload_to="pdfs/")
+    file = models.FileField(upload_to="pdfs/", null=True, blank=True)  # keep optional
+
+    file_url = models.TextField(null=True, blank=True)
 
     organization = models.ForeignKey(
         Organization,
@@ -141,6 +143,11 @@ class UploadedPDF(models.Model):
     )
 
     uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    status = models.CharField(max_length=20, default="queued", db_index=True)
+    last_processed_page = models.IntegerField(default=0)
+    total_pages = models.IntegerField(null=True, blank=True)
+    is_indexed = models.BooleanField(default=False)
 
 class TicketFeedback(models.Model):
     ticket = models.OneToOneField(
