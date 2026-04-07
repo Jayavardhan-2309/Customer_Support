@@ -52,15 +52,15 @@ export default function StaffPage() {
   const openTicket = (id: number) => router.push(`/staff/ticket/${id}`)
 
   const priorityColor = (priority: string) => {
-    if (priority === "high" || priority === "High") return "text-red-500"
+    if (priority === "high" || priority === "High") return "text-red-400"
     if (priority === "normal") return "text-orange-400"
-    return "text-gray-400"
+    return "text-slate-400"
   }
 
   const priorityBadge = (priority: string) => {
-    if (priority === "high" || priority === "High") return "bg-red-50 text-red-600 border-red-200"
-    if (priority === "normal") return "bg-orange-50 text-orange-600 border-orange-200"
-    return "bg-gray-50 text-gray-500 border-gray-200"
+    if (priority === "high" || priority === "High") return "bg-red-900/40 text-red-400 border-red-700"
+    if (priority === "normal") return "bg-orange-900/40 text-orange-400 border-orange-700"
+    return "bg-slate-800 text-slate-400 border-slate-700"
   }
 
   const priorityOrder: Record<string, Record<string, number>> = {
@@ -81,33 +81,34 @@ export default function StaffPage() {
     return aVal - bVal
   })
 
-  const selectClass = "w-full px-3 py-2 rounded-md border border-gray-200 text-sm cursor-pointer bg-white focus:outline-none focus:ring-1 focus:ring-blue-400"
+  const selectClass =
+    "w-full px-3 py-2 rounded-md border border-slate-700 text-sm cursor-pointer bg-slate-900 text-slate-300 focus:outline-none focus:ring-1 focus:ring-indigo-500"
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-slate-950 text-white">
 
       {/* Header */}
-      <div className="bg-white border-b border-gray-200 px-4 sm:px-8 py-4 sticky top-0 z-10">
+      <div className="bg-slate-950 border-b border-slate-800 px-4 sm:px-8 py-4 sticky top-0 z-10">
         <div className="flex items-center justify-between max-w-5xl mx-auto">
           <div>
-            <h1 className="text-lg sm:text-2xl font-bold text-gray-900">Staff Dashboard</h1>
+            <h1 className="text-lg sm:text-2xl font-bold text-white">Staff Dashboard</h1>
             {staffName && (
-              <p className="mt-0.5 text-xs sm:text-sm text-gray-500">
-                Welcome, <b className="text-gray-700">{staffName}</b>
+              <p className="mt-0.5 text-xs sm:text-sm text-slate-400">
+                Welcome, <b className="text-white">{staffName}</b>
               </p>
             )}
           </div>
           <div className="flex items-center gap-2">
             <button
               onClick={() => router.push("/staff/analytics")}
-              className="px-3 sm:px-4 py-2 bg-blue-600 text-white rounded-md text-xs sm:text-sm font-medium hover:bg-blue-700 transition"
+              className="px-3 sm:px-4 py-2 bg-indigo-600 text-white rounded-md text-xs sm:text-sm font-medium hover:bg-indigo-700 transition"
             >
               Analytics
             </button>
             <button
               onClick={logout}
               disabled={isLoggingOut}
-              className="px-3 sm:px-4 py-2 text-xs sm:text-sm text-red-500 border border-red-300 rounded-md cursor-pointer hover:bg-red-50 disabled:opacity-50 transition"
+              className="px-3 sm:px-4 py-2 text-xs sm:text-sm text-red-400 border border-red-800 rounded-md hover:bg-red-900/40 disabled:opacity-50 transition"
             >
               {isLoggingOut ? "..." : "Logout"}
             </button>
@@ -120,23 +121,23 @@ export default function StaffPage() {
         {/* Filters */}
         <div className="mb-5">
           <div className="flex items-center justify-between mb-3">
-            <h2 className="text-base sm:text-lg font-semibold text-gray-800">
+            <h2 className="text-base sm:text-lg font-semibold text-white">
               Assigned Tickets
-              <span className="ml-2 text-xs font-normal text-gray-400">({sortedTickets.length})</span>
+              <span className="ml-2 text-xs font-normal text-slate-500">({sortedTickets.length})</span>
             </h2>
-            {/* Mobile filter toggle */}
+
             <button
               onClick={() => setFiltersOpen(!filtersOpen)}
-              className="sm:hidden px-3 py-1.5 text-xs border border-gray-300 rounded-md bg-white text-gray-600"
+              className="sm:hidden px-3 py-1.5 text-xs border border-slate-700 rounded-md bg-slate-900 text-slate-400"
             >
               {filtersOpen ? "Hide Filters" : "Filters ▾"}
             </button>
           </div>
 
-          {/* Filter controls — always visible on sm+, collapsible on mobile */}
-          <div className={`${filtersOpen ? "flex" : "hidden"} sm:flex flex-col sm:flex-row gap-3 sm:items-center sm:flex-wrap bg-white sm:bg-transparent p-3 sm:p-0 rounded-lg border sm:border-0 border-gray-200`}>
+          <div className={`${filtersOpen ? "flex" : "hidden"} sm:flex flex-col sm:flex-row gap-3 sm:items-center sm:flex-wrap bg-slate-900 sm:bg-transparent p-3 sm:p-0 rounded-lg border sm:border-0 border-slate-800`}>
+
             <div className="flex flex-col sm:flex-row sm:items-center gap-1.5">
-              <label className="text-xs text-gray-500 whitespace-nowrap">Category:</label>
+              <label className="text-xs text-slate-400 whitespace-nowrap">Category:</label>
               <select value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)} className={selectClass}>
                 <option value="all">All</option>
                 <option value="authentication">Authentication</option>
@@ -146,10 +147,10 @@ export default function StaffPage() {
               </select>
             </div>
 
-            <div className="hidden sm:block w-px h-5 bg-gray-200" />
+            <div className="hidden sm:block w-px h-5 bg-slate-700" />
 
             <div className="flex flex-col sm:flex-row sm:items-center gap-1.5">
-              <label className="text-xs text-gray-500 whitespace-nowrap">Status:</label>
+              <label className="text-xs text-slate-400 whitespace-nowrap">Status:</label>
               <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className={selectClass}>
                 <option value="all">All</option>
                 <option value="open">Open</option>
@@ -157,10 +158,10 @@ export default function StaffPage() {
               </select>
             </div>
 
-            <div className="hidden sm:block w-px h-5 bg-gray-200" />
+            <div className="hidden sm:block w-px h-5 bg-slate-700" />
 
             <div className="flex flex-col sm:flex-row sm:items-center gap-1.5">
-              <label className="text-xs text-gray-500 whitespace-nowrap">Sort by Priority:</label>
+              <label className="text-xs text-slate-400 whitespace-nowrap">Sort by Priority:</label>
               <select value={sortPriority} onChange={(e) => setPriority(e.target.value)} className={selectClass}>
                 <option value="default">Default</option>
                 <option value="high">High first</option>
@@ -168,17 +169,18 @@ export default function StaffPage() {
                 <option value="low">Low first</option>
               </select>
             </div>
+
           </div>
         </div>
 
         {/* Empty states */}
         {tickets.length === 0 && (
-          <div className="text-center py-16 text-gray-400 text-sm border border-dashed border-gray-200 rounded-xl bg-white">
+          <div className="text-center py-16 text-slate-500 text-sm border border-dashed border-slate-800 rounded-xl bg-slate-900">
             No tickets assigned yet
           </div>
         )}
         {sortedTickets.length === 0 && tickets.length > 0 && (
-          <div className="text-center py-16 text-gray-400 text-sm border border-dashed border-gray-200 rounded-xl bg-white">
+          <div className="text-center py-16 text-slate-500 text-sm border border-dashed border-slate-800 rounded-xl bg-slate-900">
             No tickets match the selected filters
           </div>
         )}
@@ -188,40 +190,50 @@ export default function StaffPage() {
           {sortedTickets.map((ticket) => (
             <div
               key={ticket.id}
-              className="bg-white border border-gray-200 rounded-xl px-4 sm:px-5 py-4 shadow-sm hover:shadow-md transition-shadow"
+              className="bg-slate-900 border border-slate-800 rounded-xl px-4 sm:px-5 py-4 hover:border-slate-600 transition"
             >
               <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
-                <div className="space-y-1 text-sm text-gray-800 min-w-0">
+
+                <div className="space-y-1 text-sm text-slate-300 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-semibold text-gray-500 text-xs">#{ticket.id}</span>
+                    <span className="font-semibold text-slate-500 text-xs">#{ticket.id}</span>
+
                     <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${priorityBadge(ticket.priority)}`}>
                       {ticket.priority}
                     </span>
-                    <span className="text-xs px-2 py-0.5 rounded-full border border-gray-200 bg-gray-50 text-gray-600">
+
+                    <span className="text-xs px-2 py-0.5 rounded-full border border-slate-700 bg-slate-800 text-slate-400">
                       {ticket.status}
                     </span>
+
                     {ticket.category && (
-                      <span className="text-xs px-2 py-0.5 rounded-full border border-blue-100 bg-blue-50 text-blue-600">
+                      <span className="text-xs px-2 py-0.5 rounded-full border border-indigo-800 bg-indigo-900/30 text-indigo-400">
                         {ticket.category}
                       </span>
                     )}
                   </div>
-                  <p className="font-medium text-gray-900">{ticket.customer}</p>
-                  <p className="text-gray-600 text-sm line-clamp-2">{ticket.message}</p>
+
+                  <p className="font-medium text-white">{ticket.customer}</p>
+
+                  <p className="text-slate-400 text-sm line-clamp-2">{ticket.message}</p>
+
                   {ticket.description && (
-                    <p className="text-gray-400 text-xs line-clamp-1">{ticket.description}</p>
+                    <p className="text-slate-500 text-xs line-clamp-1">{ticket.description}</p>
                   )}
                 </div>
+
                 <button
                   onClick={() => openTicket(ticket.id)}
-                  className="self-start sm:self-center shrink-0 px-4 py-2 bg-blue-600 text-white text-sm rounded-lg cursor-pointer hover:bg-blue-700 transition font-medium"
+                  className="self-start sm:self-center px-4 py-2 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700 transition font-medium"
                 >
                   Open →
                 </button>
+
               </div>
             </div>
           ))}
         </div>
+
       </div>
     </div>
   )
