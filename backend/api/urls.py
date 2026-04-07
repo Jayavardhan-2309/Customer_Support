@@ -18,6 +18,6 @@ urlpatterns=[path('login/', LoginView.as_view()), path("support-ai/", SupportAIV
              path("tickets/<int:ticket_id>/feedback/", SubmitFeedbackView.as_view()),
              path("user/resolved-tickets/", UserResolvedTicketsView.as_view()),
              path("admin/analytics/", AdminAnalyticsView.as_view()),
-             path("admin/staff/<int:staff_id>/", AdminStaffDetailView.as_view()),
+             path("admin/analytics/staff/<int:staff_id>/", AdminStaffDetailView.as_view()),
              ]
 urlpatterns+=router.urls
