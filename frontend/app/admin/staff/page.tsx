@@ -25,6 +25,7 @@ export default function AdminStaffPage() {
     const [togglingId, setTogglingId] = useState<number | null>(null);
     const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
     const [isLoggingOut, setIsLoggingOut] = useState(false);
+    const [orgName, setOrgName] = useState("");
 
     const showToast = (message: string, type: "success" | "error") => {
         setToast({ message, type });
@@ -36,6 +37,7 @@ export default function AdminStaffPage() {
             if (!res.ok) { router.replace("/login"); return; }
             const data = await res.json();
             if (data.role !== "admin") { router.replace("/support"); return; }
+            setOrgName(data.organization_name || "");
             setCheckingAuth(false);
         });
     }, []);
@@ -143,10 +145,25 @@ export default function AdminStaffPage() {
             {/* Header */}
             <header className="border-b border-slate-800 px-4 sm:px-8 py-4 sm:py-5">
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                    <div>
-                        <h1 className="text-lg sm:text-xl font-bold tracking-tight text-white">Support Staff</h1>
-                        <p className="text-slate-400 text-xs mt-0.5">Admin · Staff Management</p>
+                    <div className="flex flex-col gap-1">
+    
+                    <div className="flex items-center flex-wrap gap-2">
+                        <h1 className="text-lg sm:text-xl font-bold tracking-tight text-white">
+                            Support Staff
+                        </h1>
+
+                        {orgName && (
+                            <span className="text-[10px] sm:text-xs px-2 py-0.5 rounded-md bg-indigo-900/40 text-indigo-400 border border-indigo-800/40">
+                                {orgName}
+                            </span>
+                        )}
                     </div>
+
+                    <p className="text-slate-400 text-xs">
+                        Admin · Staff Management
+                    </p>
+
+                </div>
                     <div className="flex items-center gap-2 flex-wrap">
                         <button
                             onClick={() => router.push("/admin")}

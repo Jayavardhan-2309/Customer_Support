@@ -78,15 +78,26 @@ export default function Support() {
   const [checkingAuth, setCheckingAuth] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [isLogout, setLoggingOut] = useState(false);
+  const [orgName, setOrgName] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
   const speech = useSpeechRecognition();
   const chat = useChatHistory();
 
   useEffect(() => {
-    fetch("/api/me", { credentials: "include" }).then(res => {
-      if (!res.ok) router.replace("/login"); else setCheckingAuth(false);
+  fetch("/api/me", { credentials: "include" })
+    .then(async res => {
+      if (!res.ok) {
+        router.replace("/login");
+        return;
+      }
+
+      const data = await res.json();
+
+      setOrgName(data.organization_name || "");
+
+      setCheckingAuth(false);
     });
-  }, []);
+}, []);
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [chat.messages, speech.transcript, speech.interimTranscript]);
 
@@ -115,9 +126,22 @@ export default function Support() {
 
       {/* Header */}
       <header className="shrink-0 bg-slate-950 border-b border-slate-800 px-4 py-2.5 flex items-center justify-between">
-        <div>
-          <h1 className="text-sm font-bold">Support</h1>
-          <p className="text-slate-500 text-[10px] mt-0.5 hidden landscape:block">Type or speak to get help.</p>
+        <div className="flex flex-col gap-0.5">
+  
+          <div className="flex items-center flex-wrap gap-2">
+            <h1 className="text-sm font-bold">Support</h1>
+
+            {orgName && (
+              <span className="text-[9px] sm:text-[10px] px-2 py-0.5 rounded-md bg-indigo-900/40 text-indigo-400 border border-indigo-800/40">
+                {orgName}
+              </span>
+            )}
+          </div>
+
+          <p className="text-slate-500 text-[10px] hidden landscape:block">
+            Type or speak to get help.
+          </p>
+
         </div>
 
         <div className="flex gap-2">

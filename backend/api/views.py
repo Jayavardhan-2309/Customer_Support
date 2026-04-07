@@ -239,6 +239,7 @@ class MeView(APIView):
             "username": user.username,
             "email": user.email,
             "role": user.role,
+            "organization_name": user.organization.name if user.organization else None,
         })
 
 
