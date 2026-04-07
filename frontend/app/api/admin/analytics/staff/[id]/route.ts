@@ -9,19 +9,27 @@ export async function GET(
   const cookies = req.headers.get("cookie") ?? "";
   const { id } = await params;
 
-  const res = await fetch(
-    `${baseUrl}/api/v1/admin/staff/${id}/`,
-    {
-      method: "GET",
-      headers: { Cookie: cookies },
+  try {
+    const res = await fetch(
+      `${baseUrl}/api/v1/admin/analytics/staff/${id}/`, // ← fix path
+      {
+        method: "GET",
+        headers: { Cookie: cookies },
+      }
+    );
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      return NextResponse.json(data, { status: res.status });
     }
-  );
 
-  const data = await res.json();
-
-  if (!res.ok) {
-    return NextResponse.json(data, { status: res.status });
+    return NextResponse.json(data);
+  } catch (err) {
+    console.error("Staff analytics fetch failed:", err);
+    return NextResponse.json(
+      { error: "Failed to fetch staff analytics" },
+      { status: 500 }
+    );
   }
-
-  return NextResponse.json(data);
 }
