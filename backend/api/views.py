@@ -313,7 +313,7 @@ class PDFViewSet(ListModelMixin, DestroyModelMixin, GenericViewSet):
             status="queued"
         )
 
-        # 🔥 trigger indexing
+        # trigger indexing
         index_pdf.delay(pdf.id)
 
         return Response({
@@ -344,7 +344,7 @@ class PDFViewSet(ListModelMixin, DestroyModelMixin, GenericViewSet):
         except Exception as e:
             print(f"[DELETE ERROR] {e}")
 
-        # ✅ DELETE ONLY THIS PDF’s embeddings
+        # DELETE ONLY THIS PDF’s embeddings
         from django.db import connection
         with connection.cursor() as cursor:
             cursor.execute(

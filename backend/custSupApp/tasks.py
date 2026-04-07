@@ -95,15 +95,15 @@ def index_pdf(self, pdf_id):
                 if texts:
                     process_text_batch_sync(texts, pdf.organization_id, pdf.id)
 
-                # ✅ SAVE PROGRESS
+                # SAVE PROGRESS
                 pdf.last_processed_page = i + BATCH_PAGES
                 pdf.save(update_fields=["last_processed_page"])
 
-                # 🔥 continue later
+                # continue later
                 index_pdf.delay(pdf.id)
                 return
 
-            # ✅ DONE
+            # DONE
             pdf.status = "completed"
             pdf.is_indexed = True
             pdf.save(update_fields=["status", "is_indexed"])

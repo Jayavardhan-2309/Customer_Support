@@ -49,7 +49,7 @@ export default function SignupPage() {
 
       if (err.response) {
         console.error("STATUS:", err.response.status);
-        console.error("DATA:", err.response.data);   // 🔥 THIS IS IMPORTANT
+        console.error("DATA:", err.response.data);   // THIS IS IMPORTANT
         console.error("HEADERS:", err.response.headers);
       } else if (err.request) {
         console.error("NO RESPONSE RECEIVED:", err.request);

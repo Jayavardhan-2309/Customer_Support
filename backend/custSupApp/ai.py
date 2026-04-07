@@ -133,6 +133,8 @@ def call_groq(prompt, max_tokens=300, system_prompt=None):
             if response.status_code == 200:
                 return response.json()["choices"][0]["message"]["content"]
         except Exception:
+            response= {"message":"facing high load try again!", "context":"error"}
+            return response
             continue
 
     return None
