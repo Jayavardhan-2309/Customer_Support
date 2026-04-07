@@ -4,11 +4,40 @@
 
 This project is a **full-stack AI-powered customer support platform** that allows authenticated users to interact with an intelligent support assistant and enables admins to manage the AI's knowledge base dynamically.
 
-The assistant uses **retrieval-augmented generation (RAG)** with a custom knowledge base built from static text files and admin-uploaded PDFs, powered by an on-premise or cloud large language model.
+The assistant uses **retrieval-augmented generation (RAG)** with admin-uploaded PDFs, powered by an on-premise or cloud large language model.
 
 The system is designed with **security-first authentication**, **clean separation of concerns**, and a **scalable architecture**, reflecting real-world backend + frontend + AI integration.
 
 ---
+
+## About
+
+This project demonstrates:
+- Secure authentication using HTTP-only JWT cookies
+- Scalable full-stack architecture (Next.js + Django)
+- AI system integration using RAG pipelines
+- Real-world ticketing and escalation workflows
+- Asynchronous task processing using Celery and Redis
+
+---
+
+## Live Demo
+
+Live link: [Open live application](https://your-frontend-url.vercel.app)
+
+---
+
+## Deployment
+
+- Frontend deployed on Vercel
+- Backend deployed on Render
+- PostgreSQL hosted on (Supabase / local server)
+- Redis used for Celery task queue (Render)
+- FAISS index stored on server for retrieval (Supabase)
+
+---
+
+
 ## Key Features
 
 ### Authentication & Security
@@ -84,7 +113,7 @@ Features include:
 - Delete uploaded PDFs
 - Drag-and-drop file upload with 10MB limit
 - Automatic re-indexing of the FAISS vector store after every upload or delete
-- Knowledge base combines `knowledge.txt` static files + all uploaded PDFs
+- Knowledge base has all uploaded PDFs of individual organizations separately
 - Re-indexing runs in a background thread — API responds immediately
 - Admins can manage the AI knowledge base without restarting the server
 - Uploaded documents automatically improve the RAG retrieval pipeline
@@ -215,7 +244,7 @@ This approach prevents XSS token theft, client-side token tampering, and token l
 1. User submits a query from the support page
 2. Query is sent to Django via a secure Next.js API proxy
 3. The user's last 6 messages of chat history are fetched from the database
-4. Relevant documents are retrieved from the FAISS vector store (knowledge.txt + PDFs)
+4. Relevant documents are retrieved from the FAISS vector store (PDFs)
 5. A prompt is built combining: knowledge context + conversation history + current query
 6. The prompt is sent to Groq first, then OpenRouter, then Ollama as fallbacks
 7. The model generates a structured JSON response
@@ -232,10 +261,10 @@ The AI only answers using the knowledge base and conversation history, ensuring 
 
 ## How the Knowledge Base Works
 
-The knowledge base is built from two sources:
+The knowledge base is built from one source or many sources based on uploaded pdfs:
 
-- `custSupApp/knowledge.txt` — static knowledge file, always included
 - `media/pdfs/` — PDFs uploaded by admins through the `/admin` page
+- pdfs are stored on supabase and made indexings page by page using celery and redis
 
 When `index_knowledge.py` runs (manually or triggered automatically after upload/delete):
 
@@ -255,72 +284,138 @@ On every user query, the top 2 most relevant chunks are retrieved from the index
 customer-support/
 │
 ├── backend/
-│   ├── manage.py
-│   ├── requirements.txt
-│   │
-│   ├── custSupport/               # Django project settings
-│   │   ├── settings.py
-│   │   ├── urls.py
-│   │   ├── asgi.py
-│   │   ├── wsgi.py
-│   │   └── celery.py
-│   ├── api/                       # REST API layer
-│   │   ├── models.py
-│   │   ├── serializers.py
-│   │   ├── views.py               # All views + ViewSets
-│   │   └── urls.py                # Router-based URL registration
-│   │
-│   ├── custSupApp/                # Core app
-│   │   ├── models.py              # User, ChatMessage, UploadedPDF, etc.
-│   │   ├── authentication.py      # CookieJWTAuthentication
-│   │   ├── ai.py                  # LLM integration (Groq → OpenRouter → Ollama)
-│   │   ├── index_knowledge.py     # FAISS indexing (knowledge.txt + PDFs)
-│   │   ├── knowledge.txt          # Static knowledge base
-│   │   ├── knowledge_banking.txt  # Additional domain knowledge
-│   │   ├── faiss_index/           # Vector index storage
-│   │   ├── services/
-│   │   │   ├── support_assignment.py   # Staff assignment logic
-│   │   │   ├── ticket_extraction.py # fall back for structured ticket extraction
-│   │   │   └── ticket_service.py # create structured ticket
-│   │   ├──templates
-│   │   │   └──emails
-│   │   │   └──support_ticket.html
-│   │   ├──tests
-│   │   │   └──test_ticket_extraction.py
-│   │   └──tasks.py
-│   │
-│   ├── media/
-│   │   └── pdfs/                  # Admin-uploaded PDFs
-│   │
-│   └── env/                       # Python virtual environment
+│ ├── manage.py
+│
+│ ├── custSupport/ # Django project (core config)
+│ │ ├── init.py
+│ │ ├── asgi.py
+│ │ ├── celery.py
+│ │ ├── settings.py
+│ │ ├── urls.py
+│ │ ├── views.py
+│ │ └── wsgi.py
+│
+│ ├── api/ # Generic REST API layer
+│ │ ├── init.py
+│ │ ├── admin.py
+│ │ ├── apps.py
+│ │ ├── models.py
+│ │ ├── pagination.py
+│ │ ├── serializers.py
+│ │ ├── tests.py
+│ │ ├── urls.py
+│ │ └── views.py
+│ │ └── migrations/
+│
+│ ├── custSupApp/ # Core business logic + AI system
+│ │ ├── init.py
+│ │ ├── admin.py
+│ │ ├── ai.py # LLM orchestration (Groq → OpenRouter → Ollama)
+│ │ ├── authentication.py
+│ │ ├── embeddings.py
+│ │ ├── index_knowledge.py
+│ │ ├── models.py
+│ │ ├── serializers.py
+│ │ ├── urls.py
+│ │ ├── views.py
+│ │ ├── tasks.py # Celery tasks
+│ │
+│ │ ├── services/
+│ │ │ ├── support_assignment.py
+│ │ │ ├── ticket_extraction.py
+│ │ │ ├── ticket_service.py
+│ │ │ └── analytics/
+│ │ │ ├── admin_analytics.py
+│ │ │ ├── analytics_service.py
+│ │ │ └── staff_detail_service.py
+│ │
+│ │ ├── templates/
+│ │ │ └── emails/
+│ │ │ └── support_ticket.html
+│ │
+│ │ ├── tests/
+│ │ │ └── test_ticket_extraction.py
+│ │
+│ │ └── migrations/
+│
 │
 ├── frontend/
-│   ├── app/
-│   │   ├── login/
-│   │   │   └── page.tsx           # Login with role-based redirect
-│   │   ├── signup/
-│   │   │   └── page.tsx
-│   │   ├── support/
-│   │   │   └── page.tsx           # User chat page with speech input
-│   │   ├── admin/
-│   │   │   └── page.tsx           # Admin knowledge base management
-│   │   ├── api/                   # Next.js proxy routes
-│   │   │   ├── me/route.ts
-│   │   │   ├── logout/route.ts
-│   │   │   ├── support/route.ts
-│   │   │   ├── chat/history/route.ts
-│   │   │   └── admin/pdfs/
-│   │   │       ├── route.ts       # GET list
-│   │   │       ├── upload/route.ts  # POST upload
-│   │   │       └── [id]/route.ts  # DELETE
-│   │   └── staff/
-│   │           ├── ticket/
-│   │           │      └──[id]/
-│   │           │           └──page.tsx
-│   │           └── page.tsx
-│   ├── package.json
-│   ├── next.config.ts
-│   └── tsconfig.json
+│ ├── app/ # Next.js App Router
+│ │
+│ │ ├── page.tsx # Landing page
+│ │ ├── layout.tsx
+│ │ ├── globals.css
+│ │
+│ │ ├── login/
+│ │ │ └── page.tsx
+│ │ ├── signup/
+│ │ │ └── page.tsx
+│ │
+│ │ ├── support/
+│ │ │ ├── page.tsx
+│ │ │ └── feedback/
+│ │ │ └── page.tsx
+│ │
+│ │ ├── admin/
+│ │ │ ├── page.tsx
+│ │ │ ├── staff/
+│ │ │ │ └── page.tsx
+│ │ │ └── analytics/
+│ │ │ ├── page.tsx
+│ │ │ └── staff/
+│ │ │ └── [id]/page.tsx
+│ │
+│ │ ├── staff/
+│ │ │ ├── page.tsx
+│ │ │ ├── analytics/
+│ │ │ │ └── page.tsx
+│ │ │ └── ticket/
+│ │ │ └── [id]/page.tsx
+│ │
+│ │ ├── api/ # Next.js BFF (proxy layer)
+│ │ │ ├── login/route.ts
+│ │ │ ├── logout/route.ts
+│ │ │ ├── signup/route.ts
+│ │ │ ├── me/route.ts
+│ │ │ ├── organizations/route.ts
+│ │ │
+│ │ │ ├── support/route.ts
+│ │ │ ├── chat/history/route.ts
+│ │ │
+│ │ │ ├── admin/
+│ │ │ │ ├── analytics/route.ts
+│ │ │ │ ├── analytics/staff/[id]/route.ts
+│ │ │ │ ├── staff/route.ts
+│ │ │ │ ├── staff/[id]/route.ts
+│ │ │ │ └── pdfs/
+│ │ │ │ ├── route.ts
+│ │ │ │ ├── upload/route.ts
+│ │ │ │ └── [id]/route.ts
+│ │ │
+│ │ │ ├── staff/
+│ │ │ │ ├── analytics/route.ts
+│ │ │ │ └── tickets/
+│ │ │ │ ├── route.ts
+│ │ │ │ └── [id]/
+│ │ │ │ ├── route.ts
+│ │ │ │ ├── start/route.ts
+│ │ │ │ ├── resolve/route.ts
+│ │ │ │ └── messages/route.ts
+│ │ │
+│ │ │ ├── tickets/
+│ │ │ │ └── [id]/feedback/route.ts
+│ │ │ └── user/resolved-tickets/route.ts
+│ │
+│ ├── src/
+│ │ └── lib/
+│ │ └── axios.ts # Axios instance
+│ │
+│ ├── global.d.ts
+│ ├── next.config.ts
+│ ├── package.json
+│ ├── package-lock.json
+│ ├── tsconfig.json
+│ └── vercel.json
 │
 └── README.md
 ```
@@ -335,6 +430,7 @@ customer-support/
 - PostgreSQL running locally
 - Ollama installed (optional, used as last fallback)
 - Groq API key (free at console.groq.com)
+- Gemini API key (free at google AI studio)
 
 ### Backend
 
@@ -388,11 +484,6 @@ ollama run mistral
 - Email notification system for support staff
 - Secure backend architecture using Next.js BFF + Django REST
 - Celery + Redis integration for asynchronous email notifications
-
----
-
-## Planned Enhancements
-
 - Support staff dashboard for ticket management
 - Ticket resolution workflow
 - User feedback collection after ticket resolution
@@ -403,19 +494,25 @@ ollama run mistral
 - Dedicated ticket detail page with AI context and conversation inspection
 - Conversation viewer for recent chat messages prior to escalation
 - Advanced dashboard analytics for staff workload and ticket performance
+- Advanced RBAC (multi-organization support with different permissions)
+- Deployed and live
+- Docker-based containerized deployment (Render)
+
+---
+
+## Future Improvements (Optional Enhancements)
+
+- Streaming AI responses (real-time token streaming)
+- WebSocket-based live chat updates
+- AI fine-tuning with domain-specific datasets
+- Rate limiting and abuse protection
+- Observability (logging, monitoring, tracing)
 
 ---
 
 ## Author
 
 **Jayavardhan Nirujogi**
-
-This project was built to deeply understand:
-- Secure authentication internals
-- Frontend–backend communication patterns
-- AI system integration with RAG
-- Real-world debugging and system design
-- LLM fallback strategies and prompt engineering
 
 ---
 
@@ -427,7 +524,12 @@ A license can be added if the project is open-sourced or deployed publicly.
 ---
 
 
-*Active development. Core architecture, authentication, AI integration, and admin knowledge base management are stable and working end-to-end.*
-
-*Active development. Core architecture, authentication, AI integration, and admin knowledge base management are stable and working end-to-end.*
-
+Environment variables are securely configured for:
+- GROQ API
+- OpenRouter API
+- Database credentials
+- Brevo API
+- Gemini API
+- CORS Allowed origins
+- Allowed hosts
+- CSRF Trusted origins
