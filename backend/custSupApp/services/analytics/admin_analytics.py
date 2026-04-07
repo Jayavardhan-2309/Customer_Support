@@ -30,29 +30,33 @@ def get_admin_staff_performance(org):
     ]
 
 
-def get_ticket_stats():
+def get_ticket_stats(org):
+    tickets = SupportTicket.objects.filter(organization=org)
+
     return {
-        "open": SupportTicket.objects.filter(status="open").count(),
-        "in_progress": SupportTicket.objects.filter(status="in_progress").count(),
-        "resolved": SupportTicket.objects.filter(status__in=["resolved", "closed"]).count(),
-        "closed": SupportTicket.objects.filter(status="closed").count(),
+        "open": tickets.filter(status="open").count(),
+        "in_progress": tickets.filter(status="in_progress").count(),
+        "resolved": tickets.filter(status__in=["resolved", "closed"]).count(),
+        "closed": tickets.filter(status="closed").count(),
     }
 
 
-def get_overall_metrics():
+def get_overall_metrics(org):
+    tickets = SupportTicket.objects.filter(organization=org)
+
     today = timezone.now().date()
     week_start = today - timedelta(days=7)
 
     return {
-        "total_tickets": SupportTicket.objects.count(),
-        "resolved_today": SupportTicket.objects.filter(resolved_at__date=today).count(),
-        "resolved_this_week": SupportTicket.objects.filter(resolved_at__date__gte=week_start).count(),
+        "total_tickets": tickets.count(),
+        "resolved_today": tickets.filter(resolved_at__date=today).count(),
+        "resolved_this_week": tickets.filter(resolved_at__date__gte=week_start).count(),
     }
 
 
 def get_admin_analytics(org):
     return {
-        "ticket_stats": get_ticket_stats(),
-        "overall_metrics": get_overall_metrics(),
+        "ticket_stats": get_ticket_stats(org),
+        "overall_metrics": get_overall_metrics(org),
         "staff_performance": get_admin_staff_performance(org)
     }
