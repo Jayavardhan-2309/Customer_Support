@@ -63,13 +63,13 @@ export default function LoginPage() {
                         required
                     />
 
-                    <div className="relative">
+                    <div>
                         <input
                             type={showPassword ? "text" : "password"}
                             placeholder="Password"
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
-                            className="border border-slate-700 bg-slate-950 text-white rounded px-3 py-2.5 pr-10 focus:outline-none focus:ring-2 focus:ring-indigo-500 placeholder-slate-500 text-sm sm:text-base"
+                            className="w-full rounded-lg border border-slate-700 bg-slate-950 px-4 py-2.5 pr-10 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm sm:text-base"
                             required
                         />
 
