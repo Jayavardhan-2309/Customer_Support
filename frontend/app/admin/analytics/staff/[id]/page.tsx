@@ -94,7 +94,7 @@ export default function StaffAnalyticsDetailPage() {
           <div className="bg-slate-900 border border-slate-800 p-4 sm:p-5 rounded-xl">
             <p className="text-xs sm:text-sm text-slate-400">Avg Time</p>
             <p className="text-2xl sm:text-3xl font-bold mt-1 text-purple-400">
-              {data.performance.avg_resolution_time || "N/A"}
+              {data.performance.avg_resolution_time ?? "N/A"}
             </p>
           </div>
 
