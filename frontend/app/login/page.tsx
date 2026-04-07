@@ -44,65 +44,74 @@ export default function LoginPage() {
     };
 
     return (
-        <div className="min-h-screen bg-gray-100 flex items-center justify-center px-4 py-8 text-black">
-            <div className="w-full max-w-md bg-white shadow rounded-lg p-6 sm:p-8">
-                <h1 className="text-xl sm:text-2xl font-semibold mb-6 text-center">
+        <div className="min-h-screen bg-slate-950 flex items-center justify-center px-4 py-8 text-white">
+            <div className="w-full max-w-md bg-slate-900 border border-slate-800 shadow rounded-lg p-6 sm:p-8">
+                
+                <h1 className="text-xl sm:text-2xl font-semibold mb-6 text-center text-white">
                     Login to get Support
                 </h1>
 
                 <form onSubmit={handleLogin} className="flex flex-col gap-4">
+                    
                     <input
                         type="text"
                         placeholder="Username"
                         value={username}
                         onChange={(e) => setUsername(e.target.value)}
-                        className="border rounded px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-gray-300 text-sm sm:text-base"
+                        className="border border-slate-700 bg-slate-950 text-white rounded px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 placeholder-slate-500 text-sm sm:text-base"
                         required
                     />
+
                     <input
                         type="password"
                         placeholder="Password"
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
-                        className="border rounded px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-gray-300 text-sm sm:text-base"
+                        className="border border-slate-700 bg-slate-950 text-white rounded px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 placeholder-slate-500 text-sm sm:text-base"
                         required
                     />
+
                     <button
                         type="submit"
                         disabled={loading}
-                        className="bg-black text-white py-2.5 rounded hover:bg-gray-800 transition disabled:opacity-60 text-sm sm:text-base font-medium"
+                        className="bg-indigo-600 text-white py-2.5 rounded hover:bg-indigo-700 transition disabled:opacity-60 text-sm sm:text-base font-medium"
                     >
                         {loading ? "Logging in..." : "Login"}
                     </button>
+
                 </form>
 
                 <div className="flex flex-col items-center gap-2 mt-6">
-                    <p className="text-black text-center text-sm">
+                    
+                    <p className="text-slate-300 text-center text-sm">
                         Don't have an account?{" "}
                         <span
-                            className="text-blue-600 cursor-pointer hover:underline font-medium"
+                            className="text-indigo-400 cursor-pointer hover:underline font-medium"
                             onClick={() => router.push("/signup")}
                         >
                             Signup
                         </span>
                     </p>
-                    <p className="text-black text-center text-sm">
+
+                    <p className="text-slate-300 text-center text-sm">
                         <span
-                            className="text-blue-600 cursor-pointer hover:underline"
+                            className="text-indigo-400 cursor-pointer hover:underline"
                             onClick={() => router.push("/")}
                         >
                             ← Back to Home
                         </span>
                     </p>
+
                 </div>
 
                 {error && (
-                    <p className="mt-4 text-sm text-red-600 text-center">{error}</p>
+                    <p className="mt-4 text-sm text-red-400 text-center">{error}</p>
                 )}
 
-                <p className="mt-6 text-xs sm:text-sm text-center text-gray-500">
+                <p className="mt-6 text-xs sm:text-sm text-center text-slate-500">
                     Authorized users only
                 </p>
+
             </div>
         </div>
     );

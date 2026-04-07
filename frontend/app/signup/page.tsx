@@ -39,25 +39,25 @@ export default function SignupPage() {
   const [organizationId, setOrganizationId] = useState("");
 
   useEffect(() => {
-  api.get("organizations/")
-    .then(res => {
-      console.log("SUCCESS:", res.data);
-      setOrganizations(res.data);
-    })
-    .catch(err => {
-      console.error("FULL ERROR:", err);
+    api.get("organizations/")
+      .then(res => {
+        console.log("SUCCESS:", res.data);
+        setOrganizations(res.data);
+      })
+      .catch(err => {
+        console.error("FULL ERROR:", err);
 
-      if (err.response) {
-        console.error("STATUS:", err.response.status);
-        console.error("DATA:", err.response.data);   // THIS IS IMPORTANT
-        console.error("HEADERS:", err.response.headers);
-      } else if (err.request) {
-        console.error("NO RESPONSE RECEIVED:", err.request);
-      } else {
-        console.error("REQUEST SETUP ERROR:", err.message);
-      }
-    });
-}, []);
+        if (err.response) {
+          console.error("STATUS:", err.response.status);
+          console.error("DATA:", err.response.data);
+          console.error("HEADERS:", err.response.headers);
+        } else if (err.request) {
+          console.error("NO RESPONSE RECEIVED:", err.request);
+        } else {
+          console.error("REQUEST SETUP ERROR:", err.message);
+        }
+      });
+  }, []);
 
   const handleSignup = async (e: any) => {
     e.preventDefault();
@@ -73,7 +73,6 @@ export default function SignupPage() {
     setLoadiing(true);
 
     try {
-
       if (role === "admin") {
         await api.post("admin-signup/", {
           email,
@@ -100,13 +99,13 @@ export default function SignupPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-linear-to-br from-gray-100 to-gray-200 text-black px-4">
-      <div className="w-full max-w-md bg-white rounded-2xl shadow-xl p-8">
+    <div className="min-h-screen flex items-center justify-center bg-slate-950 text-white px-4">
+      <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl shadow-xl p-8">
 
-        <h1 className="text-3xl font-bold text-center text-gray-800">
+        <h1 className="text-3xl font-bold text-center text-white">
           Create Account
         </h1>
-        <p className="text-center text-gray-500 mt-2">
+        <p className="text-center text-slate-400 mt-2">
           Sign up to get started
         </p>
 
@@ -114,7 +113,7 @@ export default function SignupPage() {
 
           {/* EMAIL */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-slate-400 mb-1">
               Email
             </label>
             <input
@@ -123,13 +122,13 @@ export default function SignupPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              className="w-full rounded-lg border border-gray-300 bg-gray-50 px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full rounded-lg border border-slate-700 bg-slate-950 px-4 py-2 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
           </div>
 
           {/* USERNAME */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-slate-400 mb-1">
               Username
             </label>
             <input
@@ -137,13 +136,13 @@ export default function SignupPage() {
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               required
-              className="w-full rounded-lg border border-gray-300 bg-gray-50 px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full rounded-lg border border-slate-700 bg-slate-950 px-4 py-2 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
           </div>
 
           {/* PASSWORD */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-slate-400 mb-1">
               Password
             </label>
             <input
@@ -152,29 +151,29 @@ export default function SignupPage() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
-              className="w-full rounded-lg border border-gray-300 bg-gray-50 px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full rounded-lg border border-slate-700 bg-slate-950 px-4 py-2 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
           </div>
 
           {/* ROLE */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-slate-400 mb-1">
               Role
             </label>
             <select
               value={role}
               onChange={(e) => setRole(e.target.value as "user" | "admin")}
-              className="w-full rounded-lg border border-gray-300 bg-gray-50 px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full rounded-lg border border-slate-700 bg-slate-950 px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
             >
               <option value="user">User</option>
               <option value="admin">Admin</option>
             </select>
           </div>
 
-          {/* ORGANIZATION (ONLY FOR ADMIN) */}
+          {/* ORGANIZATION (ADMIN) */}
           {role === "admin" && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-slate-400 mb-1">
                 Organization Name
               </label>
               <input
@@ -182,14 +181,15 @@ export default function SignupPage() {
                 value={organizationName}
                 onChange={(e) => setOrganizationName(e.target.value)}
                 required
-                className="w-full rounded-lg border border-gray-300 bg-gray-50 px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full rounded-lg border border-slate-700 bg-slate-950 px-4 py-2 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
             </div>
           )}
 
+          {/* ORGANIZATION (USER) */}
           {role === "user" && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-slate-400 mb-1">
                 Organization
               </label>
 
@@ -197,7 +197,7 @@ export default function SignupPage() {
                 value={organizationId}
                 onChange={(e) => setOrganizationId(e.target.value)}
                 required
-                className="w-full rounded-lg border border-gray-300 bg-gray-50 px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full rounded-lg border border-slate-700 bg-slate-950 px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
               >
                 <option value="">Select organization</option>
 
@@ -211,7 +211,7 @@ export default function SignupPage() {
           )}
 
           {error && (
-            <p className="text-sm text-red-600 text-center">
+            <p className="text-sm text-red-400 text-center">
               {error}
             </p>
           )}
@@ -219,21 +219,33 @@ export default function SignupPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white font-semibold py-2.5 rounded-lg transition-all"
+            className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white font-semibold py-2.5 rounded-lg transition-all"
           >
             {loading ? "Signing up..." : "Sign Up"}
           </button>
         </form>
 
-        <p className="text-center text-gray-600 mt-6 text-sm">
-          Already have an account?{" "}
-          <span
-            className="text-blue-600 cursor-pointer hover:underline font-medium"
-            onClick={() => router.push("/login")}
-          >
-            Login
-          </span>
-        </p>
+        <div className="flex flex-col items-center gap-2 mt-6">
+          <p className="text-slate-300 text-sm">
+            Already have an account?{" "}
+            <span
+              className="text-indigo-400 cursor-pointer hover:underline font-medium"
+              onClick={() => router.push("/login")}
+            >
+              Login
+            </span>
+          </p>
+
+          {/* ✅ Back to Home added (same as login) */}
+          <p className="text-slate-300 text-sm">
+            <span
+              className="text-indigo-400 cursor-pointer hover:underline"
+              onClick={() => router.push("/")}
+            >
+              ← Back to Home
+            </span>
+          </p>
+        </div>
       </div>
     </div>
   );
