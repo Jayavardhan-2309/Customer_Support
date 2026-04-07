@@ -158,7 +158,7 @@ export default function AdminAnalyticsPage() {
             {staff_performance.map((staff: any, index: number) => (
               <div
                 key={staff.staff_id}
-                onClick={() => router.push(`/admin/staff/${staff.staff_id}`)}
+                onClick={() => router.push(`/admin/analytics/staff/${staff.staff_id}`)}
                 className="p-4 bg-white shadow-sm rounded-xl border border-gray-100 cursor-pointer hover:shadow-md transition-shadow"
               >
                 <h3 className="font-semibold text-gray-800">{staff.name}</h3>

@@ -35,7 +35,8 @@ def create_structured_ticket(user, query, structured_data):
         category=structured_data.get("category", "general"),
         priority=structured_data.get("priority", "normal"),
         status="open",
-        assigned_to=staff_member
+        assigned_to=staff_member,
+        organization=user.organization
     )
 
     print("TICKET SERVICE CALLED")
