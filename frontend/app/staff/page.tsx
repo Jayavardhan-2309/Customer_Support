@@ -14,6 +14,7 @@ export default function StaffPage() {
   const [filterCategory, setFilterCategory] = useState<string>("all")
   const [filterStatus, setFilterStatus] = useState<string>("all")
   const [filtersOpen, setFiltersOpen] = useState(false)
+  const [orgName, setOrgName] = useState<string>("")
 
   useEffect(() => {
     const fetchTickets = async () => {
@@ -29,6 +30,7 @@ export default function StaffPage() {
       try {
         const res = await api.get("me/")
         setStaffName(res.data.username)
+        setOrgName(res.data.organization_name || "")
       } catch (error) {
         console.error("Failed to load user", error)
       }
@@ -90,13 +92,26 @@ export default function StaffPage() {
       {/* Header */}
       <div className="bg-slate-950 border-b border-slate-800 px-4 sm:px-8 py-4 sticky top-0 z-10">
         <div className="flex items-center justify-between max-w-5xl mx-auto">
-          <div>
-            <h1 className="text-lg sm:text-2xl font-bold text-white">Staff Dashboard</h1>
+          <div className="flex flex-col gap-1">
+
+            <div className="flex items-center flex-wrap gap-2">
+              <h1 className="text-lg sm:text-2xl font-bold text-white">
+                Staff Dashboard
+              </h1>
+
+              {orgName && (
+                <span className="text-[10px] sm:text-xs px-2 py-0.5 rounded-md bg-indigo-900/40 text-indigo-400 border border-indigo-800/40">
+                  {orgName}
+                </span>
+              )}
+            </div>
+
             {staffName && (
-              <p className="mt-0.5 text-xs sm:text-sm text-slate-400">
+              <p className="text-xs sm:text-sm text-slate-400">
                 Welcome, <b className="text-white">{staffName}</b>
               </p>
             )}
+
           </div>
           <div className="flex items-center gap-2">
             <button
