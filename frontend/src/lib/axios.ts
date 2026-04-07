@@ -12,11 +12,20 @@ const api = axios.create({
 api.interceptors.response.use(
   (response) => response,
   (error) => {
+    if(!error.response){
+      alert("Network error. Please check your connection.");
+      return Promise.reject(error);
+    }
     const status = error.response?.status;
+
+    // server errors
+    if(status>=500){
+      alert("Server error. Please try again later.");
+    }
 
     // Global auth handling
     if (status === 401) {
-      console.log("Unauthorized → redirecting to login");
+      console.log("Unauthorized or session expired, redirecting to login");
       window.location.href = "/login";
     }
 

@@ -156,12 +156,21 @@ class SupportAIView(APIView):
 
         ChatMessage.objects.create(user=request.user, sender="user", message=query)
 
-        intent, reply, confidence, escalated = get_ai_response(
-            query=query,
-            history=history,
-            user_email=request.user.email,
-            org_id=request.user.organization_id
-        )
+        try:
+            intent, reply, confidence, escalated = get_ai_response(
+                query=query,
+                history=history,
+                user_email=request.user.email,
+                org_id=request.user.organization_id
+            )
+        except Exception as e:
+            print("[AI ERROR]", e)
+            return Response({
+                "intent": "error",
+                "reply": "Sorry, something went wrong. Please try again.",
+                "confidence": 0.0,
+                "escalated": False,
+            }, status=200)
 
         if escalated:
             structured_data = extract_ticket_structure_smart(query, history)
