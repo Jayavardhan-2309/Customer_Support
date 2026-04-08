@@ -150,10 +150,13 @@ def build_prompt(context: str, history: list[dict], query: str) -> str:
     else:
         history_block = "No previous conversation."
 
-    return f"""You are a customer support AI. Be concise.
+    return f"""You are a customer support AI. Be concise and honest.
 
-Use ONLY the knowledge context below to answer. Use conversation history for follow-up questions.
-If the context is empty or irrelevant, set confidence below 0.35 and say you don't have enough info.
+STRICT RULES:
+1. Answer ONLY using the Knowledge Context below. Do NOT infer, assume, or make up information.
+2. If the Knowledge Context does not contain a direct answer to the question, you MUST set confidence below 0.35 and reply that you don't have that specific information.
+3. Pay close attention to WHAT the user is asking. "why" and "where" are different questions — do not answer a different question than what was asked.
+4. Use conversation history only to understand follow-up context, NOT as a source of facts.
 
 Knowledge Context:
 {context}
@@ -280,17 +283,26 @@ def get_ai_response(query, history=None, user_email=None, org_id=None, escalatio
         return ("escalation", "Sure, let me connect you with a human agent right away.", 1.0, True)
 
     # ── 2. Repetitive AI reply detection ─────────────────────────────────────
-    assistant_msgs = [m["content"] for m in history if m["role"] == "assistant"]
-    if len(assistant_msgs) >= 2:
-        last, second_last = assistant_msgs[-1].strip(), assistant_msgs[-2].strip()
-        if last == second_last and len(last) > 60:
-            logger.warning("Repetitive substantive AI replies — forcing escalation.")
+    # Scan ALL assistant messages in history, not just the last two positional
+    # slots — the 10-message window means the pair could appear anywhere.
+    # We flag it if any substantive reply (>60 chars) has appeared 2+ times.
+    assistant_msgs = [m["content"].strip() for m in history if m["role"] == "assistant"]
+    substantive = [m for m in assistant_msgs if len(m) > 60]
+    if len(substantive) >= 2:
+        # Count occurrences of the most recent substantive reply
+        most_recent = substantive[-1]
+        repeat_count = substantive.count(most_recent)
+        if repeat_count >= 2:
+            logger.warning(
+                "AI repeated the same reply %d times — forcing escalation.", repeat_count
+            )
             if _escalation_limit_reached(escalation_count):
                 return ("escalation_limit", ESCALATION_LIMIT_REPLY, 0.0, False)
             return (
                 "escalation",
-                "I noticed I'm giving you the same answer repeatedly. "
-                "Let me get a human agent to help you properly.",
+                "I noticed I'm giving you the same answer repeatedly, which means "
+                "I don't have better information on this. Let me get a human agent "
+                "to help you properly.",
                 0.0,
                 True,
             )
