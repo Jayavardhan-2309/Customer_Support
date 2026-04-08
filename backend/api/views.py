@@ -338,12 +338,14 @@ class PDFViewSet(ListModelMixin, DestroyModelMixin, GenericViewSet):
 
     # DELETE — DELETE /admin/pdfs/{id}/
     def destroy(self, request, pk=None):
+        logger.info(f"[DELETE]: pdf deleted")
         try:
             pdf = UploadedPDF.objects.get(
                 id=pk,
                 organization=request.user.organization
             )
         except UploadedPDF.DoesNotExist:
+            logger.info("[PDF]: not found")
             return Response({"detail": "PDF not found"}, status=404)
 
         supabase = create_client(
@@ -354,7 +356,6 @@ class PDFViewSet(ListModelMixin, DestroyModelMixin, GenericViewSet):
         try:
             file_name = pdf.file_url.split("/")[-1]
             supabase.storage.from_("pdfs").remove([file_name])
-            logger.info(f"[DELETE]: {file_name} deleted")
         except Exception as e:
             logger.error(f"[DELETE ERROR] {e}")
 
