@@ -4,19 +4,22 @@ import logging
 logger= logging.getLogger(__name__)
 
 
-def assign_least_busy_staff():
+# In your assignment service file
+def assign_least_busy_staff(org_id):
     """
-    Assigns the least busy available staff user.
-    Uses select_for_update to prevent race conditions.
+    Assigns the least busy available staff user WITHIN a specific organization.
     """
-    logger.info("[Assigning least busy staff]")
+    logger.info(f"[Assigning least busy staff for Org: {org_id}]")
 
-    with transaction.atomic(): # for atomicity in db transactions, these group of instructions are done at a time and are committed to db only when all are executed successfully
-
+    with transaction.atomic():
         staff = (
             User.objects
-            .select_for_update() # this is used to prevent race condition, another user's ticket is not assigned to this staff
-            .filter(role="staff", is_available=True)
+            .select_for_update()
+            .filter(
+                role="staff", 
+                is_available=True, 
+                organization_id=org_id  # Filter by organization
+            )
             .order_by("active_tickets", "id")
             .first()
         )
@@ -24,8 +27,7 @@ def assign_least_busy_staff():
         if not staff:
             return None
 
-        # Increment workload safely
         staff.active_tickets += 1
-        staff.save(update_fields=["active_tickets"]) # update only the active_tickets field in staff
+        staff.save(update_fields=["active_tickets"])
 
         return staff

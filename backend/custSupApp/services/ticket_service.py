@@ -25,7 +25,7 @@ logger= logging.getLogger(__name__)
 
 def create_structured_ticket(user, query, structured_data):
 
-    staff_member = assign_least_busy_staff()
+    staff_member = assign_least_busy_staff(user.organization_id)
 
     ticket = SupportTicket.objects.create(
         user=user,
