@@ -8,22 +8,21 @@ load_dotenv()
 
 from django.db import connection
 
-# ── Import embed_text from the new local embeddings module (no API key needed)
-from custSupApp.embeddings import embed_text          # ← changed
+from custSupApp.embeddings import embed_text
 import logging
 
-logger= logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 
-# CONFIG
+# ── CONFIG ──────────────────────────────────────────────────────────────────
 
 OLLAMA_URL = "http://localhost:11434/api/generate"
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
 
-ESCALATION_CONFIDENCE_THRESHOLD = 0.4
-
-SOFT_ESCALATION_THRESHOLD = 0.6  # AI is somewhat unsure
-HARD_ESCALATION_THRESHOLD = 0.3  # AI is very unsure
+MAX_DAILY_ESCALATIONS = 3          # hard cap per user per 24 h
+NO_CONTEXT_CONFIDENCE = 0.35       # below this with no docs → "I don't know" reply
+SOFT_ESCALATION_THRESHOLD = 0.6
+HARD_ESCALATION_THRESHOLD = 0.3
 CRITICAL_KEYWORDS = ["legal", "sue", "lawyer", "refund", "cancel subscription", "data breach"]
 
 SUPPORT_STAFF_EMAIL = os.environ.get("SUPPORT_STAFF_EMAIL", "support@yourcompany.com")
@@ -42,46 +41,98 @@ GROQ_MODELS = [
     "mixtral-8x7b-32768",
 ]
 
+# ── ESCALATION LIMIT REPLY ───────────────────────────────────────────────────
+
+ESCALATION_LIMIT_REPLY = (
+    "You've reached the maximum of 3 escalations today. "
+    "Our team will follow up on your earlier tickets. "
+    "If this is urgent, please email us directly."
+)
+
+# ── NO-CONTEXT REPLIES ───────────────────────────────────────────────────────
+
+NO_CONTEXT_FIRST_REPLY = (
+    "I don't have enough information in my knowledge base to answer that confidently. "
+    "Could you give me a bit more detail or rephrase your question?"
+)
+
+NO_CONTEXT_SECOND_REPLY = (
+    "I still don't have a good answer for that — it may be outside what I currently know. "
+    "You can try asking something else, or I can escalate this to a human agent if you'd like."
+)
+
+# ── HELPERS ──────────────────────────────────────────────────────────────────
+
+def _escalation_limit_reached(escalation_count: int) -> bool:
+    """Returns True when the user has already hit the daily cap."""
+    return escalation_count >= MAX_DAILY_ESCALATIONS
+
+
+def _count_no_context_turns(history: list[dict]) -> int:
+    """
+    Count how many of the last AI replies were 'no-context' responses.
+    We detect them by matching the known no-context reply strings.
+    """
+    no_context_markers = [NO_CONTEXT_FIRST_REPLY[:40], NO_CONTEXT_SECOND_REPLY[:40]]
+    count = 0
+    for msg in reversed(history):
+        if msg["role"] != "assistant":
+            continue
+        content = msg["content"]
+        if any(content.startswith(marker) for marker in no_context_markers):
+            count += 1
+        else:
+            break   # stop at the first normal AI reply
+    return count
+
+
+def _user_wants_escalation(query: str) -> bool:
+    """Detect explicit user requests to escalate / talk to a human."""
+    triggers = [
+        "escalate", "human agent", "talk to someone", "speak to agent",
+        "real person", "transfer me", "get support", "yes please",
+        "yes escalate", "connect me"
+    ]
+    q = query.lower()
+    return any(t in q for t in triggers)
+
+# ── ESCALATION RISK ──────────────────────────────────────────────────────────
 
 def evaluate_escalation_risk(query, intent, confidence, sentiment_frustrated):
     """
     Determines if a query should be escalated based on multiple factors.
-    Includes bypass logic for greetings and short messages to prevent false positives.
+    NOTE: daily-limit enforcement is handled in get_ai_response(), not here.
     """
     query_lower = query.lower().strip()
-    
-    # 1. GREETING BYPASS: Prevent escalation for simple hellos or short messages
-    # If message is shorter than 10 characters or just "hello/hey", never escalate
+
+    # 1. Greeting bypass
     greetings = {"hello", "hi", "hey", "test", "anyone there", "hello?"}
     if len(query_lower) < 10 or query_lower in greetings:
-        logger.info(f"Bypassing escalation for short/greeting message: '{query_lower}'")
         return False
 
-    # 2. Immediate triggers: Critical keywords (Keep these)
+    # 2. Critical keywords
     if any(keyword in query_lower for keyword in CRITICAL_KEYWORDS):
-        logger.info(f"Escalating due to critical keyword: {query[:50]}")
+        logger.info("Escalating due to critical keyword: %s", query[:50])
         return True
 
-    # 3. Refined Sentiment/Confidence check
-    # Only escalate if frustrated AND confidence is quite low (0.5 instead of 0.6)
+    # 3. Frustrated + low confidence
     if sentiment_frustrated and confidence < 0.5:
-        logger.info(f"Escalating: Frustrated user + low confidence ({confidence})")
+        logger.info("Escalating: frustrated user + confidence %.2f", confidence)
         return True
 
-    # 4. Hard confidence floor (Lowered to 0.2 to allow for AI to try more)
-    # This prevents "hello" from escalating just because confidence was 0.25
+    # 4. Hard floor
     if confidence < 0.2:
-        logger.warning(f"Escalating: AI confidence ({confidence}) below absolute floor.")
+        logger.warning("Escalating: confidence %.2f below absolute floor", confidence)
         return True
 
-    # 5. Intent-based escalation
+    # 5. Sensitive intent
     if intent in ["billing_dispute", "account_security"]:
-        logger.info(f"Escalating based on sensitive intent: {intent}")
+        logger.info("Escalating: sensitive intent '%s'", intent)
         return True
 
     return False
 
-# ---------------- VECTOR SEARCH ---------------- #
+# ── VECTOR SEARCH ────────────────────────────────────────────────────────────
 
 def search_similar_chunks(query, org_id, k=2):
     try:
@@ -100,13 +151,11 @@ def search_similar_chunks(query, org_id, k=2):
             ORDER BY embedding <-> %s::vector
             LIMIT %s
             """,
-            [org_id, query_vector_str, k]
+            [org_id, query_vector_str, k],
         )
-
         return [row[0] for row in cursor.fetchall()]
 
-
-# ---------------- PROMPT ---------------- #
+# ── PROMPT BUILDER ───────────────────────────────────────────────────────────
 
 def build_prompt(context: str, history: list[dict], query: str) -> str:
     recent_history = history[-6:] if len(history) > 6 else history
@@ -123,6 +172,7 @@ def build_prompt(context: str, history: list[dict], query: str) -> str:
     return f"""You are a customer support AI. Be concise.
 
 Use ONLY the knowledge context below to answer. Use conversation history for follow-up questions.
+If the context is empty or irrelevant, set confidence below 0.35 and say you don't have enough info.
 
 Knowledge Context:
 {context}
@@ -137,8 +187,6 @@ Return ONLY valid JSON:
 {{"intent": "...", "reply": "...", "confidence": 0.0}}"""
 
 
-# ---------------- SENTIMENT ---------------- #
-
 def build_sentiment_prompt(message: str) -> str:
     return f"""Analyze the sentiment of this customer support message.
 Reply with ONLY one word: "frustrated", "negative", or "neutral".
@@ -147,12 +195,12 @@ Message: "{message}"
 
 Reply:"""
 
+# ── LLM CALLERS ─────────────────────────────────────────────────────────────
 
 def call_groq(prompt, max_tokens=300, system_prompt=None):
     api_key = os.environ.get("GROQ_API_KEY")
     if not api_key:
         return None
-
     if system_prompt is None:
         system_prompt = "You are a customer support AI. Be concise. Always reply in valid JSON only."
 
@@ -179,7 +227,6 @@ def call_groq(prompt, max_tokens=300, system_prompt=None):
                 return response.json()["choices"][0]["message"]["content"]
         except Exception:
             continue
-
     return None
 
 
@@ -205,25 +252,18 @@ def call_openrouter(prompt):
                 },
                 timeout=8,
             )
-
             if response.status_code == 200:
                 return response.json()["choices"][0]["message"]["content"]
         except Exception:
             continue
-
     return None
 
 
 def call_ollama(prompt):
-    """Only used locally — will fail silently on Render (no Ollama installed)."""
     try:
         response = requests.post(
             OLLAMA_URL,
-            json={
-                "model": "mistral",
-                "prompt": prompt,
-                "stream": False,
-            },
+            json={"model": "mistral", "prompt": prompt, "stream": False},
             timeout=8,
         )
         response.raise_for_status()
@@ -234,54 +274,78 @@ def call_ollama(prompt):
 
 def is_user_frustrated(message: str) -> bool:
     sentiment_prompt = build_sentiment_prompt(message)
-
     result = call_groq(
         sentiment_prompt,
         max_tokens=10,
         system_prompt="Reply with exactly one word: frustrated, negative, or neutral.",
     )
-
     if not result:
         return False
-
     result = result.strip().lower()
     return any(word in result for word in ["frustrated", "negative", "angry", "upset"])
 
+# ── MAIN ─────────────────────────────────────────────────────────────────────
 
-# ---------------- MAIN ---------------- #
+def get_ai_response(query, history=None, user_email=None, org_id=None, escalation_count=0):
+    """
+    Returns: (intent, reply, confidence, escalated)
 
-def get_ai_response(query, history=None, user_email=None, org_id=None):
+    escalation_count  – number of support tickets the user has already
+                        created in the last 24 hours (passed in from the view).
+    """
     if history is None:
         history = []
 
-    assistant_msgs = [m['content'] for m in history if m['role'] == 'assistant']
-    if len(assistant_msgs) >= 2:
-        # If the last two answers were exactly the same, escalate immediately
-        if assistant_msgs[-1].strip() == assistant_msgs[-2].strip():
-            logger.warning("Repetitive AI replies detected. Forcing escalation.")
-            return ("escalation", "I noticed I'm repeating myself. Let me get a human to help you.", 0.0, True)
+    # ── 1. Explicit user escalation request ──────────────────────────────────
+    if _user_wants_escalation(query):
+        if _escalation_limit_reached(escalation_count):
+            logger.info("User requested escalation but daily limit reached.")
+            return ("escalation_limit", ESCALATION_LIMIT_REPLY, 1.0, False)
+        logger.info("User explicitly requested escalation.")
+        return ("escalation", "Sure, let me connect you with a human agent right away.", 1.0, True)
 
-    # Check sentiment but don't exit immediately unless it's extreme
+    # ── 2. Repetitive AI reply detection (genuine loop, not just low-context) ─
+    assistant_msgs = [m["content"] for m in history if m["role"] == "assistant"]
+    if len(assistant_msgs) >= 2:
+        last = assistant_msgs[-1].strip()
+        second_last = assistant_msgs[-2].strip()
+        # Only treat it as a loop if the replies are identical AND non-trivial
+        if last == second_last and len(last) > 60:
+            logger.warning("Repetitive substantive AI replies detected — forcing escalation.")
+            if _escalation_limit_reached(escalation_count):
+                return ("escalation_limit", ESCALATION_LIMIT_REPLY, 0.0, False)
+            return (
+                "escalation",
+                "I noticed I'm giving you the same answer repeatedly. "
+                "Let me get a human agent to help you properly.",
+                0.0,
+                True,
+            )
+
+    # ── 3. No-context loop detection ─────────────────────────────────────────
+    no_context_turns = _count_no_context_turns(history)
+
+    # ── 4. Sentiment ──────────────────────────────────────────────────────────
     sentiment_frustrated = is_user_frustrated(query)
-    
+
+    # ── 5. Vector search ──────────────────────────────────────────────────────
     docs = search_similar_chunks(query, org_id, k=2)
     context = "\n".join(docs)
-    prompt = build_prompt(context, history, query)
 
+    # ── 6. Call LLM ───────────────────────────────────────────────────────────
+    prompt = build_prompt(context, history, query)
     text = call_groq(prompt) or call_openrouter(prompt) or call_ollama(prompt)
+
     if not text:
         logger.error("No AI backend available for response generation")
         raise RuntimeError("No AI backend available")
 
     match = re.search(r"\{.*\}", text, re.DOTALL)
-
     if not match:
         logger.error("[ERROR] No JSON found in LLM response: %s", text)
         return ("error", "Invalid response from AI", 0.0, False)
 
-    json_text = match.group()
-    json_text = json_text.replace("\n", " ").replace("\r", " ")
-
+    json_text = match.group().replace("\n", " ").replace("\r", " ")
     try:
         data = json.loads(json_text)
     except json.JSONDecodeError:
@@ -292,21 +356,60 @@ def get_ai_response(query, history=None, user_email=None, org_id=None):
     reply = data.get("reply", "")
     confidence = float(data.get("confidence", 0.0))
 
-    # Apply the new balanced escalation logic
+    # ── 7. No-context handling ────────────────────────────────────────────────
+    #
+    # If the AI has no useful docs and is not confident, guide the user
+    # rather than hallucinating or silently escalating.
+    #
+    has_no_context = not docs or confidence < NO_CONTEXT_CONFIDENCE
+
+    if has_no_context:
+        if no_context_turns == 0:
+            # First time AI has no answer → ask user to elaborate
+            logger.info("No context available, asking user to elaborate (turn 1).")
+            return ("no_context", NO_CONTEXT_FIRST_REPLY, confidence, False)
+
+        elif no_context_turns == 1:
+            # Second consecutive no-answer turn → offer escalation or rephrase
+            logger.info("No context available again (turn 2), offering escalation choice.")
+            return ("no_context", NO_CONTEXT_SECOND_REPLY, confidence, False)
+
+        else:
+            # Third+ turn with no context AND user is still stuck → escalate
+            logger.info("Persistent no-context situation — escalating after %d turns.", no_context_turns)
+            if _escalation_limit_reached(escalation_count):
+                return ("escalation_limit", ESCALATION_LIMIT_REPLY, confidence, False)
+            return (
+                "escalation",
+                "I've tried my best but I don't have a good answer for this. "
+                "I'm escalating this to our support team who can help you further.",
+                confidence,
+                True,
+            )
+
+    # ── 8. Normal escalation risk evaluation ─────────────────────────────────
     escalated = evaluate_escalation_risk(query, intent, confidence, sentiment_frustrated)
 
-    if escalated and sentiment_frustrated:
-        # Override the reply for highly frustrated users to offer immediate human help
-        reply = "I'm sorry you're experiencing this. I've escalated this to our team for immediate attention."
+    if escalated:
+        if _escalation_limit_reached(escalation_count):
+            logger.info("Escalation warranted but daily limit reached for this user.")
+            return ("escalation_limit", ESCALATION_LIMIT_REPLY, confidence, False)
+
+        if sentiment_frustrated:
+            reply = (
+                "I'm sorry you're experiencing this. "
+                "I've escalated this to our team for immediate attention."
+            )
 
     return intent, reply, confidence, escalated
+
+# ── TICKET STRUCTURE ──────────────────────────────────────────────────────────
 
 VALID_PRIORITIES = {"low", "normal", "high"}
 VALID_CATEGORIES = {"authentication", "billing", "technical", "general"}
 
 
 def extract_ticket_structure_with_llm(query, history):
-
     history_text = "\n".join(
         f"{msg['role']}: {msg['content']}" for msg in history
     )
@@ -352,17 +455,12 @@ Return ONLY valid JSON:
 
 
 def validate_ticket_structure(data):
-
     if not data:
         return False
-
     if data.get("priority") not in VALID_PRIORITIES:
         return False
-
     if data.get("category") not in VALID_CATEGORIES:
         return False
-
     if not data.get("description"):
         return False
-
     return True
