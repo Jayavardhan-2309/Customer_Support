@@ -295,24 +295,33 @@ def get_ai_response(query, history=None, user_email=None, org_id=None, escalatio
     # We flag it if any substantive reply (>60 chars) has appeared 2+ times.
     assistant_msgs = [m["content"].strip() for m in history if m["role"] in ("assistant", "ai")]
     substantive = [m for m in assistant_msgs if len(m) > 60]
-    if len(substantive) >= 2:
-        # Count occurrences of the most recent substantive reply
+
+    if len(substantive) >= 1:
         most_recent = substantive[-1]
-        repeat_count = substantive.count(most_recent)
-        if repeat_count >= 2:
-            logger.warning(
-                "AI repeated the same reply %d times — forcing escalation.", repeat_count
-            )
-            if _escalation_limit_reached(escalation_count):
-                return ("escalation_limit", ESCALATION_LIMIT_REPLY, 0.0, False)
-            return (
-                "escalation",
-                "I noticed I'm giving you the same answer repeatedly, which means "
-                "I don't have better information on this. Let me get a human agent "
-                "to help you properly.",
-                0.0,
-                True,
-            )
+        
+        # FIX: If the very last thing the AI said was the escalation message, 
+        # we treat the "repetition streak" as handled/reset.
+        escalation_phrase = "I noticed I'm giving you the same answer repeatedly"
+        if escalation_phrase in most_recent:
+            # We skip the repeat check because we just escalated in the previous turn
+            pass 
+        else:
+            repeat_count = substantive.count(most_recent)
+            if repeat_count >= 2:
+                logger.warning(
+                    "AI repeated the same reply %d times — forcing escalation.", repeat_count
+                )
+                if _escalation_limit_reached(escalation_count):
+                    return ("escalation_limit", ESCALATION_LIMIT_REPLY, 0.0, False)
+                
+                return (
+                    "escalation",
+                    "I noticed I'm giving you the same answer repeatedly, which means "
+                    "I don't have better information on this. Let me get a human agent "
+                    "to help you properly.",
+                    0.0,
+                    True,
+                )
 
     # ── 3. No-context turn counter ────────────────────────────────────────────
     no_context_turns = _count_no_context_turns(history)
