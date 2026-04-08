@@ -338,7 +338,7 @@ class PDFViewSet(ListModelMixin, DestroyModelMixin, GenericViewSet):
 
     # DELETE — DELETE /admin/pdfs/{id}/
     def destroy(self, request, pk=None):
-        logger.warning(f"[DELETE]: pdf deleted")
+        logger.info(f"[DELETE]: pdf deleted")
         try:
             pdf = UploadedPDF.objects.get(
                 id=pk,
