@@ -22,6 +22,10 @@ GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
 
 ESCALATION_CONFIDENCE_THRESHOLD = 0.4
 
+SOFT_ESCALATION_THRESHOLD = 0.6  # AI is somewhat unsure
+HARD_ESCALATION_THRESHOLD = 0.3  # AI is very unsure
+CRITICAL_KEYWORDS = ["legal", "sue", "lawyer", "refund", "cancel subscription", "data breach"]
+
 SUPPORT_STAFF_EMAIL = os.environ.get("SUPPORT_STAFF_EMAIL", "support@yourcompany.com")
 
 OPENROUTER_FREE_MODELS = [
@@ -37,6 +41,34 @@ GROQ_MODELS = [
     "llama-3.1-8b-instant",
     "mixtral-8x7b-32768",
 ]
+
+
+def evaluate_escalation_risk(query, intent, confidence, sentiment_frustrated):
+    """
+    Determines if a query should be escalated based on multiple factors.
+    """
+    # 1. Immediate triggers: Critical keywords
+    query_lower = query.lower()
+    if any(keyword in query_lower for keyword in CRITICAL_KEYWORDS):
+        logger.info(f"Escalating due to critical keyword in query: {query[:50]}...")
+        return True
+
+    # 2. Combined sentiment and low confidence
+    if sentiment_frustrated and confidence < SOFT_ESCALATION_THRESHOLD:
+        logger.info("Escalating: Frustrated user with sub-optimal AI confidence.")
+        return True
+
+    # 3. Hard confidence floor
+    if confidence < HARD_ESCALATION_THRESHOLD:
+        logger.warning(f"Escalating: AI confidence ({confidence}) below hard floor.")
+        return True
+
+    # 4. Intent-based escalation
+    if intent == "billing_dispute" or intent == "account_security":
+        logger.info(f"Escalating based on sensitive intent: {intent}")
+        return True
+
+    return False
 
 
 # ---------------- VECTOR SEARCH ---------------- #
@@ -209,27 +241,19 @@ def is_user_frustrated(message: str) -> bool:
 # ---------------- MAIN ---------------- #
 
 def get_ai_response(query, history=None, user_email=None, org_id=None):
-
-    logger.info("ai response called")
     if history is None:
         history = []
 
-    if is_user_frustrated(query):
-        return (
-            "escalation",
-            "Your query has been escalated to support.",
-            0.0,
-            True,
-        )
-
+    # Check sentiment but don't exit immediately unless it's extreme
+    sentiment_frustrated = is_user_frustrated(query)
+    
     docs = search_similar_chunks(query, org_id, k=2)
     context = "\n".join(docs)
-
     prompt = build_prompt(context, history, query)
 
     text = call_groq(prompt) or call_openrouter(prompt) or call_ollama(prompt)
-
     if not text:
+        logger.error("No AI backend available for response generation")
         raise RuntimeError("No AI backend available")
 
     match = re.search(r"\{.*\}", text, re.DOTALL)
@@ -251,10 +275,14 @@ def get_ai_response(query, history=None, user_email=None, org_id=None):
     reply = data.get("reply", "")
     confidence = float(data.get("confidence", 0.0))
 
-    escalated = confidence < ESCALATION_CONFIDENCE_THRESHOLD
+    # Apply the new balanced escalation logic
+    escalated = evaluate_escalation_risk(query, intent, confidence, sentiment_frustrated)
+
+    if escalated and sentiment_frustrated:
+        # Override the reply for highly frustrated users to offer immediate human help
+        reply = "I'm sorry you're experiencing this. I've escalated this to our team for immediate attention."
 
     return intent, reply, confidence, escalated
-
 
 VALID_PRIORITIES = {"low", "normal", "high"}
 VALID_CATEGORIES = {"authentication", "billing", "technical", "general"}
