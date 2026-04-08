@@ -152,13 +152,15 @@ class SupportAIView(APIView):
         if not query:
             return Response({"detail": "Prompt is required"}, status=400)
 
-        # Build conversation history (last 10 messages, oldest-first)
+        # Fetch history FIRST (before saving current message) so the current
+        # user turn doesn't consume one of the history slots, which would push
+        # earlier no-context AI replies out of the window.
         previous = ChatMessage.objects.filter(
             user=request.user
-        ).order_by("-created_at")[:10].values("sender", "message")
+        ).order_by("-created_at")[:20].values("sender", "message")
         history = [{"role": msg["sender"], "content": msg["message"]} for msg in previous][::-1]
 
-        # Persist the user's message
+        # Persist the user's message AFTER building history
         ChatMessage.objects.create(user=request.user, sender="user", message=query)
 
         # ── How many escalations has this user used today? ────────────────────

@@ -66,15 +66,22 @@ def _escalation_limit_reached(escalation_count: int) -> bool:
 
 
 def _count_no_context_turns(history: list[dict]) -> int:
-    """Count consecutive trailing AI replies that were no-context responses."""
+    """
+    Count how many of the AI's recent replies were no-context responses,
+    scanning backwards through the full history (skipping user messages).
+    We stop as soon as we find an AI reply that was NOT a no-context reply,
+    so the count reflects the current unbroken no-context streak.
+    """
     no_context_markers = [NO_CONTEXT_FIRST_REPLY[:40], NO_CONTEXT_SECOND_REPLY[:40]]
     count = 0
     for msg in reversed(history):
+        # Skip user messages — we only care about what the AI said
         if msg["role"] != "assistant":
             continue
         if any(msg["content"].startswith(marker) for marker in no_context_markers):
             count += 1
         else:
+            # Hit a normal AI reply — streak is over
             break
     return count
 
@@ -140,7 +147,7 @@ def search_similar_chunks(query, org_id, k=2):
 # ── PROMPT BUILDER ───────────────────────────────────────────────────────────
 
 def build_prompt(context: str, history: list[dict], query: str) -> str:
-    recent_history = history[-6:] if len(history) > 6 else history
+    recent_history = history[-10:] if len(history) > 10 else history
     if recent_history:
         history_lines = []
         for msg in recent_history:
@@ -355,19 +362,22 @@ def get_ai_response(query, history=None, user_email=None, org_id=None, escalatio
 
     if has_no_context:
         if no_context_turns == 0:
+            # Turn 1: AI has no answer — ask the user to rephrase or elaborate
             logger.info("No context — asking user to elaborate (turn 1).")
             return ("no_context", NO_CONTEXT_FIRST_REPLY, confidence, False)
         elif no_context_turns == 1:
+            # Turn 2: still no answer — explicitly offer escalation
             logger.info("No context again — offering escalation choice (turn 2).")
             return ("no_context", NO_CONTEXT_SECOND_REPLY, confidence, False)
         else:
-            logger.info("Persistent no-context after %d turns — escalating.", no_context_turns)
+            # Turn 3+: user is stuck, AI has no answer — escalate automatically
+            logger.info("Persistent no-context after %d turns — auto-escalating.", no_context_turns)
             if _escalation_limit_reached(escalation_count):
                 return ("escalation_limit", ESCALATION_LIMIT_REPLY, confidence, False)
             return (
                 "escalation",
-                "I've tried my best but I don't have a good answer for this. "
-                "I'm escalating this to our support team who can help you further.",
+                "I've asked a couple of times but I still don't have a good answer for this. "
+                "I'm escalating this to our support team now so they can help you directly.",
                 confidence,
                 True,
             )
