@@ -19,10 +19,8 @@ OLLAMA_URL = "http://localhost:11434/api/generate"
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
 
-MAX_DAILY_ESCALATIONS = 3          # hard cap per user per 24 h
-NO_CONTEXT_CONFIDENCE = 0.35       # below this with no docs → "I don't know" reply
-SOFT_ESCALATION_THRESHOLD = 0.6
-HARD_ESCALATION_THRESHOLD = 0.3
+MAX_DAILY_ESCALATIONS = 3
+NO_CONTEXT_CONFIDENCE = 0.35
 CRITICAL_KEYWORDS = ["legal", "sue", "lawyer", "refund", "cancel subscription", "data breach"]
 
 SUPPORT_STAFF_EMAIL = os.environ.get("SUPPORT_STAFF_EMAIL", "support@yourcompany.com")
@@ -64,68 +62,52 @@ NO_CONTEXT_SECOND_REPLY = (
 # ── HELPERS ──────────────────────────────────────────────────────────────────
 
 def _escalation_limit_reached(escalation_count: int) -> bool:
-    """Returns True when the user has already hit the daily cap."""
     return escalation_count >= MAX_DAILY_ESCALATIONS
 
 
 def _count_no_context_turns(history: list[dict]) -> int:
-    """
-    Count how many of the last AI replies were 'no-context' responses.
-    We detect them by matching the known no-context reply strings.
-    """
+    """Count consecutive trailing AI replies that were no-context responses."""
     no_context_markers = [NO_CONTEXT_FIRST_REPLY[:40], NO_CONTEXT_SECOND_REPLY[:40]]
     count = 0
     for msg in reversed(history):
         if msg["role"] != "assistant":
             continue
-        content = msg["content"]
-        if any(content.startswith(marker) for marker in no_context_markers):
+        if any(msg["content"].startswith(marker) for marker in no_context_markers):
             count += 1
         else:
-            break   # stop at the first normal AI reply
+            break
     return count
 
 
 def _user_wants_escalation(query: str) -> bool:
-    """Detect explicit user requests to escalate / talk to a human."""
     triggers = [
         "escalate", "human agent", "talk to someone", "speak to agent",
         "real person", "transfer me", "get support", "yes please",
-        "yes escalate", "connect me"
+        "yes escalate", "connect me",
     ]
-    q = query.lower()
-    return any(t in q for t in triggers)
+    return any(t in query.lower() for t in triggers)
 
 # ── ESCALATION RISK ──────────────────────────────────────────────────────────
 
 def evaluate_escalation_risk(query, intent, confidence, sentiment_frustrated):
-    """
-    Determines if a query should be escalated based on multiple factors.
-    NOTE: daily-limit enforcement is handled in get_ai_response(), not here.
-    """
     query_lower = query.lower().strip()
 
-    # 1. Greeting bypass
     greetings = {"hello", "hi", "hey", "test", "anyone there", "hello?"}
     if len(query_lower) < 10 or query_lower in greetings:
         return False
 
-    # 2. Critical keywords
     if any(keyword in query_lower for keyword in CRITICAL_KEYWORDS):
         logger.info("Escalating due to critical keyword: %s", query[:50])
         return True
 
-    # 3. Frustrated + low confidence
     if sentiment_frustrated and confidence < 0.5:
         logger.info("Escalating: frustrated user + confidence %.2f", confidence)
         return True
 
-    # 4. Hard floor
     if confidence < 0.2:
         logger.warning("Escalating: confidence %.2f below absolute floor", confidence)
         return True
 
-    # 5. Sensitive intent
     if intent in ["billing_dispute", "account_security"]:
         logger.info("Escalating: sensitive intent '%s'", intent)
         return True
@@ -159,7 +141,6 @@ def search_similar_chunks(query, org_id, k=2):
 
 def build_prompt(context: str, history: list[dict], query: str) -> str:
     recent_history = history[-6:] if len(history) > 6 else history
-
     if recent_history:
         history_lines = []
         for msg in recent_history:
@@ -208,10 +189,7 @@ def call_groq(prompt, max_tokens=300, system_prompt=None):
         try:
             response = requests.post(
                 GROQ_URL,
-                headers={
-                    "Authorization": f"Bearer {api_key}",
-                    "Content-Type": "application/json",
-                },
+                headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
                 json={
                     "model": model,
                     "messages": [
@@ -273,16 +251,14 @@ def call_ollama(prompt):
 
 
 def is_user_frustrated(message: str) -> bool:
-    sentiment_prompt = build_sentiment_prompt(message)
     result = call_groq(
-        sentiment_prompt,
+        build_sentiment_prompt(message),
         max_tokens=10,
         system_prompt="Reply with exactly one word: frustrated, negative, or neutral.",
     )
     if not result:
         return False
-    result = result.strip().lower()
-    return any(word in result for word in ["frustrated", "negative", "angry", "upset"])
+    return any(word in result.strip().lower() for word in ["frustrated", "negative", "angry", "upset"])
 
 # ── MAIN ─────────────────────────────────────────────────────────────────────
 
@@ -290,8 +266,8 @@ def get_ai_response(query, history=None, user_email=None, org_id=None, escalatio
     """
     Returns: (intent, reply, confidence, escalated)
 
-    escalation_count  – number of support tickets the user has already
-                        created in the last 24 hours (passed in from the view).
+    escalation_count – number of support tickets the user has already
+                       created in the last 24 hours (passed in from the view).
     """
     if history is None:
         history = []
@@ -301,17 +277,14 @@ def get_ai_response(query, history=None, user_email=None, org_id=None, escalatio
         if _escalation_limit_reached(escalation_count):
             logger.info("User requested escalation but daily limit reached.")
             return ("escalation_limit", ESCALATION_LIMIT_REPLY, 1.0, False)
-        logger.info("User explicitly requested escalation.")
         return ("escalation", "Sure, let me connect you with a human agent right away.", 1.0, True)
 
-    # ── 2. Repetitive AI reply detection (genuine loop, not just low-context) ─
+    # ── 2. Repetitive AI reply detection ─────────────────────────────────────
     assistant_msgs = [m["content"] for m in history if m["role"] == "assistant"]
     if len(assistant_msgs) >= 2:
-        last = assistant_msgs[-1].strip()
-        second_last = assistant_msgs[-2].strip()
-        # Only treat it as a loop if the replies are identical AND non-trivial
+        last, second_last = assistant_msgs[-1].strip(), assistant_msgs[-2].strip()
         if last == second_last and len(last) > 60:
-            logger.warning("Repetitive substantive AI replies detected — forcing escalation.")
+            logger.warning("Repetitive substantive AI replies — forcing escalation.")
             if _escalation_limit_reached(escalation_count):
                 return ("escalation_limit", ESCALATION_LIMIT_REPLY, 0.0, False)
             return (
@@ -322,7 +295,7 @@ def get_ai_response(query, history=None, user_email=None, org_id=None, escalatio
                 True,
             )
 
-    # ── 3. No-context loop detection ─────────────────────────────────────────
+    # ── 3. No-context turn counter ────────────────────────────────────────────
     no_context_turns = _count_no_context_turns(history)
 
     # ── 4. Sentiment ──────────────────────────────────────────────────────────
@@ -356,27 +329,27 @@ def get_ai_response(query, history=None, user_email=None, org_id=None, escalatio
     reply = data.get("reply", "")
     confidence = float(data.get("confidence", 0.0))
 
-    # ── 7. No-context handling ────────────────────────────────────────────────
-    #
-    # If the AI has no useful docs and is not confident, guide the user
-    # rather than hallucinating or silently escalating.
-    #
-    has_no_context = not docs or confidence < NO_CONTEXT_CONFIDENCE
+    # ── 7. No-context ladder ──────────────────────────────────────────────────
+    # Greetings and very short messages are conversational — the AI can reply
+    # without any KB docs, so skip the no-context ladder entirely for them.
+    _query_lower = query.lower().strip()
+    _greeting_words = {
+        "hello", "hi", "hey", "sup", "yo", "howdy", "greetings",
+        "good morning", "good afternoon", "good evening",
+    }
+    _is_greeting = _query_lower in _greeting_words or len(_query_lower) < 10
+
+    has_no_context = (not _is_greeting) and (not docs or confidence < NO_CONTEXT_CONFIDENCE)
 
     if has_no_context:
         if no_context_turns == 0:
-            # First time AI has no answer → ask user to elaborate
-            logger.info("No context available, asking user to elaborate (turn 1).")
+            logger.info("No context — asking user to elaborate (turn 1).")
             return ("no_context", NO_CONTEXT_FIRST_REPLY, confidence, False)
-
         elif no_context_turns == 1:
-            # Second consecutive no-answer turn → offer escalation or rephrase
-            logger.info("No context available again (turn 2), offering escalation choice.")
+            logger.info("No context again — offering escalation choice (turn 2).")
             return ("no_context", NO_CONTEXT_SECOND_REPLY, confidence, False)
-
         else:
-            # Third+ turn with no context AND user is still stuck → escalate
-            logger.info("Persistent no-context situation — escalating after %d turns.", no_context_turns)
+            logger.info("Persistent no-context after %d turns — escalating.", no_context_turns)
             if _escalation_limit_reached(escalation_count):
                 return ("escalation_limit", ESCALATION_LIMIT_REPLY, confidence, False)
             return (
@@ -392,9 +365,8 @@ def get_ai_response(query, history=None, user_email=None, org_id=None, escalatio
 
     if escalated:
         if _escalation_limit_reached(escalation_count):
-            logger.info("Escalation warranted but daily limit reached for this user.")
+            logger.info("Escalation warranted but daily limit reached.")
             return ("escalation_limit", ESCALATION_LIMIT_REPLY, confidence, False)
-
         if sentiment_frustrated:
             reply = (
                 "I'm sorry you're experiencing this. "
