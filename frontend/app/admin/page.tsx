@@ -253,7 +253,7 @@ export default function AdminPage() {
                 {/* Info box */}
                 <section className="bg-slate-900 border border-slate-800 rounded-xl px-4 sm:px-6 py-5 text-xs text-slate-500 space-y-1.5">
                     <p className="text-slate-400 font-semibold text-sm mb-2">How it works</p>
-                    <p>• Uploaded PDFs are combined with <code className="text-emerald-400">knowledge.txt</code> to form the AI's context.</p>
+                    <p>• Uploaded PDFs are used to form the AI's context.</p>
                     <p>• After each upload or delete, the knowledge base is automatically re-indexed in the background.</p>
                     <p>• Re-indexing takes 10–30 seconds. New context is available on the next user query after that.</p>
                     <p>• Max file size is 10MB per PDF. Only text-based PDFs are supported (not scanned images).</p>

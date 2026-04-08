@@ -7,7 +7,6 @@ from django.template.loader import render_to_string
 from django.conf import settings
 from custSupApp.models import SupportTicket
 from custSupApp.models import Organization
-from custSupApp.index_knowledge import run_indexing
 
 from django.core.cache import cache
 
