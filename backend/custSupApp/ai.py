@@ -46,30 +46,40 @@ GROQ_MODELS = [
 def evaluate_escalation_risk(query, intent, confidence, sentiment_frustrated):
     """
     Determines if a query should be escalated based on multiple factors.
+    Includes bypass logic for greetings and short messages to prevent false positives.
     """
-    # 1. Immediate triggers: Critical keywords
-    query_lower = query.lower()
+    query_lower = query.lower().strip()
+    
+    # 1. GREETING BYPASS: Prevent escalation for simple hellos or short messages
+    # If message is shorter than 10 characters or just "hello/hey", never escalate
+    greetings = {"hello", "hi", "hey", "test", "anyone there", "hello?"}
+    if len(query_lower) < 10 or query_lower in greetings:
+        logger.info(f"Bypassing escalation for short/greeting message: '{query_lower}'")
+        return False
+
+    # 2. Immediate triggers: Critical keywords (Keep these)
     if any(keyword in query_lower for keyword in CRITICAL_KEYWORDS):
-        logger.info(f"Escalating due to critical keyword in query: {query[:50]}...")
+        logger.info(f"Escalating due to critical keyword: {query[:50]}")
         return True
 
-    # 2. Combined sentiment and low confidence
-    if sentiment_frustrated and confidence < SOFT_ESCALATION_THRESHOLD:
-        logger.info("Escalating: Frustrated user with sub-optimal AI confidence.")
+    # 3. Refined Sentiment/Confidence check
+    # Only escalate if frustrated AND confidence is quite low (0.5 instead of 0.6)
+    if sentiment_frustrated and confidence < 0.5:
+        logger.info(f"Escalating: Frustrated user + low confidence ({confidence})")
         return True
 
-    # 3. Hard confidence floor
-    if confidence < HARD_ESCALATION_THRESHOLD:
-        logger.warning(f"Escalating: AI confidence ({confidence}) below hard floor.")
+    # 4. Hard confidence floor (Lowered to 0.2 to allow for AI to try more)
+    # This prevents "hello" from escalating just because confidence was 0.25
+    if confidence < 0.2:
+        logger.warning(f"Escalating: AI confidence ({confidence}) below absolute floor.")
         return True
 
-    # 4. Intent-based escalation
-    if intent == "billing_dispute" or intent == "account_security":
+    # 5. Intent-based escalation
+    if intent in ["billing_dispute", "account_security"]:
         logger.info(f"Escalating based on sensitive intent: {intent}")
         return True
 
     return False
-
 
 # ---------------- VECTOR SEARCH ---------------- #
 
@@ -243,6 +253,13 @@ def is_user_frustrated(message: str) -> bool:
 def get_ai_response(query, history=None, user_email=None, org_id=None):
     if history is None:
         history = []
+
+    assistant_msgs = [m['content'] for m in history if m['role'] == 'assistant']
+    if len(assistant_msgs) >= 2:
+        # If the last two answers were exactly the same, escalate immediately
+        if assistant_msgs[-1].strip() == assistant_msgs[-2].strip():
+            logger.warning("Repetitive AI replies detected. Forcing escalation.")
+            return ("escalation", "I noticed I'm repeating myself. Let me get a human to help you.", 0.0, True)
 
     # Check sentiment but don't exit immediately unless it's extreme
     sentiment_frustrated = is_user_frustrated(query)
