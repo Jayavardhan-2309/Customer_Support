@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { logger } from "@/logger";
 
 export default function LoginPage() {
     const router = useRouter();
@@ -37,7 +38,7 @@ export default function LoginPage() {
             else if (role === "staff") router.push("/staff");
             else router.push("/support");
         } catch (err) {
-            console.error(err);
+            logger.error("",err);
             setError("Invalid username or password");
         } finally {
             setLoading(false);

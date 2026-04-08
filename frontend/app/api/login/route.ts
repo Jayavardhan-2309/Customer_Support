@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/logger";
 
 const baseUrl = process.env.DJANGO_BASE_URL;
 
@@ -12,8 +13,8 @@ export async function POST(req: NextRequest) {
     body: JSON.stringify(body),
   });
 
-  console.log("django status:", djangoRes.status);
-  console.log("django set-cookie:", djangoRes.headers.get("set-cookie"));
+  logger.info("django status:", djangoRes.status);
+  logger.info("django set-cookie:", djangoRes.headers.get("set-cookie"));
 
   const data = await djangoRes.json();
 
@@ -26,7 +27,7 @@ export async function POST(req: NextRequest) {
   // Forward every Set-Cookie header Django sends
   djangoRes.headers.forEach((value, key) => {
     if (key.toLowerCase() === "set-cookie") {
-      console.log("forwarding cookie:", value);
+      logger.info("forwarding cookie:", value);
       response.headers.append("Set-Cookie", value);
     }
   });

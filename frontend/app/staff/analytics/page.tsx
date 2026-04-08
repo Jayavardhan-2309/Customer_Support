@@ -9,6 +9,7 @@ import {
   ResponsiveContainer, RadarChart, Radar, PolarGrid,
   PolarAngleAxis, PolarRadiusAxis, AreaChart, Area, ReferenceLine,
 } from "recharts"
+import { logger } from "@/logger"
 
 // Visual constants (styling only, no data)
 const STAT_CARDS = [
@@ -136,7 +137,7 @@ export default function AnalyticsPage() {
   const router = useRouter()
 
   useEffect(() => {
-    api.get("staff/analytics/").then(r => setAnalytics(r.data)).catch(console.error)
+    api.get("staff/analytics/").then(r => setAnalytics(r.data)).catch(logger.error)
   }, [])
 
   if (!analytics)

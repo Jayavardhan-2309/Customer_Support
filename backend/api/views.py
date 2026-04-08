@@ -5,6 +5,9 @@ from django.conf import settings
 from django.shortcuts import get_object_or_404
 from supabase import create_client
 import os
+import logging
+
+logger= logging.getLogger(__name__)
 
 # drf
 from rest_framework.viewsets import ModelViewSet, GenericViewSet
@@ -164,7 +167,7 @@ class SupportAIView(APIView):
                 org_id=request.user.organization_id
             )
         except Exception as e:
-            print("[AI ERROR]", e)
+            logger.error("[AI ERROR]: %s", e)
             return Response({
                 "intent": "error",
                 "reply": "Sorry, something went wrong. Please try again.",
@@ -203,7 +206,7 @@ class SupportAIView(APIView):
                     query=query,
                 )
             else:
-                print("[ESCALATION] No available staff found.")
+                logger.warning("[ESCALATION] No available staff found.")
 
         ChatMessage.objects.create(user=request.user, sender="ai", message=reply)
         return Response({
@@ -352,7 +355,7 @@ class PDFViewSet(ListModelMixin, DestroyModelMixin, GenericViewSet):
             file_name = pdf.file_url.split("/")[-1]
             supabase.storage.from_("pdfs").remove([file_name])
         except Exception as e:
-            print(f"[DELETE ERROR] {e}")
+            logger.error(f"[DELETE ERROR] {e}")
 
         # DELETE ONLY THIS PDF’s embeddings
         from django.db import connection

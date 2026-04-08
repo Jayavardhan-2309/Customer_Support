@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import api from "@/src/lib/axios";
+import { logger } from "@/logger";
 
 /* ALLOWED EMAIL DOMAINS */
 const ALLOWED_EMAIL_DOMAINS = [
@@ -42,20 +43,20 @@ export default function SignupPage() {
   useEffect(() => {
     api.get("organizations/")
       .then(res => {
-        console.log("SUCCESS:", res.data);
+        logger.info("SUCCESS:", res.data);
         setOrganizations(res.data);
       })
       .catch(err => {
-        console.error("FULL ERROR:", err);
+        logger.error("FULL ERROR:", err);
 
         if (err.response) {
-          console.error("STATUS:", err.response.status);
-          console.error("DATA:", err.response.data);
-          console.error("HEADERS:", err.response.headers);
+          logger.error("STATUS:", err.response.status);
+          logger.error("DATA:", err.response.data);
+          logger.error("HEADERS:", err.response.headers);
         } else if (err.request) {
-          console.error("NO RESPONSE RECEIVED:", err.request);
+          logger.error("NO RESPONSE RECEIVED:", err.request);
         } else {
-          console.error("REQUEST SETUP ERROR:", err.message);
+          logger.error("REQUEST SETUP ERROR:", err.message);
         }
       });
   }, []);
@@ -94,7 +95,7 @@ export default function SignupPage() {
 
     } catch (err: any) {
       setLoadiing(false);
-      console.log(err.response?.data);
+      logger.error(err.response?.data);
       setError(JSON.stringify(err.response?.data));
     }
   };

@@ -13,7 +13,9 @@ If you were previously using all-MiniLM-L6-v2 (384-dim), run this in Supabase:
 import os
 from google import genai
 from google.genai import types
+import logging
 
+logger= logging.getLogger(__name__)
 
 def get_client():
     api_key = os.environ.get("CUSTOMER_API")
@@ -24,6 +26,7 @@ def get_client():
 
 def embed_text(text: str) -> list[float]:
     """Single embedding — used for query embedding at search time."""
+    logger.info("[embed_text]: gemini embeddings model for embeddings")
     client = get_client()
     result = client.models.embed_content(
         model="gemini-embedding-001",

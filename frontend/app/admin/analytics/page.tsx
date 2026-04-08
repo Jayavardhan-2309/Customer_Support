@@ -8,6 +8,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
   ResponsiveContainer
 } from "recharts"
+import { logger } from "@/logger"
 
 export default function AdminAnalyticsPage() {
   const [data, setData] = useState<any>(null)
@@ -20,7 +21,7 @@ export default function AdminAnalyticsPage() {
         const res = await api.get("/admin/analytics/")
         setData(res.data)
       } catch (err) {
-        console.error("Failed to load analytics", err)
+        logger.error("Failed to load analytics", err)
       }
     }
     load()

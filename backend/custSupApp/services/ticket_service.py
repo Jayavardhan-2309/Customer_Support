@@ -39,7 +39,7 @@ def create_structured_ticket(user, query, structured_data):
         organization=user.organization
     )
 
-    print("TICKET SERVICE CALLED")
+    logger.info("TICKET SERVICE CALLED")
     logger.info(
         f"Ticket #{ticket.id} created | "
         f"user={user.username} | "

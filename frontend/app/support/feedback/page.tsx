@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import api from "@/src/lib/axios"
 import { useRouter } from "next/navigation"
+import { logger } from "@/logger";
 
 function StarRating({ value, onChange }: { value: number; onChange: (v: number) => void }) {
   const [hovered, setHovered] = useState(0)
@@ -71,7 +72,7 @@ export default function FeedbackPage() {
         const res = await api.get("/user/resolved-tickets/")
         setTickets(res.data)
       } catch (err) {
-        console.error(err)
+        logger.error("",err)
       } finally {
         setLoading(false)
       }

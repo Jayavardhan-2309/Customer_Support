@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef } from "react"
 import { useParams, useRouter } from "next/navigation"
 import api from "@/src/lib/axios"
+import { logger } from "@/logger"
 
 export default function TicketDetailPage() {
   const { id } = useParams()
@@ -22,7 +23,7 @@ export default function TicketDetailPage() {
         const res = await api.get(`staff/tickets/${id}/`)
         setTicket(res.data)
       } catch (error) {
-        console.error("Failed to load ticket", error)
+        logger.error("Failed to load ticket", error)
       }
     }
 
@@ -31,7 +32,7 @@ export default function TicketDetailPage() {
         const res = await api.get(`staff/tickets/${id}/messages/`)
         setMessages(res.data)
       } catch (error) {
-        console.error("Failed to load messages", error)
+        logger.error("Failed to load messages", error)
       }
     }
 
@@ -48,7 +49,7 @@ export default function TicketDetailPage() {
       await api.patch(`staff/tickets/${id}/start/`)
       setTicket({ ...ticket, status: "in_progress" })
     } catch (error) {
-      console.error("Failed to update ticket", error)
+      logger.error("Failed to update ticket", error)
       alert("Failed to mark as in progress")
     } finally {
       setMarkingProgress(false)
@@ -61,7 +62,7 @@ export default function TicketDetailPage() {
       await api.patch(`staff/tickets/${id}/resolve/`, { resolution_note: note })
       router.push("/staff")
     } catch (error) {
-      console.error("Failed to resolve ticket", error)
+      logger.error("Failed to resolve ticket", error)
       setResolving(false)
     }
   }
@@ -72,7 +73,7 @@ export default function TicketDetailPage() {
       await api.post("logout/")
       router.push("/login")
     } catch (error) {
-      console.error("Logout failed", error)
+      logger.error("Logout failed", error)
       setIsLoggingOut(false)
     }
   }

@@ -1,3 +1,4 @@
+import { logger } from "@/logger";
 import { NextRequest, NextResponse } from "next/server";
 
 const baseUrl = process.env.DJANGO_BASE_URL;
@@ -26,7 +27,7 @@ export async function GET(
 
     return NextResponse.json(data);
   } catch (err) {
-    console.error("Staff analytics fetch failed:", err);
+    logger.error("Staff analytics fetch failed:", err);
     return NextResponse.json(
       { error: "Failed to fetch staff analytics" },
       { status: 500 }

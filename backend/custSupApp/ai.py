@@ -10,6 +10,9 @@ from django.db import connection
 
 # ── Import embed_text from the new local embeddings module (no API key needed)
 from custSupApp.embeddings import embed_text          # ← changed
+import logging
+
+logger= logging.getLogger(__name__)
 
 # CONFIG
 
@@ -42,7 +45,7 @@ def search_similar_chunks(query, org_id, k=2):
     try:
         query_vector = embed_text(query)
     except Exception as e:
-        print("[EMBED ERROR QUERY]", e)
+        logger.info("[EMBED ERROR QUERY] %s", e)
         return []
 
     with connection.cursor() as cursor:
@@ -206,6 +209,8 @@ def is_user_frustrated(message: str) -> bool:
 # ---------------- MAIN ---------------- #
 
 def get_ai_response(query, history=None, user_email=None, org_id=None):
+
+    logger.info("ai response called")
     if history is None:
         history = []
 
@@ -230,7 +235,7 @@ def get_ai_response(query, history=None, user_email=None, org_id=None):
     match = re.search(r"\{.*\}", text, re.DOTALL)
 
     if not match:
-        print("[ERROR] No JSON found in LLM response:", text)
+        logger.error("[ERROR] No JSON found in LLM response: %s", text)
         return ("error", "Invalid response from AI", 0.0, False)
 
     json_text = match.group()
@@ -239,7 +244,7 @@ def get_ai_response(query, history=None, user_email=None, org_id=None):
     try:
         data = json.loads(json_text)
     except json.JSONDecodeError:
-        print("[ERROR] Invalid JSON from LLM:", json_text)
+        logger.error("[ERROR] Invalid JSON from LLM: %s", json_text)
         return ("error", "Sorry, something went wrong. Please try again.", 0.0, False)
 
     intent = data.get("intent", "unknown")

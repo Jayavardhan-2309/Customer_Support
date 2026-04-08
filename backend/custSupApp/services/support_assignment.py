@@ -1,5 +1,7 @@
 from django.db import transaction
 from custSupApp.models import User
+import logging
+logger= logging.getLogger(__name__)
 
 
 def assign_least_busy_staff():
@@ -7,6 +9,7 @@ def assign_least_busy_staff():
     Assigns the least busy available staff user.
     Uses select_for_update to prevent race conditions.
     """
+    logger.info("[Assigning least busy staff]")
 
     with transaction.atomic(): # for atomicity in db transactions, these group of instructions are done at a time and are committed to db only when all are executed successfully
 

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import api from "@/src/lib/axios";
 import { useParams, useRouter } from "next/navigation";
+import { logger } from "@/logger";
 
 export default function StaffAnalyticsDetailPage() {
   const { id } = useParams();
@@ -16,7 +17,7 @@ export default function StaffAnalyticsDetailPage() {
         const res = await api.get(`/admin/analytics/staff/${id}/`);
         setData(res.data);
       } catch (err) {
-        console.error("Failed to load staff analytics", err);
+        logger.error("Failed to load staff analytics", err);
       }
     };
     load();

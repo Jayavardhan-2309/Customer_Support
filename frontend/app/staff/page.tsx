@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import api from "@/src/lib/axios"
+import { logger } from "@/logger"
 
 export default function StaffPage() {
   const router = useRouter()
@@ -22,7 +23,7 @@ export default function StaffPage() {
         const res = await api.get("staff/tickets/")
         setTickets(res.data.results)
       } catch (error) {
-        console.error("Failed to load tickets", error)
+        logger.error("Failed to load tickets", error)
       }
     }
 
@@ -32,7 +33,7 @@ export default function StaffPage() {
         setStaffName(res.data.username)
         setOrgName(res.data.organization_name || "")
       } catch (error) {
-        console.error("Failed to load user", error)
+        logger.error("Failed to load user", error)
       }
     }
 
@@ -46,7 +47,7 @@ export default function StaffPage() {
       await api.post("logout/")
       router.push("/login")
     } catch (error) {
-      console.error("Logout failed", error)
+      logger.error("Logout failed", error)
       setIsLoggingOut(false)
     }
   }
