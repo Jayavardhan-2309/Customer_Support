@@ -76,7 +76,7 @@ def _count_no_context_turns(history: list[dict]) -> int:
     count = 0
     for msg in reversed(history):
         # Skip user messages — we only care about what the AI said
-        if msg["role"] != "assistant":
+        if msg["role"] not in ("assistant", "ai"):  # DB stores "ai", OpenAI-style uses "assistant"
             continue
         if any(msg["content"].startswith(marker) for marker in no_context_markers):
             count += 1
@@ -151,7 +151,7 @@ def build_prompt(context: str, history: list[dict], query: str) -> str:
     if recent_history:
         history_lines = []
         for msg in recent_history:
-            role_label = "User" if msg["role"] == "user" else "Assistant"
+            role_label = "User" if msg["role"] == "user" else "assistant"  # covers both "ai" and "assistant"
             history_lines.append(f"{role_label}: {msg['content']}")
         history_block = "\n".join(history_lines)
     else:
@@ -293,7 +293,7 @@ def get_ai_response(query, history=None, user_email=None, org_id=None, escalatio
     # Scan ALL assistant messages in history, not just the last two positional
     # slots — the 10-message window means the pair could appear anywhere.
     # We flag it if any substantive reply (>60 chars) has appeared 2+ times.
-    assistant_msgs = [m["content"].strip() for m in history if m["role"] == "assistant"]
+    assistant_msgs = [m["content"].strip() for m in history if m["role"] in ("assistant", "ai")]
     substantive = [m for m in assistant_msgs if len(m) > 60]
     if len(substantive) >= 2:
         # Count occurrences of the most recent substantive reply
