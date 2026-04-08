@@ -354,6 +354,7 @@ class PDFViewSet(ListModelMixin, DestroyModelMixin, GenericViewSet):
         try:
             file_name = pdf.file_url.split("/")[-1]
             supabase.storage.from_("pdfs").remove([file_name])
+            logger.info(f"[DELETE]: {file_name} deleted")
         except Exception as e:
             logger.error(f"[DELETE ERROR] {e}")
 

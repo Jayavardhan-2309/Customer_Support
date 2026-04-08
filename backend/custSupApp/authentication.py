@@ -7,7 +7,6 @@ logger= logging.getLogger(__name__)
 class CookieJWTAuthentication(JWTAuthentication):
     def authenticate(self, request):
         
-        logger.info("[Authentication] callled")
         raw_token = request.COOKIES.get("access")
 
         if raw_token is None:
