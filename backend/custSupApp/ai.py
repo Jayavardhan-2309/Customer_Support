@@ -293,24 +293,29 @@ def get_ai_response(query, history=None, user_email=None, org_id=None, escalatio
     # Scan ALL assistant messages in history, not just the last two positional
     # slots — the 10-message window means the pair could appear anywhere.
     # We flag it if any substantive reply (>60 chars) has appeared 2+ times.
+
     assistant_msgs = [m["content"].strip() for m in history if m["role"] in ("assistant", "ai")]
-    substantive = [m for m in assistant_msgs if len(m) > 60]
+    # CHANGE: We now filter out the standardized "no-context" ladder replies.
+    # We only want to detect repetition of "substantive" factual answers 
+    # that might be wrong or unhelpful.
+    no_context_markers = [NO_CONTEXT_FIRST_REPLY[:40], NO_CONTEXT_SECOND_REPLY[:40]]
+    
+    substantive = [
+        m for m in assistant_msgs 
+        if len(m) > 60 and not any(m.startswith(marker) for marker in no_context_markers)
+    ]
 
     if len(substantive) >= 1:
         most_recent = substantive[-1]
         
-        # FIX: If the very last thing the AI said was the escalation message, 
-        # we treat the "repetition streak" as handled/reset.
+        # Keep the fix for the escalation phrase itself
         escalation_phrase = "I noticed I'm giving you the same answer repeatedly"
         if escalation_phrase in most_recent:
-            # We skip the repeat check because we just escalated in the previous turn
             pass 
         else:
             repeat_count = substantive.count(most_recent)
             if repeat_count >= 2:
-                logger.warning(
-                    "AI repeated the same reply %d times — forcing escalation.", repeat_count
-                )
+                logger.warning("AI repeated factual reply %d times.", repeat_count)
                 if _escalation_limit_reached(escalation_count):
                     return ("escalation_limit", ESCALATION_LIMIT_REPLY, 0.0, False)
                 
