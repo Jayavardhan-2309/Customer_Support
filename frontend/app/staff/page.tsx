@@ -69,24 +69,41 @@ export default function StaffPage() {
   )
 
   socket.onmessage = (event) => {
-    const incoming = JSON.parse(event.data)
-    queryClient.setQueryData(["staff-tickets"], (oldData: any) => {
-      if (!oldData) return { results: [incoming] }
-      const exists = oldData.results.find((t: any) => t.id === incoming.id)
-      if (exists) {
-        return {
-          ...oldData,
-          results: oldData.results.map((t: any) =>
-            t.id === incoming.id ? { ...t, ...incoming } : t
-          ),
-        }
-      }
+  const incoming = JSON.parse(event.data)
+
+  // Normalize data (VERY IMPORTANT)
+  const normalized = {
+    id: incoming.id,
+    priority: (incoming.priority ?? "normal").toLowerCase(),
+    status: (incoming.status ?? "open").toLowerCase(),
+    category: incoming.category ?? null,
+    customer: incoming.customer ?? "Unknown",
+    message: incoming.message ?? "",
+    description: incoming.description ?? "",
+  }
+
+  queryClient.setQueryData(["staff-tickets"], (oldData: any) => {
+    if (!oldData) return { results: [normalized] }
+
+    const exists = oldData.results.find((t: any) => t.id === normalized.id)
+
+    if (exists) {
+      // Update existing ticket (safe merge)
       return {
         ...oldData,
-        results: [incoming, ...oldData.results],
+        results: oldData.results.map((t: any) =>
+          t.id === normalized.id ? { ...t, ...normalized } : t
+        ),
       }
-    })
-  }
+    }
+
+    // Insert new ticket (consistent structure)
+    return {
+      ...oldData,
+      results: [normalized, ...oldData.results],
+    }
+  })
+}
 
   socket.onerror = (err) => {
     console.error("WebSocket error:", err)
