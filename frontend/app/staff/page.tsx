@@ -65,7 +65,7 @@ export default function StaffPage() {
 
   useEffect(() => {
   const socket = new WebSocket(
-    "wss://your-backend.onrender.com/ws/tickets/"
+    "wss://customer-support-2.onrender.com/ws/tickets/"
   )
 
   socket.onmessage = (event) => {
