@@ -1,82 +1,87 @@
 "use client"
 
-import { useEffect, useState, useRef } from "react"
+import { useRef } from "react"
 import { useParams, useRouter } from "next/navigation"
-import api from "@/src/lib/axios"
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
+import { fetchers } from "@/src/lib/axios"
+import { useState, useEffect } from "react"
 import { logger } from "@/logger"
+
+type Ticket = {
+  id: number
+  status: string
+  priority: string
+  customer: string
+  customer_email: string
+  category: string
+  message: string
+  context?: string
+}
+
+type Message = {
+  sender: string
+  message: string
+}
 
 export default function TicketDetailPage() {
   const { id } = useParams()
   const router = useRouter()
-
-  const [ticket, setTicket] = useState<any>(null)
-  const [messages, setMessages] = useState<any[]>([])
-  const [note, setNote] = useState("")
-  const [isLoggingOut, setIsLoggingOut] = useState(false)
-  const [markingProgress, setMarkingProgress] = useState(false)
-  const [resolving, setResolving] = useState(false)
+  const queryClient = useQueryClient()
   const chatBottomRef = useRef<HTMLDivElement>(null)
+  const [note, setNote] = useState("")
 
-  useEffect(() => {
-    const fetchTicket = async () => {
-      try {
-        const res = await api.get(`staff/tickets/${id}/`)
-        setTicket(res.data)
-      } catch (error) {
-        logger.error("Failed to load ticket", error)
-      }
-    }
+  // ── Queries ───────────────────────────────────────────────────────────────
 
-    const fetchMessages = async () => {
-      try {
-        const res = await api.get(`staff/tickets/${id}/messages/`)
-        setMessages(res.data)
-      } catch (error) {
-        logger.error("Failed to load messages", error)
-      }
-    }
+  const { data: ticket } = useQuery({
+    queryKey: ["ticket", id],
+    queryFn: () => fetchers.get<Ticket>(`staff/tickets/${id}/`),
+    enabled: !!id,
+  })
 
-    if (id) { fetchTicket(); fetchMessages() }
-  }, [id])
+  const { data: messages = [] } = useQuery({
+    queryKey: ["ticket-messages", id],
+    queryFn: () => fetchers.get<Message[]>(`staff/tickets/${id}/messages/`),
+    enabled: !!id,
+  })
 
+  // Auto-scroll when messages load/change
   useEffect(() => {
     chatBottomRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [messages])
 
-  const markInProgress = async () => {
-    setMarkingProgress(true)
-    try {
-      await api.patch(`staff/tickets/${id}/start/`)
-      setTicket({ ...ticket, status: "in_progress" })
-    } catch (error) {
-      logger.error("Failed to update ticket", error)
+  // ── Mutations ─────────────────────────────────────────────────────────────
+
+  const markInProgressMutation = useMutation({
+    mutationFn: () => fetchers.patch(`staff/tickets/${id}/start/`),
+    onSuccess: () => {
+      // Optimistically update cached ticket status
+      queryClient.setQueryData<Ticket>(["ticket", id], (old) =>
+        old ? { ...old, status: "in_progress" } : old
+      )
+    },
+    onError: (err) => {
+      logger.error("Failed to update ticket", err)
       alert("Failed to mark as in progress")
-    } finally {
-      setMarkingProgress(false)
-    }
-  }
+    },
+  })
 
-  const resolveTicket = async () => {
-    setResolving(true)
-    try {
-      await api.patch(`staff/tickets/${id}/resolve/`, { resolution_note: note })
+  const resolveMutation = useMutation({
+    mutationFn: () =>
+      fetchers.patch(`staff/tickets/${id}/resolve/`, { resolution_note: note }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["staff-tickets"] }) // refresh dashboard
       router.push("/staff")
-    } catch (error) {
-      logger.error("Failed to resolve ticket", error)
-      setResolving(false)
-    }
-  }
+    },
+    onError: (err) => logger.error("Failed to resolve ticket", err),
+  })
 
-  const logout = async () => {
-    setIsLoggingOut(true)
-    try {
-      await api.post("logout/")
-      router.push("/login")
-    } catch (error) {
-      logger.error("Logout failed", error)
-      setIsLoggingOut(false)
-    }
-  }
+  const logoutMutation = useMutation({
+    mutationFn: () => fetchers.post("logout/"),
+    onSuccess: () => router.push("/login"),
+    onError: (err) => logger.error("Logout failed", err),
+  })
+
+  // ── Helpers ───────────────────────────────────────────────────────────────
 
   const priorityBadge = (priority: string) => {
     if (priority === "high") return "bg-red-900/40 text-red-400 border-red-700"
@@ -90,6 +95,8 @@ export default function TicketDetailPage() {
     if (status === "resolved") return "bg-green-900/40 text-green-400"
     return "bg-slate-800 text-slate-400"
   }
+
+  // ── Loading state ─────────────────────────────────────────────────────────
 
   if (!ticket) return (
     <div className="min-h-screen flex items-center justify-center bg-slate-950">
@@ -119,13 +126,12 @@ export default function TicketDetailPage() {
               </div>
             </div>
           </div>
-
           <button
-            onClick={logout}
-            disabled={isLoggingOut}
+            onClick={() => logoutMutation.mutate()}
+            disabled={logoutMutation.isPending}
             className="px-3 py-1.5 text-xs text-red-400 border border-red-800 rounded-md hover:bg-red-900/40"
           >
-            {isLoggingOut ? "..." : "Logout"}
+            {logoutMutation.isPending ? "..." : "Logout"}
           </button>
         </div>
       </div>
@@ -135,36 +141,29 @@ export default function TicketDetailPage() {
         {/* Ticket Info */}
         <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 sm:p-6">
           <h2 className="text-sm font-semibold text-slate-400 uppercase mb-4">Ticket Details</h2>
-
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
-
             <div>
               <p className="text-xs text-slate-500">Customer</p>
               <p className="font-medium">{ticket.customer}</p>
             </div>
-
             <div>
               <p className="text-xs text-slate-500">Email</p>
               <p className="font-medium break-all">{ticket.customer_email}</p>
             </div>
-
             <div>
               <p className="text-xs text-slate-500">Category</p>
               <p className="font-medium capitalize">{ticket.category}</p>
             </div>
-
             <div>
               <p className="text-xs text-slate-500">Priority</p>
               <span className={`text-xs px-2 py-1 rounded-full border ${priorityBadge(ticket.priority)}`}>
                 {ticket.priority}
               </span>
             </div>
-
             <div className="sm:col-span-2">
               <p className="text-xs text-slate-500">Message</p>
               <p className="text-slate-300">{ticket.message}</p>
             </div>
-
           </div>
         </div>
 
@@ -179,9 +178,7 @@ export default function TicketDetailPage() {
         {/* Conversation */}
         <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 sm:p-6">
           <h2 className="text-sm font-semibold text-slate-400 uppercase mb-4">Conversation</h2>
-
           <div className="bg-slate-950 rounded-xl p-3 sm:p-4 h-64 sm:h-80 overflow-y-auto flex flex-col gap-3 border border-slate-800">
-
             {messages.length === 0 ? (
               <p className="text-slate-500 text-sm text-center m-auto">No messages</p>
             ) : (
@@ -190,20 +187,14 @@ export default function TicketDetailPage() {
                 return (
                   <div key={index} className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
                     <div className={`max-w-[80%] sm:max-w-[70%] px-3 py-2 rounded-2xl text-sm
-                      ${isUser
-                        ? "bg-indigo-600 text-white"
-                        : "bg-slate-800 text-slate-200 border border-slate-700"
-                      }`}>
-                      <span className="block text-xs mb-1 text-slate-400">
-                        {isUser ? "User" : "AI"}
-                      </span>
+                      ${isUser ? "bg-indigo-600 text-white" : "bg-slate-800 text-slate-200 border border-slate-700"}`}>
+                      <span className="block text-xs mb-1 text-slate-400">{isUser ? "User" : "AI"}</span>
                       {msg.message}
                     </div>
                   </div>
                 )
               })
             )}
-
             <div ref={chatBottomRef} />
           </div>
         </div>
@@ -211,32 +202,27 @@ export default function TicketDetailPage() {
         {/* Resolution */}
         <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 sm:p-6">
           <h2 className="text-sm font-semibold text-slate-400 uppercase mb-3">Resolution Note</h2>
-
           <textarea
             value={note}
             onChange={(e) => setNote(e.target.value)}
             placeholder="Describe how this ticket was resolved..."
             className="w-full h-28 sm:h-36 px-4 py-3 border border-slate-700 bg-slate-950 text-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500"
           />
-
           <div className="flex flex-col sm:flex-row gap-3 mt-4">
-
             <button
-              onClick={markInProgress}
-              disabled={markingProgress || ticket.status === "in_progress"}
-              className="px-5 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-lg"
+              onClick={() => markInProgressMutation.mutate()}
+              disabled={markInProgressMutation.isPending || ticket.status === "in_progress"}
+              className="px-5 py-2 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white rounded-lg"
             >
-              {markingProgress ? "Updating..." : "Mark as In Progress"}
+              {markInProgressMutation.isPending ? "Updating..." : "Mark as In Progress"}
             </button>
-
             <button
-              onClick={resolveTicket}
-              disabled={resolving}
-              className="px-5 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg"
+              onClick={() => resolveMutation.mutate()}
+              disabled={resolveMutation.isPending}
+              className="px-5 py-2 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white rounded-lg"
             >
-              {resolving ? "Resolving..." : "Mark as Resolved ✓"}
+              {resolveMutation.isPending ? "Resolving..." : "Mark as Resolved ✓"}
             </button>
-
           </div>
         </div>
 
