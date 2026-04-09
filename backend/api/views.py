@@ -47,6 +47,10 @@ from custSupApp.tasks import send_ticket_email, index_pdf
 # pagination
 from .pagination import TicketCursorPagination, StaffCursorPagination
 
+# websockets
+from channels.layers import get_channel_layer
+from asgiref.sync import async_to_sync
+
 
 # ─── Custom Permissions ───────────────────────────────────────────────────────
 
@@ -188,6 +192,23 @@ class SupportAIView(APIView):
             structured_data = extract_ticket_structure_smart(query, history)
             ticket, staff_member = create_structured_ticket(
                 request.user, query, structured_data
+            )
+
+            channel_layer = get_channel_layer()
+
+            async_to_sync(channel_layer.group_send)(
+                "tickets",
+                {
+                    "type": "send_ticket",
+                    "data": {
+                        "id": ticket.id,
+                        "priority": ticket.priority,
+                        "status": ticket.status,
+                        "customer": ticket.user.username,
+                        "message": ticket.message,
+                        "category": ticket.category,
+                    },
+                },
             )
 
             recent_messages = ChatMessage.objects.filter(
@@ -459,6 +480,17 @@ class StaffTicketViewSet(GenericViewSet, ListModelMixin):
         ticket.resolution_note = note
         ticket.resolved_at = timezone.now()
         ticket.save(update_fields=["status", "resolution_note", "resolved_at"])
+        channel_layer = get_channel_layer()
+        async_to_sync(channel_layer.group_send)(
+            "tickets",
+            {
+                "type": "send_ticket",
+                "data": {
+                    "id": ticket.id,
+                    "status": "resolved",
+                },
+            },
+        )
         return Response({"message": "Ticket resolved", "ticket_id": ticket.id})
 
     @action(detail=True, methods=["patch"], url_path="start")
@@ -466,6 +498,17 @@ class StaffTicketViewSet(GenericViewSet, ListModelMixin):
         ticket = get_object_or_404(SupportTicket, id=pk, assigned_to=request.user)
         ticket.status = "in_progress"
         ticket.save(update_fields=["status"])
+        channel_layer = get_channel_layer()
+        async_to_sync(channel_layer.group_send)(
+            "tickets",
+            {
+                "type": "send_ticket",
+                "data": {
+                    "id": ticket.id,
+                    "status": "in_progress",
+                },
+            },
+        )
         return Response({"message": "Ticket marked as in progress", "ticket_id": ticket.id})
 
     @action(detail=True, methods=["get"], url_path="messages")
