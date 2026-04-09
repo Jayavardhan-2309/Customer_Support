@@ -60,6 +60,6 @@ typing_extensions==4.15.0
 google-genai==1.10.0
 
 # websockets
-channels
-channels-redis
-daphne
+daphne==4.2.1
+channels==4.3.2
+channels-redis==4.3.0
