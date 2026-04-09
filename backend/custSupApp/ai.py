@@ -42,7 +42,7 @@ GROQ_MODELS = [
 # ── ESCALATION LIMIT REPLY ───────────────────────────────────────────────────
 
 ESCALATION_LIMIT_REPLY = (
-    "You've reached the maximum of 3 escalations today. "
+    "You've reached the maximum of 2 escalations today. "
     "Our team will follow up on your earlier tickets. "
     "If this is urgent, please email us directly."
 )

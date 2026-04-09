@@ -11,7 +11,7 @@ def get_ticket_workload_metrics(staff_user):
         "assigned": tickets.count(),
         "open": tickets.filter(status="open").count(),
         "in_progress": tickets.filter(status="in_progress").count(),
-        "resolved": tickets.filter(status="resolved").count(),
+        "resolved": tickets.filter(status__in=["resolved", "closed"]).count(),
     }
 
 # Resolution performance metrics
