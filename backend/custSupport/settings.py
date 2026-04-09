@@ -28,6 +28,7 @@ INSTALLED_APPS = [
     'corsheaders',
     'custSupApp',
     'api',
+    'channels',
 ]
 
 MIDDLEWARE = [
@@ -59,7 +60,8 @@ TEMPLATES = [
     },
 ]
 
-WSGI_APPLICATION = 'custSupport.wsgi.application'
+WSGI_APPLICATION = 'custSupport.wsgi.application' # django uses this internally
+ASGI_APPLICATION = 'custSupport.asgi.application' # used for websockets
 
 # ── Database
 
@@ -154,6 +156,18 @@ CELERY_RESULT_SERIALIZER = "json"
 CELERY_TIMEZONE = "UTC"
 CELERY_TASK_SOFT_TIME_LIMIT = 300
 CELERY_TASK_TIME_LIMIT = 360
+
+# Websockets
+
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels_redis.core.RedisChannelLayer",
+        "CONFIG": {
+            "hosts": [os.getenv("REDIS_URL")],
+            "prefix": "channels",  # IMPORTANT (avoids Celery conflicts)
+        },
+    },
+}
 
 # ── Logging
 

@@ -58,3 +58,8 @@ typing_extensions==4.15.0
 
 # embeddings
 google-genai==1.10.0
+
+# websockets
+channels
+channels-redis
+daphne

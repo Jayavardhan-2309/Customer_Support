@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation"
 import { useQuery, useMutation } from "@tanstack/react-query"
 import { fetchers } from "@/src/lib/axios"
 import { logger } from "@/logger"
+import { useEffect } from "react"
+import { useQueryClient } from "@tanstack/react-query"
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -27,6 +29,7 @@ type Me = {
 
 export default function StaffPage() {
   const router = useRouter()
+  const queryClient = useQueryClient()
 
   const [sortPriority, setPriority] = useState<string>("default")
   const [filterCategory, setFilterCategory] = useState<string>("all")
@@ -56,6 +59,45 @@ export default function StaffPage() {
     onSuccess: () => router.push("/login"),
     onError: (err) => logger.error("Logout failed", err),
   })
+
+
+  // ── Websockets ───────────────────────────────────────────────────────
+
+  useEffect(() => {
+  const socket = new WebSocket(
+    "wss://your-backend.onrender.com/ws/tickets/"
+  )
+
+  socket.onmessage = (event) => {
+    const incoming = JSON.parse(event.data)
+    queryClient.setQueryData(["staff-tickets"], (oldData: any) => {
+      if (!oldData) return { results: [incoming] }
+      const exists = oldData.results.find((t: any) => t.id === incoming.id)
+      if (exists) {
+        return {
+          ...oldData,
+          results: oldData.results.map((t: any) =>
+            t.id === incoming.id ? { ...t, ...incoming } : t
+          ),
+        }
+      }
+      return {
+        ...oldData,
+        results: [incoming, ...oldData.results],
+      }
+    })
+  }
+
+  socket.onerror = (err) => {
+    console.error("WebSocket error:", err)
+  }
+
+  socket.onclose = () => {
+    console.log("WebSocket disconnected")
+  }
+
+  return () => socket.close()
+}, [queryClient])
 
   // ── Derived data ──────────────────────────────────────────────────────────
 
