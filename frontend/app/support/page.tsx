@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 
 type Message = { role: "user" | "ai"; content: string; }
 
+
 function useSpeechRecognition() {
   const [transcript, setTranscript] = useState("");
   const [interimTranscript, setInterimTranscript] = useState("");
@@ -15,7 +16,7 @@ function useSpeechRecognition() {
   const startTimeRef = useRef(0);
   const MAX_MS = 60000;
 
-  const createAndStart = (onDone: (text: string) => void) => {
+  const createAndStart = () => {
     const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     const r = new SR();
     r.lang = "en-US"; r.continuous = true; r.interimResults = true;
@@ -31,19 +32,21 @@ function useSpeechRecognition() {
       setInterimTranscript("");
       if (stoppedRef.current || Date.now() - startTimeRef.current >= MAX_MS) {
         setIsListening(false);
-        const final = finalRef.current.trim(); setTranscript(final); onDone(final);
-      } else { createAndStart(onDone); }
+        setTranscript(finalRef.current.trim());
+      } else { createAndStart(); }
     };
     r.onerror = (e: any) => { if (e.error !== "no-speech") { setIsListening(false); stoppedRef.current = true; } };
     recognitionRef.current = r; r.start();
   };
 
-  const start = (onDone: (text: string) => void) => {
+  const start = (preservedText = "") => {
     const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SR) return;
-    finalRef.current = ""; stoppedRef.current = false; startTimeRef.current = Date.now();
-    setTranscript(""); setInterimTranscript("");
-    createAndStart(onDone);
+    finalRef.current = preservedText ? preservedText + " " : "";
+    stoppedRef.current = false; startTimeRef.current = Date.now();
+    setTranscript(preservedText);
+    setInterimTranscript("");
+    createAndStart();
     setTimeout(() => { if (!stoppedRef.current) { stoppedRef.current = true; recognitionRef.current?.stop(); } }, MAX_MS);
   };
 
@@ -74,30 +77,27 @@ function useChatHistory() {
 }
 
 export default function Support() {
+  const hasSentSpeechRef = useRef(false);
+  const isSendingRef = useRef(false);
   const router = useRouter();
   const [checkingAuth, setCheckingAuth] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [isLogout, setLoggingOut] = useState(false);
   const [orgName, setOrgName] = useState("");
+  const [sendBlocked, setSendBlocked] = useState(false); // true for 800ms after mic stops — disables Send in DOM
   const bottomRef = useRef<HTMLDivElement>(null);
   const speech = useSpeechRecognition();
   const chat = useChatHistory();
 
   useEffect(() => {
-  fetch("/api/me", { credentials: "include" })
-    .then(async res => {
-      if (!res.ok) {
-        router.replace("/login");
-        return;
-      }
-
-      const data = await res.json();
-
-      setOrgName(data.organization_name || "");
-
-      setCheckingAuth(false);
-    });
-}, []);
+    fetch("/api/me", { credentials: "include" })
+      .then(async res => {
+        if (!res.ok) { router.replace("/login"); return; }
+        const data = await res.json();
+        setOrgName(data.organization_name || "");
+        setCheckingAuth(false);
+      });
+  }, []);
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [chat.messages, speech.transcript, speech.interimTranscript]);
 
@@ -110,16 +110,49 @@ export default function Support() {
   const logout = async () => { setLoggingOut(true); await fetch("/api/logout", { method: "POST" }); router.push("/login"); };
 
   const sendMessage = async (text: string) => {
-    const trimmed = text.trim(); if (!trimmed) return;
-    chat.addMessage({ role: "user", content: trimmed });
-    speech.setTranscript(""); setIsLoading(true);
-    const res = await fetch("/api/support", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message: trimmed }), credentials: "include" });
-    const data = await res.json();
-    setIsLoading(false);
-    chat.addMessage({ role: "ai", content: data.reply ?? "No response" });
+    const trimmed = text.trim();
+    if (!trimmed) return;
+
+    //  prevent duplicate send of same speech
+    if (hasSentSpeechRef.current) return;
+
+    hasSentSpeechRef.current = true;
+
+    if (isSendingRef.current) return;
+    isSendingRef.current = true;
+
+    try {
+      chat.addMessage({ role: "user", content: trimmed });
+      speech.setTranscript("");
+      setIsLoading(true);
+
+      const res = await fetch("/api/support", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: trimmed }),
+        credentials: "include"
+      });
+
+      const data = await res.json();
+      chat.addMessage({ role: "ai", content: data.reply ?? "No response" });
+
+    } finally {
+      setIsLoading(false);
+
+      setTimeout(() => {
+        isSendingRef.current = false;
+      }, 300);
+    }
   };
 
-  const handleStopAndSend = () => { speech.stop(); setTimeout(() => sendMessage(speech.transcript), 300); };
+  const handleStopMic = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    speech.stop();
+    // Block the Send button in the DOM for 800ms so no ghost tap can reach it
+    setSendBlocked(true);
+    setTimeout(() => setSendBlocked(false), 800);
+  };
 
   return (
     <div className="bg-slate-950 text-white flex flex-col" style={{ height: "100dvh" }}>
@@ -127,7 +160,7 @@ export default function Support() {
       {/* Header */}
       <header className="shrink-0 bg-slate-950 border-b border-slate-800 px-4 py-2.5 flex items-center justify-between">
         <div className="flex flex-col gap-0.5">
-  
+
           <div className="flex items-center flex-wrap gap-2">
             <h1 className="text-sm font-bold">Support</h1>
 
@@ -146,6 +179,7 @@ export default function Support() {
 
         <div className="flex gap-2">
           <button
+            type="button"
             onClick={() => router.push("/support/feedback")}
             className="text-[11px] text-indigo-400 border border-indigo-800 px-2.5 py-1.5 rounded-lg hover:bg-indigo-900/40"
           >
@@ -153,6 +187,7 @@ export default function Support() {
           </button>
 
           <button
+            type="button"
             disabled={isLogout}
             onClick={logout}
             className="text-[11px] text-red-400 border border-red-800 px-2.5 py-1.5 rounded-lg hover:bg-red-900/40"
@@ -215,31 +250,49 @@ export default function Support() {
             className="flex-1 min-w-0 border border-slate-700 bg-slate-900 text-white rounded-full px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500"
             value={speech.transcript}
             placeholder="Type here..."
-            onChange={e => speech.setTranscript(e.target.value)}
-            onKeyDown={e => e.key === "Enter" && !speech.isListening && sendMessage(speech.transcript)}
+            onChange={(e) => {
+              hasSentSpeechRef.current = false; // user changed text → allow send
+              speech.setTranscript(e.target.value);
+            }}
+            onKeyDown={e => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+
+                if (speech.isListening) return;
+                if (sendBlocked) return;           //  ADD THIS
+                if (isSendingRef.current) return;  //  ADD THIS
+
+                sendMessage(speech.transcript);
+              }
+            }}
           />
 
           {!speech.isListening ? (
             <button
+              type="button"
               disabled={isLoading}
-              onClick={() => speech.start(final => sendMessage(final))}
+              onClick={() =>{ hasSentSpeechRef.current = false; speech.start(speech.transcript); }}
               className="w-9 h-9 flex items-center justify-center border border-slate-700 rounded-full text-red-400 hover:bg-slate-800"
             >
               🎙
             </button>
           ) : (
             <button
-              onClick={handleStopAndSend}
+              type="button"
+              onClick={handleStopMic}
               className="w-9 h-9 flex items-center justify-center bg-red-500 rounded-full text-white animate-pulse"
             >
               ⏹
             </button>
           )}
 
+          {/* sendBlocked disables the button in the DOM for 800ms after mic stops,
+              preventing any ghost tap from the ⏹ button reaching Send */}
           <button
-            disabled={speech.isListening || isLoading}
+            type="button"
+            disabled={speech.isListening || isLoading || sendBlocked}
             onClick={() => sendMessage(speech.transcript)}
-            className="px-3 py-2 bg-indigo-600 text-white text-xs rounded-full font-semibold hover:bg-indigo-700"
+            className="px-3 py-2 bg-indigo-600 text-white text-xs rounded-full font-semibold hover:bg-indigo-700 disabled:opacity-50"
           >
             Send
           </button>
