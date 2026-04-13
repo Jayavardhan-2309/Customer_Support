@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation";
 type Message = { role: "user" | "ai"; content: string; }
 
 function useSpeechRecognition() {
-  const suppressDoneRef = useRef(false);
   const [transcript, setTranscript] = useState("");
   const [interimTranscript, setInterimTranscript] = useState("");
   const [isListening, setIsListening] = useState(false);
@@ -32,8 +31,9 @@ function useSpeechRecognition() {
       setInterimTranscript("");
       if (stoppedRef.current || Date.now() - startTimeRef.current >= MAX_MS) {
         setIsListening(false);
-        const final = finalRef.current.trim(); setTranscript(final);
-        if (!suppressDoneRef.current) onDone(final);
+        const final = finalRef.current.trim();
+        setTranscript(final);
+        onDone(final); // onDone now only sets the input, never sends
       } else { createAndStart(onDone); }
     };
     r.onerror = (e: any) => { if (e.error !== "no-speech") { setIsListening(false); stoppedRef.current = true; } };
@@ -51,9 +51,8 @@ function useSpeechRecognition() {
     setTimeout(() => { if (!stoppedRef.current) { stoppedRef.current = true; recognitionRef.current?.stop(); } }, MAX_MS);
   };
 
-  const stopSilent = () => { suppressDoneRef.current = true; stoppedRef.current = true; recognitionRef.current?.stop(); };
-  const stop = () => { suppressDoneRef.current = false; stoppedRef.current = true; recognitionRef.current?.stop(); };
-  return { transcript, interimTranscript, isListening, setTranscript, start, stop, stopSilent };
+  const stop = () => { stoppedRef.current = true; recognitionRef.current?.stop(); };
+  return { transcript, interimTranscript, isListening, setTranscript, start, stop };
 }
 
 function useChatHistory() {
@@ -124,11 +123,8 @@ export default function Support() {
     chat.addMessage({ role: "ai", content: data.reply ?? "No response" });
   };
 
-  const handleStopAndSend = () => {
-    const text = speech.transcript; // capture before stop clears anything
-    speech.stopSilent();
-    setTimeout(() => sendMessage(text), 300);
-  };
+  // Stop mic and just show the text in the input — do NOT send
+  const handleStopMic = () => { speech.stop(); };
 
   return (
     <div className="bg-slate-950 text-white flex flex-col" style={{ height: "100dvh" }}>
@@ -231,14 +227,14 @@ export default function Support() {
           {!speech.isListening ? (
             <button
               disabled={isLoading}
-              onClick={() => speech.start(final => sendMessage(final), speech.transcript)}
+              onClick={() => speech.start(text => speech.setTranscript(text), speech.transcript)}
               className="w-9 h-9 flex items-center justify-center border border-slate-700 rounded-full text-red-400 hover:bg-slate-800"
             >
               🎙
             </button>
           ) : (
             <button
-              onClick={handleStopAndSend}
+              onClick={handleStopMic}
               className="w-9 h-9 flex items-center justify-center bg-red-500 rounded-full text-white animate-pulse"
             >
               ⏹
