@@ -77,6 +77,7 @@ function useChatHistory() {
 }
 
 export default function Support() {
+  const hasSentSpeechRef = useRef(false);
   const isSendingRef = useRef(false);
   const router = useRouter();
   const [checkingAuth, setCheckingAuth] = useState(true);
@@ -109,20 +110,22 @@ export default function Support() {
   const logout = async () => { setLoggingOut(true); await fetch("/api/logout", { method: "POST" }); router.push("/login"); };
 
   const sendMessage = async (text: string) => {
-    if (speech.isListening) return;        //  NEVER send during mic
-    if (sendBlocked) return;               //  block after stop
-    if (isSendingRef.current) return;      //  prevent duplicates
-
     const trimmed = text.trim();
     if (!trimmed) return;
 
+    //  prevent duplicate send of same speech
+    if (hasSentSpeechRef.current) return;
+
+    hasSentSpeechRef.current = true;
+
+    if (isSendingRef.current) return;
     isSendingRef.current = true;
 
-    chat.addMessage({ role: "user", content: trimmed });
-    speech.setTranscript("");
-    setIsLoading(true);
-
     try {
+      chat.addMessage({ role: "user", content: trimmed });
+      speech.setTranscript("");
+      setIsLoading(true);
+
       const res = await fetch("/api/support", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -132,9 +135,13 @@ export default function Support() {
 
       const data = await res.json();
       chat.addMessage({ role: "ai", content: data.reply ?? "No response" });
+
     } finally {
       setIsLoading(false);
-      isSendingRef.current = false;
+
+      setTimeout(() => {
+        isSendingRef.current = false;
+      }, 300);
     }
   };
 
@@ -243,14 +250,17 @@ export default function Support() {
             className="flex-1 min-w-0 border border-slate-700 bg-slate-900 text-white rounded-full px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500"
             value={speech.transcript}
             placeholder="Type here..."
-            onChange={e => speech.setTranscript(e.target.value)}
+            onChange={(e) => {
+              hasSentSpeechRef.current = false; // user changed text → allow send
+              speech.setTranscript(e.target.value);
+            }}
             onKeyDown={e => {
               if (e.key === "Enter") {
                 e.preventDefault();
 
                 if (speech.isListening) return;
-                if (sendBlocked) return;           // 🔥 ADD THIS
-                if (isSendingRef.current) return;  // 🔥 ADD THIS
+                if (sendBlocked) return;           //  ADD THIS
+                if (isSendingRef.current) return;  //  ADD THIS
 
                 sendMessage(speech.transcript);
               }
@@ -261,7 +271,7 @@ export default function Support() {
             <button
               type="button"
               disabled={isLoading}
-              onClick={() => speech.start(speech.transcript)}
+              onClick={() =>{ hasSentSpeechRef.current = false; speech.start(speech.transcript); }}
               className="w-9 h-9 flex items-center justify-center border border-slate-700 rounded-full text-red-400 hover:bg-slate-800"
             >
               🎙
