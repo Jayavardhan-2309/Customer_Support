@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 
 type Message = { role: "user" | "ai"; content: string; }
 
-let isSending = false;
 
 function useSpeechRecognition() {
   const [transcript, setTranscript] = useState("");
@@ -78,6 +77,7 @@ function useChatHistory() {
 }
 
 export default function Support() {
+  const isSendingRef = useRef(false);
   const router = useRouter();
   const [checkingAuth, setCheckingAuth] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
@@ -109,22 +109,32 @@ export default function Support() {
   const logout = async () => { setLoggingOut(true); await fetch("/api/logout", { method: "POST" }); router.push("/login"); };
 
   const sendMessage = async (text: string) => {
+    if (speech.isListening) return;        //  NEVER send during mic
+    if (sendBlocked) return;               //  block after stop
+    if (isSendingRef.current) return;      //  prevent duplicates
+
     const trimmed = text.trim();
     if (!trimmed) return;
-    if (isSending) return;
-    isSending = true;
+
+    isSendingRef.current = true;
 
     chat.addMessage({ role: "user", content: trimmed });
     speech.setTranscript("");
     setIsLoading(true);
 
     try {
-      const res = await fetch("/api/support", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message: trimmed }), credentials: "include" });
+      const res = await fetch("/api/support", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: trimmed }),
+        credentials: "include"
+      });
+
       const data = await res.json();
       chat.addMessage({ role: "ai", content: data.reply ?? "No response" });
     } finally {
       setIsLoading(false);
-      isSending = false;
+      isSendingRef.current = false;
     }
   };
 
@@ -235,8 +245,13 @@ export default function Support() {
             placeholder="Type here..."
             onChange={e => speech.setTranscript(e.target.value)}
             onKeyDown={e => {
-              if (e.key === "Enter" && !speech.isListening) {
+              if (e.key === "Enter") {
                 e.preventDefault();
+
+                if (speech.isListening) return;
+                if (sendBlocked) return;           // 🔥 ADD THIS
+                if (isSendingRef.current) return;  // 🔥 ADD THIS
+
                 sendMessage(speech.transcript);
               }
             }}
