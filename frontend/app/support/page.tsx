@@ -5,6 +5,9 @@ import { useRouter } from "next/navigation";
 
 type Message = { role: "user" | "ai"; content: string; }
 
+// Outside the component — survives StrictMode double-mount, never reset by re-renders
+let isSending = false;
+
 function useSpeechRecognition() {
   const [transcript, setTranscript] = useState("");
   const [interimTranscript, setInterimTranscript] = useState("");
@@ -82,7 +85,6 @@ export default function Support() {
   const [isLogout, setLoggingOut] = useState(false);
   const [orgName, setOrgName] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
-  const sendingRef = useRef(false); // lock: prevents any double-send regardless of cause
   const speech = useSpeechRecognition();
   const chat = useChatHistory();
 
@@ -109,8 +111,8 @@ export default function Support() {
   const sendMessage = async (text: string) => {
     const trimmed = text.trim();
     if (!trimmed) return;
-    if (sendingRef.current) return; // already sending — drop the duplicate call
-    sendingRef.current = true;
+    if (isSending) return; // module-level lock — immune to StrictMode double-mount
+    isSending = true;
 
     chat.addMessage({ role: "user", content: trimmed });
     speech.setTranscript("");
@@ -122,7 +124,7 @@ export default function Support() {
       chat.addMessage({ role: "ai", content: data.reply ?? "No response" });
     } finally {
       setIsLoading(false);
-      sendingRef.current = false; // release lock after response (or error)
+      isSending = false; // release lock after response or error
     }
   };
 
