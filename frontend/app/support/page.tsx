@@ -85,6 +85,8 @@ export default function Support() {
   const [isLogout, setLoggingOut] = useState(false);
   const [orgName, setOrgName] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
+  // Cooldown ref: true for 600ms after mic stops — blocks any accidental send from tap bleed
+  const micJustStoppedRef = useRef(false);
   const speech = useSpeechRecognition();
   const chat = useChatHistory();
 
@@ -111,6 +113,7 @@ export default function Support() {
   const sendMessage = async (text: string) => {
     const trimmed = text.trim();
     if (!trimmed) return;
+    if (micJustStoppedRef.current) return; // block tap-bleed sends right after mic stops
     if (isSending) return; // module-level lock — immune to StrictMode double-mount
     isSending = true;
 
@@ -126,6 +129,14 @@ export default function Support() {
       setIsLoading(false);
       isSending = false; // release lock after response or error
     }
+  };
+
+  const handleStopMic = (e: React.MouseEvent) => {
+    e.stopPropagation(); // prevent tap bleeding to whatever renders under the button
+    micJustStoppedRef.current = true;
+    speech.stop();
+    // Release the cooldown after 600ms — long enough for any ghost tap to pass
+    setTimeout(() => { micJustStoppedRef.current = false; }, 600);
   };
 
   return (
@@ -153,6 +164,7 @@ export default function Support() {
 
         <div className="flex gap-2">
           <button
+            type="button"
             onClick={() => router.push("/support/feedback")}
             className="text-[11px] text-indigo-400 border border-indigo-800 px-2.5 py-1.5 rounded-lg hover:bg-indigo-900/40"
           >
@@ -160,6 +172,7 @@ export default function Support() {
           </button>
 
           <button
+            type="button"
             disabled={isLogout}
             onClick={logout}
             className="text-[11px] text-red-400 border border-red-800 px-2.5 py-1.5 rounded-lg hover:bg-red-900/40"
@@ -223,11 +236,17 @@ export default function Support() {
             value={speech.transcript}
             placeholder="Type here..."
             onChange={e => speech.setTranscript(e.target.value)}
-            onKeyDown={e => e.key === "Enter" && !speech.isListening && sendMessage(speech.transcript)}
+            onKeyDown={e => {
+              if (e.key === "Enter" && !speech.isListening) {
+                e.preventDefault();
+                sendMessage(speech.transcript);
+              }
+            }}
           />
 
           {!speech.isListening ? (
             <button
+              type="button"
               disabled={isLoading}
               onClick={() => speech.start(speech.transcript)}
               className="w-9 h-9 flex items-center justify-center border border-slate-700 rounded-full text-red-400 hover:bg-slate-800"
@@ -236,7 +255,8 @@ export default function Support() {
             </button>
           ) : (
             <button
-              onClick={() => speech.stop()}
+              type="button"
+              onClick={handleStopMic}
               className="w-9 h-9 flex items-center justify-center bg-red-500 rounded-full text-white animate-pulse"
             >
               ⏹
@@ -244,6 +264,7 @@ export default function Support() {
           )}
 
           <button
+            type="button"
             disabled={speech.isListening || isLoading}
             onClick={() => sendMessage(speech.transcript)}
             className="px-3 py-2 bg-indigo-600 text-white text-xs rounded-full font-semibold hover:bg-indigo-700"
