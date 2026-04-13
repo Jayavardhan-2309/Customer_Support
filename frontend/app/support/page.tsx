@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 
 type Message = { role: "user" | "ai"; content: string; }
 
-// Outside the component — survives StrictMode double-mount, never reset by re-renders
 let isSending = false;
 
 function useSpeechRecognition() {
@@ -34,7 +33,7 @@ function useSpeechRecognition() {
       setInterimTranscript("");
       if (stoppedRef.current || Date.now() - startTimeRef.current >= MAX_MS) {
         setIsListening(false);
-        setTranscript(finalRef.current.trim()); // only updates input, never sends
+        setTranscript(finalRef.current.trim());
       } else { createAndStart(); }
     };
     r.onerror = (e: any) => { if (e.error !== "no-speech") { setIsListening(false); stoppedRef.current = true; } };
@@ -84,9 +83,8 @@ export default function Support() {
   const [isLoading, setIsLoading] = useState(false);
   const [isLogout, setLoggingOut] = useState(false);
   const [orgName, setOrgName] = useState("");
+  const [sendBlocked, setSendBlocked] = useState(false); // true for 800ms after mic stops — disables Send in DOM
   const bottomRef = useRef<HTMLDivElement>(null);
-  // Cooldown ref: true for 600ms after mic stops — blocks any accidental send from tap bleed
-  const micJustStoppedRef = useRef(false);
   const speech = useSpeechRecognition();
   const chat = useChatHistory();
 
@@ -113,8 +111,7 @@ export default function Support() {
   const sendMessage = async (text: string) => {
     const trimmed = text.trim();
     if (!trimmed) return;
-    if (micJustStoppedRef.current) return; // block tap-bleed sends right after mic stops
-    if (isSending) return; // module-level lock — immune to StrictMode double-mount
+    if (isSending) return;
     isSending = true;
 
     chat.addMessage({ role: "user", content: trimmed });
@@ -127,16 +124,17 @@ export default function Support() {
       chat.addMessage({ role: "ai", content: data.reply ?? "No response" });
     } finally {
       setIsLoading(false);
-      isSending = false; // release lock after response or error
+      isSending = false;
     }
   };
 
   const handleStopMic = (e: React.MouseEvent) => {
-    e.stopPropagation(); // prevent tap bleeding to whatever renders under the button
-    micJustStoppedRef.current = true;
+    e.stopPropagation();
+    e.preventDefault();
     speech.stop();
-    // Release the cooldown after 600ms — long enough for any ghost tap to pass
-    setTimeout(() => { micJustStoppedRef.current = false; }, 600);
+    // Block the Send button in the DOM for 800ms so no ghost tap can reach it
+    setSendBlocked(true);
+    setTimeout(() => setSendBlocked(false), 800);
   };
 
   return (
@@ -263,11 +261,13 @@ export default function Support() {
             </button>
           )}
 
+          {/* sendBlocked disables the button in the DOM for 800ms after mic stops,
+              preventing any ghost tap from the ⏹ button reaching Send */}
           <button
             type="button"
-            disabled={speech.isListening || isLoading}
+            disabled={speech.isListening || isLoading || sendBlocked}
             onClick={() => sendMessage(speech.transcript)}
-            className="px-3 py-2 bg-indigo-600 text-white text-xs rounded-full font-semibold hover:bg-indigo-700"
+            className="px-3 py-2 bg-indigo-600 text-white text-xs rounded-full font-semibold hover:bg-indigo-700 disabled:opacity-50"
           >
             Send
           </button>
