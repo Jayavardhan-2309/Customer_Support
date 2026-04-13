@@ -15,7 +15,7 @@ function useSpeechRecognition() {
   const startTimeRef = useRef(0);
   const MAX_MS = 60000;
 
-  const createAndStart = (onDone: (text: string) => void) => {
+  const createAndStart = () => {
     const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     const r = new SR();
     r.lang = "en-US"; r.continuous = true; r.interimResults = true;
@@ -31,23 +31,21 @@ function useSpeechRecognition() {
       setInterimTranscript("");
       if (stoppedRef.current || Date.now() - startTimeRef.current >= MAX_MS) {
         setIsListening(false);
-        const final = finalRef.current.trim();
-        setTranscript(final);
-        onDone(final); // onDone now only sets the input, never sends
-      } else { createAndStart(onDone); }
+        setTranscript(finalRef.current.trim()); // only updates input, never sends
+      } else { createAndStart(); }
     };
     r.onerror = (e: any) => { if (e.error !== "no-speech") { setIsListening(false); stoppedRef.current = true; } };
     recognitionRef.current = r; r.start();
   };
 
-  const start = (onDone: (text: string) => void, preservedText = "") => {
+  const start = (preservedText = "") => {
     const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SR) return;
     finalRef.current = preservedText ? preservedText + " " : "";
     stoppedRef.current = false; startTimeRef.current = Date.now();
     setTranscript(preservedText);
     setInterimTranscript("");
-    createAndStart(onDone);
+    createAndStart();
     setTimeout(() => { if (!stoppedRef.current) { stoppedRef.current = true; recognitionRef.current?.stop(); } }, MAX_MS);
   };
 
@@ -88,20 +86,14 @@ export default function Support() {
   const chat = useChatHistory();
 
   useEffect(() => {
-  fetch("/api/me", { credentials: "include" })
-    .then(async res => {
-      if (!res.ok) {
-        router.replace("/login");
-        return;
-      }
-
-      const data = await res.json();
-
-      setOrgName(data.organization_name || "");
-
-      setCheckingAuth(false);
-    });
-}, []);
+    fetch("/api/me", { credentials: "include" })
+      .then(async res => {
+        if (!res.ok) { router.replace("/login"); return; }
+        const data = await res.json();
+        setOrgName(data.organization_name || "");
+        setCheckingAuth(false);
+      });
+  }, []);
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [chat.messages, speech.transcript, speech.interimTranscript]);
 
@@ -123,16 +115,13 @@ export default function Support() {
     chat.addMessage({ role: "ai", content: data.reply ?? "No response" });
   };
 
-  // Stop mic and just show the text in the input — do NOT send
-  const handleStopMic = () => { speech.stop(); };
-
   return (
     <div className="bg-slate-950 text-white flex flex-col" style={{ height: "100dvh" }}>
 
       {/* Header */}
       <header className="shrink-0 bg-slate-950 border-b border-slate-800 px-4 py-2.5 flex items-center justify-between">
         <div className="flex flex-col gap-0.5">
-  
+
           <div className="flex items-center flex-wrap gap-2">
             <h1 className="text-sm font-bold">Support</h1>
 
@@ -227,14 +216,14 @@ export default function Support() {
           {!speech.isListening ? (
             <button
               disabled={isLoading}
-              onClick={() => speech.start(text => speech.setTranscript(text), speech.transcript)}
+              onClick={() => speech.start(speech.transcript)}
               className="w-9 h-9 flex items-center justify-center border border-slate-700 rounded-full text-red-400 hover:bg-slate-800"
             >
               🎙
             </button>
           ) : (
             <button
-              onClick={handleStopMic}
+              onClick={() => speech.stop()}
               className="w-9 h-9 flex items-center justify-center bg-red-500 rounded-full text-white animate-pulse"
             >
               ⏹
