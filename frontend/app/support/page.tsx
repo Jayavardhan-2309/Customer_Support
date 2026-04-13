@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 type Message = { role: "user" | "ai"; content: string; }
 
 function useSpeechRecognition() {
+  const suppressDoneRef = useRef(false);
   const [transcript, setTranscript] = useState("");
   const [interimTranscript, setInterimTranscript] = useState("");
   const [isListening, setIsListening] = useState(false);
@@ -31,7 +32,8 @@ function useSpeechRecognition() {
       setInterimTranscript("");
       if (stoppedRef.current || Date.now() - startTimeRef.current >= MAX_MS) {
         setIsListening(false);
-        const final = finalRef.current.trim(); setTranscript(final); onDone(final);
+        const final = finalRef.current.trim(); setTranscript(final);
+        if (!suppressDoneRef.current) onDone(final);
       } else { createAndStart(onDone); }
     };
     r.onerror = (e: any) => { if (e.error !== "no-speech") { setIsListening(false); stoppedRef.current = true; } };
@@ -49,8 +51,9 @@ function useSpeechRecognition() {
     setTimeout(() => { if (!stoppedRef.current) { stoppedRef.current = true; recognitionRef.current?.stop(); } }, MAX_MS);
   };
 
-  const stop = () => { stoppedRef.current = true; recognitionRef.current?.stop(); };
-  return { transcript, interimTranscript, isListening, setTranscript, start, stop };
+  const stopSilent = () => { suppressDoneRef.current = true; stoppedRef.current = true; recognitionRef.current?.stop(); };
+  const stop = () => { suppressDoneRef.current = false; stoppedRef.current = true; recognitionRef.current?.stop(); };
+  return { transcript, interimTranscript, isListening, setTranscript, start, stop, stopSilent };
 }
 
 function useChatHistory() {
@@ -121,7 +124,11 @@ export default function Support() {
     chat.addMessage({ role: "ai", content: data.reply ?? "No response" });
   };
 
-  const handleStopAndSend = () => { speech.stop(); setTimeout(() => sendMessage(speech.transcript), 300); };
+  const handleStopAndSend = () => {
+    const text = speech.transcript; // capture before stop clears anything
+    speech.stopSilent();
+    setTimeout(() => sendMessage(text), 300);
+  };
 
   return (
     <div className="bg-slate-950 text-white flex flex-col" style={{ height: "100dvh" }}>
