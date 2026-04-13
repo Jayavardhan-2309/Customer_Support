@@ -82,6 +82,7 @@ export default function Support() {
   const [isLogout, setLoggingOut] = useState(false);
   const [orgName, setOrgName] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
+  const sendingRef = useRef(false); // lock: prevents any double-send regardless of cause
   const speech = useSpeechRecognition();
   const chat = useChatHistory();
 
@@ -106,13 +107,23 @@ export default function Support() {
   const logout = async () => { setLoggingOut(true); await fetch("/api/logout", { method: "POST" }); router.push("/login"); };
 
   const sendMessage = async (text: string) => {
-    const trimmed = text.trim(); if (!trimmed) return;
+    const trimmed = text.trim();
+    if (!trimmed) return;
+    if (sendingRef.current) return; // already sending — drop the duplicate call
+    sendingRef.current = true;
+
     chat.addMessage({ role: "user", content: trimmed });
-    speech.setTranscript(""); setIsLoading(true);
-    const res = await fetch("/api/support", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message: trimmed }), credentials: "include" });
-    const data = await res.json();
-    setIsLoading(false);
-    chat.addMessage({ role: "ai", content: data.reply ?? "No response" });
+    speech.setTranscript("");
+    setIsLoading(true);
+
+    try {
+      const res = await fetch("/api/support", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message: trimmed }), credentials: "include" });
+      const data = await res.json();
+      chat.addMessage({ role: "ai", content: data.reply ?? "No response" });
+    } finally {
+      setIsLoading(false);
+      sendingRef.current = false; // release lock after response (or error)
+    }
   };
 
   return (
