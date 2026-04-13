@@ -38,11 +38,13 @@ function useSpeechRecognition() {
     recognitionRef.current = r; r.start();
   };
 
-  const start = (onDone: (text: string) => void) => {
+  const start = (onDone: (text: string) => void, preservedText = "") => {
     const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SR) return;
-    finalRef.current = ""; stoppedRef.current = false; startTimeRef.current = Date.now();
-    setTranscript(""); setInterimTranscript("");
+    finalRef.current = preservedText ? preservedText + " " : "";
+    stoppedRef.current = false; startTimeRef.current = Date.now();
+    setTranscript(preservedText);
+    setInterimTranscript("");
     createAndStart(onDone);
     setTimeout(() => { if (!stoppedRef.current) { stoppedRef.current = true; recognitionRef.current?.stop(); } }, MAX_MS);
   };
@@ -222,7 +224,7 @@ export default function Support() {
           {!speech.isListening ? (
             <button
               disabled={isLoading}
-              onClick={() => speech.start(final => sendMessage(final))}
+              onClick={() => speech.start(final => sendMessage(final), speech.transcript)}
               className="w-9 h-9 flex items-center justify-center border border-slate-700 rounded-full text-red-400 hover:bg-slate-800"
             >
               🎙
