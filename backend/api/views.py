@@ -174,7 +174,6 @@ class SupportAIView(APIView):
             intent, reply, confidence, escalated = get_ai_response(
                 query=query,
                 history=history,
-                user_email=request.user.email,
                 org_id=request.user.organization_id,
                 escalation_count=escalation_count,
             )

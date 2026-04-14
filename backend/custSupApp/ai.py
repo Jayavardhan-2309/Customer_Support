@@ -39,6 +39,8 @@ GROQ_MODELS = [
     "mixtral-8x7b-32768",
 ]
 
+JSON_CONTENT_TYPE = "application/json"
+
 # ── ESCALATION LIMIT REPLY ───────────────────────────────────────────────────
 
 ESCALATION_LIMIT_REPLY = (
@@ -199,7 +201,7 @@ def call_groq(prompt, max_tokens=300, system_prompt=None):
         try:
             response = requests.post(
                 GROQ_URL,
-                headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+                headers={"Authorization": f"Bearer {api_key}", "Content-Type": JSON_CONTENT_TYPE},
                 json={
                     "model": model,
                     "messages": [
@@ -229,8 +231,8 @@ def call_openrouter(prompt):
                 OPENROUTER_URL,
                 headers={
                     "Authorization": f"Bearer {api_key}",
-                    "Content-Type": "application/json",
-                    "Accept": "application/json",
+                    "Content-Type": JSON_CONTENT_TYPE,
+                    "Accept": JSON_CONTENT_TYPE,
                 },
                 json={
                     "model": model,
@@ -272,10 +274,9 @@ def is_user_frustrated(message: str) -> bool:
 
 # ── MAIN ─────────────────────────────────────────────────────────────────────
 
-def get_ai_response(query, history=None, user_email=None, org_id=None, escalation_count=0):
+def get_ai_response(query, history=None, org_id=None, escalation_count=0):
     """
     Returns: (intent, reply, confidence, escalated)
-
     escalation_count – number of support tickets the user has already
                        created in the last 24 hours (passed in from the view).
     """
@@ -283,51 +284,15 @@ def get_ai_response(query, history=None, user_email=None, org_id=None, escalatio
         history = []
 
     # ── 1. Explicit user escalation request ──────────────────────────────────
-    if _user_wants_escalation(query):
-        if _escalation_limit_reached(escalation_count):
-            logger.info("User requested escalation but daily limit reached.")
-            return ("escalation_limit", ESCALATION_LIMIT_REPLY, 1.0, False)
-        return ("escalation", "Sure, let me connect you with a human agent right away.", 1.0, True)
+    result = handle_escalation(query, escalation_count)
+    if result:
+        return result
 
     # ── 2. Repetitive AI reply detection ─────────────────────────────────────
-    # Scan ALL assistant messages in history, not just the last two positional
-    # slots — the 10-message window means the pair could appear anywhere.
-    # We flag it if any substantive reply (>60 chars) has appeared 2+ times.
-
-    assistant_msgs = [m["content"].strip() for m in history if m["role"] in ("assistant", "ai")]
-    # CHANGE: We now filter out the standardized "no-context" ladder replies.
-    # We only want to detect repetition of "substantive" factual answers 
-    # that might be wrong or unhelpful.
-    no_context_markers = [NO_CONTEXT_FIRST_REPLY[:40], NO_CONTEXT_SECOND_REPLY[:40]]
+    result = extract_repetition(history, escalation_count)
+    if result:
+        return result
     
-    substantive = [
-        m for m in assistant_msgs 
-        if len(m) > 60 and not any(m.startswith(marker) for marker in no_context_markers)
-    ]
-
-    if len(substantive) >= 1:
-        most_recent = substantive[-1]
-        
-        # Keep the fix for the escalation phrase itself
-        escalation_phrase = "I noticed I'm giving you the same answer repeatedly"
-        if escalation_phrase in most_recent:
-            pass 
-        else:
-            repeat_count = substantive.count(most_recent)
-            if repeat_count >= 2:
-                logger.warning("AI repeated factual reply %d times.", repeat_count)
-                if _escalation_limit_reached(escalation_count):
-                    return ("escalation_limit", ESCALATION_LIMIT_REPLY, 0.0, False)
-                
-                return (
-                    "escalation",
-                    "I noticed I'm giving you the same answer repeatedly, which means "
-                    "I don't have better information on this. Let me get a human agent "
-                    "to help you properly.",
-                    0.0,
-                    True,
-                )
-
     # ── 3. No-context turn counter ────────────────────────────────────────────
     no_context_turns = _count_no_context_turns(history)
 
@@ -375,41 +340,97 @@ def get_ai_response(query, history=None, user_email=None, org_id=None, escalatio
     has_no_context = (not _is_greeting) and (not docs or confidence < NO_CONTEXT_CONFIDENCE)
 
     if has_no_context:
-        if no_context_turns == 0:
-            # Turn 1: AI has no answer — ask the user to rephrase or elaborate
-            logger.info("No context — asking user to elaborate (turn 1).")
-            return ("no_context", NO_CONTEXT_FIRST_REPLY, confidence, False)
-        elif no_context_turns == 1:
-            # Turn 2: still no answer — explicitly offer escalation
-            logger.info("No context again — offering escalation choice (turn 2).")
-            return ("no_context", NO_CONTEXT_SECOND_REPLY, confidence, False)
-        else:
-            # Turn 3+: user is stuck, AI has no answer — escalate automatically
-            logger.info("Persistent no-context after %d turns — auto-escalating.", no_context_turns)
-            if _escalation_limit_reached(escalation_count):
-                return ("escalation_limit", ESCALATION_LIMIT_REPLY, confidence, False)
-            return (
-                "escalation",
-                "I've asked a couple of times but I still don't have a good answer for this. "
-                "I'm escalating this to our support team now so they can help you directly.",
-                confidence,
-                True,
-            )
+        return handle_no_context(no_context_turns, escalation_count, confidence)
 
     # ── 8. Normal escalation risk evaluation ─────────────────────────────────
     escalated = evaluate_escalation_risk(query, intent, confidence, sentiment_frustrated)
 
     if escalated:
-        if _escalation_limit_reached(escalation_count):
+        return handle_escalated(intent, escalation_count, confidence, escalated, sentiment_frustrated)
+
+    return intent, reply, confidence, escalated
+
+
+# ── HELPERS ─────────────────────────────────────────────────────────────────────
+
+def handle_escalated(intent, escalation_count, confidence, escalated, sentiment_frustrated):
+    if _escalation_limit_reached(escalation_count):
             logger.info("Escalation warranted but daily limit reached.")
             return ("escalation_limit", ESCALATION_LIMIT_REPLY, confidence, False)
-        if sentiment_frustrated:
+    if sentiment_frustrated:
             reply = (
                 "I'm sorry you're experiencing this. "
                 "I've escalated this to our team for immediate attention."
             )
+            return intent, reply, confidence, escalated
 
-    return intent, reply, confidence, escalated
+
+def handle_escalation(query, escalation_count):
+    if _user_wants_escalation(query):
+        if _escalation_limit_reached(escalation_count):
+            logger.info("User requested escalation but daily limit reached.")
+            return ("escalation_limit", ESCALATION_LIMIT_REPLY, 1.0, False)
+        return ("escalation", "Sure, let me connect you with a human agent right away.", 1.0, True)
+
+
+def extract_repetition(history, escalation_count):
+    # Scan ALL assistant messages in history, not just the last two positional
+    # slots — the 10-message window means the pair could appear anywhere.
+    # We flag it if any substantive reply (>60 chars) has appeared 2+ times.
+
+    assistant_msgs = [m["content"].strip() for m in history if m["role"] in ("assistant", "ai")]
+    # CHANGE: We now filter out the standardized "no-context" ladder replies.
+    # We only want to detect repetition of "substantive" factual answers 
+    # that might be wrong or unhelpful.
+    no_context_markers = [NO_CONTEXT_FIRST_REPLY[:40], NO_CONTEXT_SECOND_REPLY[:40]]
+    
+    substantive = [
+        m for m in assistant_msgs 
+        if len(m) > 60 and not any(m.startswith(marker) for marker in no_context_markers)
+    ]
+
+    if len(substantive) >= 1:
+        most_recent = substantive[-1]
+        
+
+        escalation_phrase = "I noticed I'm giving you the same answer repeatedly"
+        if escalation_phrase not in most_recent:
+            repeat_count = substantive.count(most_recent)
+            if repeat_count >= 2:
+                logger.warning("AI repeated factual reply %d times.", repeat_count)
+                if _escalation_limit_reached(escalation_count):
+                    return ("escalation_limit", ESCALATION_LIMIT_REPLY, 0.0, False)
+                
+                return (
+                    "escalation",
+                    "I noticed I'm giving you the same answer repeatedly, which means "
+                    "I don't have better information on this. Let me get a human agent "
+                    "to help you properly.",
+                    0.0,
+                    True,
+                )
+
+def handle_no_context(no_context_turns, escalation_count, confidence):
+    if no_context_turns == 0:
+        # Turn 1: AI has no answer — ask the user to rephrase or elaborate
+        logger.info("No context — asking user to elaborate (turn 1).")
+        return ("no_context", NO_CONTEXT_FIRST_REPLY, confidence, False)
+    elif no_context_turns == 1:
+        # Turn 2: still no answer — explicitly offer escalation
+        logger.info("No context again — offering escalation choice (turn 2).")
+        return ("no_context", NO_CONTEXT_SECOND_REPLY, confidence, False)
+    else:
+        # Turn 3+: user is stuck, AI has no answer — escalate automatically
+        logger.info("Persistent no-context after %d turns — auto-escalating.", no_context_turns)
+        if _escalation_limit_reached(escalation_count):
+            return ("escalation_limit", ESCALATION_LIMIT_REPLY, confidence, False)
+        return (
+            "escalation",
+            "I've asked a couple of times but I still don't have a good answer for this. "
+            "I'm escalating this to our support team now so they can help you directly.",
+            confidence,
+            True,
+        )
 
 # ── TICKET STRUCTURE ──────────────────────────────────────────────────────────
 
