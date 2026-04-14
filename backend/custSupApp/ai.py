@@ -282,10 +282,14 @@ def get_ai_response(query, history=None, org_id=None, escalation_count=0):
         history = []
 
     # ── 1. Explicit user escalation request ──────────────────────────────────
-    handle_escalation(query, escalation_count)
+    result = handle_escalation(query, escalation_count)
+    if result:
+        return result
 
     # ── 2. Repetitive AI reply detection ─────────────────────────────────────
-    extract_repetition(history, escalation_count)
+    result = extract_repetition(history, escalation_count)
+    if result:
+        return result
     
     # ── 3. No-context turn counter ────────────────────────────────────────────
     no_context_turns = _count_no_context_turns(history)
@@ -334,26 +338,7 @@ def get_ai_response(query, history=None, org_id=None, escalation_count=0):
     has_no_context = (not _is_greeting) and (not docs or confidence < NO_CONTEXT_CONFIDENCE)
 
     if has_no_context:
-        if no_context_turns == 0:
-            # Turn 1: AI has no answer — ask the user to rephrase or elaborate
-            logger.info("No context — asking user to elaborate (turn 1).")
-            return ("no_context", NO_CONTEXT_FIRST_REPLY, confidence, False)
-        elif no_context_turns == 1:
-            # Turn 2: still no answer — explicitly offer escalation
-            logger.info("No context again — offering escalation choice (turn 2).")
-            return ("no_context", NO_CONTEXT_SECOND_REPLY, confidence, False)
-        else:
-            # Turn 3+: user is stuck, AI has no answer — escalate automatically
-            logger.info("Persistent no-context after %d turns — auto-escalating.", no_context_turns)
-            if _escalation_limit_reached(escalation_count):
-                return ("escalation_limit", ESCALATION_LIMIT_REPLY, confidence, False)
-            return (
-                "escalation",
-                "I've asked a couple of times but I still don't have a good answer for this. "
-                "I'm escalating this to our support team now so they can help you directly.",
-                confidence,
-                True,
-            )
+        return handle_no_context(no_context_turns, escalation_count, confidence)
 
     # ── 8. Normal escalation risk evaluation ─────────────────────────────────
     escalated = evaluate_escalation_risk(query, intent, confidence, sentiment_frustrated)
@@ -420,6 +405,27 @@ def extract_repetition(history, escalation_count):
                     True,
                 )
 
+def handle_no_context(no_context_turns, escalation_count, confidence):
+    if no_context_turns == 0:
+        # Turn 1: AI has no answer — ask the user to rephrase or elaborate
+        logger.info("No context — asking user to elaborate (turn 1).")
+        return ("no_context", NO_CONTEXT_FIRST_REPLY, confidence, False)
+    elif no_context_turns == 1:
+        # Turn 2: still no answer — explicitly offer escalation
+        logger.info("No context again — offering escalation choice (turn 2).")
+        return ("no_context", NO_CONTEXT_SECOND_REPLY, confidence, False)
+    else:
+        # Turn 3+: user is stuck, AI has no answer — escalate automatically
+        logger.info("Persistent no-context after %d turns — auto-escalating.", no_context_turns)
+        if _escalation_limit_reached(escalation_count):
+            return ("escalation_limit", ESCALATION_LIMIT_REPLY, confidence, False)
+        return (
+            "escalation",
+            "I've asked a couple of times but I still don't have a good answer for this. "
+            "I'm escalating this to our support team now so they can help you directly.",
+            confidence,
+            True,
+        )
 
 # ── TICKET STRUCTURE ──────────────────────────────────────────────────────────
 
