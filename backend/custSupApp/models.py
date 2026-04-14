@@ -96,7 +96,7 @@ class SupportTicket(models.Model):
         limit_choices_to={"role": "staff"}
     )
 
-    resolution_note = models.TextField(blank=True, null=True)
+    resolution_note = models.TextField(blank=True, default="")
 
     customer_feedback = models.IntegerField(null=True, blank=True)
 
@@ -108,10 +108,6 @@ class SupportTicket(models.Model):
     context= models.TextField(blank=True)
 
 
-# class SupportStaff(models.Model):
-#     name = models.CharField(max_length=100)
-#     email = models.EmailField()
-#     is_available = models.BooleanField(default=True)
 
 
 class KnowledgeSource(models.Model):
@@ -126,7 +122,7 @@ class UploadedPDF(models.Model):
 
     file = models.FileField(upload_to="pdfs/", null=True, blank=True)  # keep optional
 
-    file_url = models.TextField(null=True, blank=True)
+    file_url = models.TextField(blank=True, default="")
 
     organization = models.ForeignKey(
         Organization,
