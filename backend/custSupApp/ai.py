@@ -39,6 +39,8 @@ GROQ_MODELS = [
     "mixtral-8x7b-32768",
 ]
 
+JSON_CONTENT_TYPE = "application/json"
+
 # ── ESCALATION LIMIT REPLY ───────────────────────────────────────────────────
 
 ESCALATION_LIMIT_REPLY = (
@@ -199,7 +201,7 @@ def call_groq(prompt, max_tokens=300, system_prompt=None):
         try:
             response = requests.post(
                 GROQ_URL,
-                headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+                headers={"Authorization": f"Bearer {api_key}", "Content-Type": JSON_CONTENT_TYPE},
                 json={
                     "model": model,
                     "messages": [
@@ -229,8 +231,8 @@ def call_openrouter(prompt):
                 OPENROUTER_URL,
                 headers={
                     "Authorization": f"Bearer {api_key}",
-                    "Content-Type": "application/json",
-                    "Accept": "application/json",
+                    "Content-Type": JSON_CONTENT_TYPE,
+                    "Accept": JSON_CONTENT_TYPE,
                 },
                 json={
                     "model": model,
@@ -392,9 +394,7 @@ def extract_repetition(history, escalation_count):
         
 
         escalation_phrase = "I noticed I'm giving you the same answer repeatedly"
-        if escalation_phrase in most_recent:
-            pass 
-        else:
+        if escalation_phrase not in most_recent:
             repeat_count = substantive.count(most_recent)
             if repeat_count >= 2:
                 logger.warning("AI repeated factual reply %d times.", repeat_count)
