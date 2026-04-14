@@ -344,19 +344,24 @@ def get_ai_response(query, history=None, org_id=None, escalation_count=0):
     escalated = evaluate_escalation_risk(query, intent, confidence, sentiment_frustrated)
 
     if escalated:
-        if _escalation_limit_reached(escalation_count):
-            logger.info("Escalation warranted but daily limit reached.")
-            return ("escalation_limit", ESCALATION_LIMIT_REPLY, confidence, False)
-        if sentiment_frustrated:
-            reply = (
-                "I'm sorry you're experiencing this. "
-                "I've escalated this to our team for immediate attention."
-            )
+        return handle_escalation(intent, escalation_count, confidence, escalated, sentiment_frustrated)
 
     return intent, reply, confidence, escalated
 
 
 # ── HELPERS ─────────────────────────────────────────────────────────────────────
+
+def handle_escalation(intent, escalation_count, confidence, escalated, sentiment_frustrated):
+    if _escalation_limit_reached(escalation_count):
+            logger.info("Escalation warranted but daily limit reached.")
+            return ("escalation_limit", ESCALATION_LIMIT_REPLY, confidence, False)
+    if sentiment_frustrated:
+            reply = (
+                "I'm sorry you're experiencing this. "
+                "I've escalated this to our team for immediate attention."
+            )
+            return intent, reply, confidence, escalated
+
 
 def handle_escalation(query, escalation_count):
     if _user_wants_escalation(query):
