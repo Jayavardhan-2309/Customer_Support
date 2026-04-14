@@ -10,8 +10,10 @@ import {
 } from "recharts"
 import { logger } from "@/logger"
 
+import { AdminAnalytics, StaffPerformance } from "@/types/customTypes"
+
 export default function AdminAnalyticsPage() {
-  const [data, setData] = useState<any>(null)
+  const [data, setData] = useState<AdminAnalytics | null>(null)
   const [loggingOut, setLoggingOut] = useState(false)
   const router = useRouter()
 
@@ -55,7 +57,7 @@ export default function AdminAnalyticsPage() {
     { name: "Closed", value: ticket_stats.closed },
   ]
 
-  const staffChartData = staff_performance.map((s: any) => ({
+  const staffChartData = staff_performance.map((s: StaffPerformance) => ({
     name: s.name,
     rating: s.avg_rating
   }))
@@ -223,7 +225,7 @@ export default function AdminAnalyticsPage() {
           </h2>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-            {staff_performance.map((staff: any, index: number) => (
+            {staff_performance.map((staff: StaffPerformance, index: number) => (
               <div
                 key={staff.staff_id}
                 onClick={() => router.push(`/admin/analytics/staff/${staff.staff_id}`)}

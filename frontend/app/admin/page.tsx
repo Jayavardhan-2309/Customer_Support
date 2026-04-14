@@ -1,15 +1,9 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import { PDF } from "@/types/customTypes";
 
-type PDF = {
-    id: number;
-    title: string;
-    uploaded_at: string;
-    uploaded_by: string;
-    size_kb: number;
-};
 
 export default function AdminPage() {
     const router = useRouter();
@@ -38,13 +32,9 @@ export default function AdminPage() {
             setOrgName(data.organization_name || "");
             setCheckingAuth(false);
         });
-    }, []);
+    }, [router]);
 
-    useEffect(() => {
-        if (!checkingAuth) fetchPdfs();
-    }, [checkingAuth]);
-
-    const fetchPdfs = async () => {
+    const fetchPdfs = useCallback(async () => {
         setLoadingPdfs(true);
         try {
             const res = await fetch("/api/admin/pdfs", { credentials: "include" });
@@ -54,7 +44,12 @@ export default function AdminPage() {
         } finally {
             setLoadingPdfs(false);
         }
-    };
+    }, []);
+
+    useEffect(() => {
+        if (!checkingAuth) fetchPdfs();
+    }, [checkingAuth, fetchPdfs]);
+
 
     const uploadFile = async (file: File) => {
         if (!file.name.endsWith(".pdf")) { showToast("Only PDF files are allowed", "error"); return; }
@@ -253,7 +248,7 @@ export default function AdminPage() {
                 {/* Info box */}
                 <section className="bg-slate-900 border border-slate-800 rounded-xl px-4 sm:px-6 py-5 text-xs text-slate-500 space-y-1.5">
                     <p className="text-slate-400 font-semibold text-sm mb-2">How it works</p>
-                    <p>• Uploaded PDFs are used to form the AI's context.</p>
+                    <p>• Uploaded PDFs are used to form the AI&apos;s context.</p>
                     <p>• After each upload or delete, the knowledge base is automatically re-indexed in the background.</p>
                     <p>• Re-indexing takes 10–30 seconds. New context is available on the next user query after that.</p>
                     <p>• Max file size is 10MB per PDF. Only text-based PDFs are supported (not scanned images).</p>

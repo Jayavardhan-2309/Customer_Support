@@ -4,6 +4,8 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import api from "@/src/lib/axios";
 import { logger } from "@/logger";
+import axios from "axios";
+import { Organization } from "@/types/customTypes";
 
 /* ALLOWED EMAIL DOMAINS */
 const ALLOWED_EMAIL_DOMAINS = [
@@ -26,19 +28,19 @@ const isAllowedEmail = (email: string) => {
 export default function SignupPage() {
   const router = useRouter();
 
-  const [email, setEmail] = useState("");
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
-  const [organizationName, setOrganizationName] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
+  const [email, setEmail] = useState<string>("");
+  const [username, setUsername] = useState<string>("");
+  const [password, setPassword] = useState<string>("");
+  const [organizationName, setOrganizationName] = useState<string>("");
+  const [showPassword, setShowPassword] = useState<boolean>(false);
 
-  const [error, setError] = useState("");
-  const [loading, setLoadiing] = useState(false);
+  const [error, setError] = useState<string>("");
+  const [loading, setLoading] = useState<boolean>(false);
 
   const [role, setRole] = useState<"user" | "admin">("user");
 
-  const [organizations, setOrganizations] = useState([]);
-  const [organizationId, setOrganizationId] = useState("");
+  const [organizations, setOrganizations] = useState<Organization[]>([]);
+  const [organizationId, setOrganizationId] = useState<number | null>(null);
 
   useEffect(() => {
     api.get("organizations/")
@@ -61,7 +63,7 @@ export default function SignupPage() {
       });
   }, []);
 
-  const handleSignup = async (e: any) => {
+  const handleSignup = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError("");
 
@@ -72,7 +74,7 @@ export default function SignupPage() {
       return;
     }
 
-    setLoadiing(true);
+    setLoading(true);
 
     try {
       if (role === "admin") {
@@ -93,10 +95,17 @@ export default function SignupPage() {
 
       router.push("/login");
 
-    } catch (err: any) {
-      setLoadiing(false);
-      logger.error(err.response?.data);
-      setError(JSON.stringify(err.response?.data));
+    }
+    catch (err: unknown) {
+      setLoading(false);
+      if (axios.isAxiosError(err)) {
+        logger.error(err.response?.data);
+        setError(JSON.stringify(err.response?.data));
+      } 
+      else {
+        logger.error("something went wrong");
+        setError("Something went wrong");
+      }
     }
   };
 
@@ -207,14 +216,17 @@ export default function SignupPage() {
               </label>
 
               <select
-                value={organizationId}
-                onChange={(e) => setOrganizationId(e.target.value)}
+                value={organizationId ?? ""}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setOrganizationId(val ? Number(val) : null);
+                }}
                 required
                 className="w-full rounded-lg border border-slate-700 bg-slate-950 px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
               >
                 <option value="">Select organization</option>
 
-                {organizations.map((org: any) => (
+                {organizations.map((org: Organization) => (
                   <option key={org.id} value={org.id}>
                     {org.name}
                   </option>

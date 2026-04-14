@@ -7,12 +7,35 @@ import {
   PieChart, Pie, Cell, Tooltip, Legend,
   LineChart, Line, XAxis, YAxis, BarChart, Bar, CartesianGrid,
   ResponsiveContainer, RadarChart, Radar, PolarGrid,
-  PolarAngleAxis, PolarRadiusAxis, AreaChart, Area, ReferenceLine,
+  PolarAngleAxis, PolarRadiusAxis, AreaChart, Area, ReferenceLine, TooltipProps
 } from "recharts"
 import { logger } from "@/logger"
+import { StaffAnalytics } from "@/types/customTypes"
+
+type TooltipEntry = {
+  value: number;
+  name?: string;
+  dataKey?: string;
+  color?: string;
+  fill?: string;
+};
+
+type CustomTooltipProps = Omit<TooltipProps<number, string>, "payload"> & {
+  label?: string;
+  payload?: TooltipEntry[];
+};
+
+type WorkloadKey = keyof StaffAnalytics["workload"]
 
 // Visual constants (styling only, no data)
-const STAT_CARDS = [
+const STAT_CARDS:{
+  key: WorkloadKey
+  label: string
+  color: string
+  border: string
+  text: string
+  icon: string
+}[] = [
   { key: "assigned",    label: "Assigned",    color: "from-slate-700 to-slate-600",     border: "border-slate-500",   text: "text-slate-200",   icon: "📋" },
   { key: "open",        label: "Open",        color: "from-rose-900 to-rose-800",       border: "border-rose-600",    text: "text-rose-200",    icon: "🔴" },
   { key: "in_progress", label: "In Progress", color: "from-amber-900 to-amber-800",     border: "border-amber-500",   text: "text-amber-200",   icon: "🟡" },
@@ -34,13 +57,13 @@ const gridStyle = { strokeDasharray: "3 3", stroke: "#1e293b" }
 
 // Shared tooltip
 
-const CustomTooltip = ({ active, payload, label }: any) => {
+const CustomTooltip = ({ active, payload, label }: CustomTooltipProps) => {
   if (!active || !payload?.length) return null
   return (
     <div className="bg-[#1a1f2e] border border-slate-700 rounded-lg px-4 py-2 shadow-xl text-sm">
       {label && <p className="text-slate-400 mb-1">{label}</p>}
-      {payload.map((entry: any, i: number) => (
-        <p key={i} style={{ color: entry.color || entry.fill }} className="font-semibold">
+      {payload?.map((entry: NonNullable<CustomTooltipProps["payload"]>[number], i) => (
+        <p key={entry.dataKey || entry.name || i} style={{ color: entry.color || entry.fill }} className="font-semibold">
           {entry.name}: {entry.value ?? "—"}
         </p>
       ))}
@@ -68,7 +91,7 @@ const EmptyChart = ({ message = "No data available" }: { message?: string }) => 
 
 // Pure derivation from real API fields — zero fabrication
 
-function deriveMetrics(a: any) {
+function deriveMetrics(a: StaffAnalytics) {
   const { workload, ticket_trends, category_distribution, category_resolved, priority_by_status } = a
 
   // Resolution rate: workload counts come directly from backend
@@ -118,7 +141,7 @@ function deriveMetrics(a: any) {
   // Both are real backend fields. Returns null → chart hidden if category_resolved is absent.
   let categoryComposed: any[] | null = null
   if (category_resolved && Object.keys(category_resolved).length > 0) {
-    categoryComposed = Object.entries(category_distribution as Record<string, number>).map(([name, created]) => ({
+    categoryComposed = Object.entries(category_distribution).map(([name, created]) => ({
       name,
       Created:  created,
       Resolved: category_resolved[name] ?? 0,
@@ -131,13 +154,13 @@ function deriveMetrics(a: any) {
 // Page
 
 export default function AnalyticsPage() {
-  const [analytics, setAnalytics] = useState<any>(null)
-  const [statusFilter, setStatusFilter] = useState("all")
-  const [daysFilter,   setDaysFilter]   = useState(7)
+  const [analytics, setAnalytics] = useState<StaffAnalytics | null>(null)
+  const [statusFilter, setStatusFilter] = useState<string>("all")
+  const [daysFilter,   setDaysFilter]   = useState<number>(7)
   const router = useRouter()
 
   useEffect(() => {
-    api.get("staff/analytics/").then(r => setAnalytics(r.data)).catch(logger.error)
+    api.get<StaffAnalytics>("staff/analytics/").then(r => setAnalytics(r.data)).catch(logger.error)
   }, [])
 
   if (!analytics)
@@ -165,24 +188,24 @@ export default function AnalyticsPage() {
   ]
 
   const categoryData: { name: string; value: number }[] = Object.entries(
-    analytics.category_distribution as Record<string, number>
+    analytics.category_distribution
   ).map(([name, value]) => ({ name, value }))
 
   // Trend filtering — purely slicing real backend data
-  let filteredTrendData = [...(analytics.ticket_trends || [])]
-  filteredTrendData = daysFilter === 7 ? filteredTrendData.slice(-7) : filteredTrendData.slice(-3)
+  const filteredTrends = daysFilter === 7 ? analytics.ticket_trends.slice(-7) : analytics.ticket_trends.slice(-3)
 
   let lineKey = "created"; let lineLabel = "Created"
   if (statusFilter === "open")        { lineKey = "open_created";         lineLabel = "Open Tickets Created" }
   if (statusFilter === "in_progress") { lineKey = "in_progress_created";  lineLabel = "In Progress Tickets Created" }
   if (statusFilter === "resolved")    { lineKey = "resolved";             lineLabel = "Resolved" }
 
-  if (statusFilter !== "all") {
-    filteredTrendData = filteredTrendData.map((item: any) => ({
-      date:  item.date,
-      value: item[lineKey] ?? 0,
-    }))
-  }
+  const chartData =
+    statusFilter === "all"
+      ? filteredTrends
+      : filteredTrends.map(item => ({
+          date: item.date,
+          value: item[lineKey as keyof typeof item] ?? 0,
+        }))
 
   const {
     resolutionRate, backlogPressure, radarData,
@@ -462,9 +485,9 @@ export default function AnalyticsPage() {
             </div>
           </div>
 
-          {filteredTrendData.length > 0 ? (
+          {chartData.length > 0 ? (
             <ResponsiveContainer width="100%" height={280}>
-              <LineChart data={filteredTrendData}>
+              <LineChart data={chartData}>
                 <CartesianGrid {...gridStyle} />
                 <XAxis dataKey="date" {...axisStyle} />
                 <YAxis {...axisStyle} />

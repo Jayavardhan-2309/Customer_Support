@@ -5,8 +5,7 @@ import { useRouter } from "next/navigation"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { fetchers } from "@/src/lib/axios"
 
-type Staff = { id: number; username: string; email: string; is_available: boolean; active_tickets: number }
-type Me = { role: string; organization_name?: string }
+import { Staff, Me } from "@/types/customTypes"
 
 export default function AdminStaffPage() {
   const router = useRouter()
@@ -265,8 +264,8 @@ export default function AdminStaffPage() {
         {/* Info box */}
         <section className="bg-slate-900 border border-slate-800 rounded-xl px-4 sm:px-6 py-5 text-xs text-slate-500 space-y-1.5">
           <p className="text-slate-400 font-semibold text-sm mb-2">How escalation works</p>
-          <p>• When a user expresses frustration or the AI's confidence is low, a support ticket is created automatically.</p>
-          <p>• The first <span className="text-emerald-400">available</span> staff member receives an email with the user's query and contact details.</p>
+          <p>• When a user expresses frustration or the AI&apos;s confidence is low, a support ticket is created automatically.</p>
+          <p>• The first <span className="text-emerald-400">available</span> staff member receives an email with the user&apos;s query and contact details.</p>
           <p>• Staff marked as <span className="text-slate-400">unavailable</span> are skipped during assignment.</p>
           <p>• The user is informed their query has been forwarded and will receive a follow-up.</p>
         </section>

@@ -13,7 +13,7 @@ export default function LoginPage() {
     const [loading, setLoading] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
 
-    const handleLogin = async (e: any) => {
+    const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
         setError("");
         setLoading(true);
@@ -96,7 +96,7 @@ export default function LoginPage() {
                 <div className="flex flex-col items-center gap-2 mt-6">
                     
                     <p className="text-slate-300 text-center text-sm">
-                        Don't have an account?{" "}
+                        Don&apos;t have an account?{" "}
                         <span
                             className="text-indigo-400 cursor-pointer hover:underline font-medium"
                             onClick={() => router.push("/signup")}
