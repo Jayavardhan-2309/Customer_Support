@@ -272,10 +272,9 @@ def is_user_frustrated(message: str) -> bool:
 
 # ── MAIN ─────────────────────────────────────────────────────────────────────
 
-def get_ai_response(query, history=None, user_email=None, org_id=None, escalation_count=0):
+def get_ai_response(query, history=None, org_id=None, escalation_count=0):
     """
     Returns: (intent, reply, confidence, escalated)
-
     escalation_count – number of support tickets the user has already
                        created in the last 24 hours (passed in from the view).
     """
@@ -283,51 +282,11 @@ def get_ai_response(query, history=None, user_email=None, org_id=None, escalatio
         history = []
 
     # ── 1. Explicit user escalation request ──────────────────────────────────
-    if _user_wants_escalation(query):
-        if _escalation_limit_reached(escalation_count):
-            logger.info("User requested escalation but daily limit reached.")
-            return ("escalation_limit", ESCALATION_LIMIT_REPLY, 1.0, False)
-        return ("escalation", "Sure, let me connect you with a human agent right away.", 1.0, True)
+    handle_escalation(query, escalation_count)
 
     # ── 2. Repetitive AI reply detection ─────────────────────────────────────
-    # Scan ALL assistant messages in history, not just the last two positional
-    # slots — the 10-message window means the pair could appear anywhere.
-    # We flag it if any substantive reply (>60 chars) has appeared 2+ times.
-
-    assistant_msgs = [m["content"].strip() for m in history if m["role"] in ("assistant", "ai")]
-    # CHANGE: We now filter out the standardized "no-context" ladder replies.
-    # We only want to detect repetition of "substantive" factual answers 
-    # that might be wrong or unhelpful.
-    no_context_markers = [NO_CONTEXT_FIRST_REPLY[:40], NO_CONTEXT_SECOND_REPLY[:40]]
+    extract_repetition(history, escalation_count)
     
-    substantive = [
-        m for m in assistant_msgs 
-        if len(m) > 60 and not any(m.startswith(marker) for marker in no_context_markers)
-    ]
-
-    if len(substantive) >= 1:
-        most_recent = substantive[-1]
-        
-        # Keep the fix for the escalation phrase itself
-        escalation_phrase = "I noticed I'm giving you the same answer repeatedly"
-        if escalation_phrase in most_recent:
-            pass 
-        else:
-            repeat_count = substantive.count(most_recent)
-            if repeat_count >= 2:
-                logger.warning("AI repeated factual reply %d times.", repeat_count)
-                if _escalation_limit_reached(escalation_count):
-                    return ("escalation_limit", ESCALATION_LIMIT_REPLY, 0.0, False)
-                
-                return (
-                    "escalation",
-                    "I noticed I'm giving you the same answer repeatedly, which means "
-                    "I don't have better information on this. Let me get a human agent "
-                    "to help you properly.",
-                    0.0,
-                    True,
-                )
-
     # ── 3. No-context turn counter ────────────────────────────────────────────
     no_context_turns = _count_no_context_turns(history)
 
@@ -410,6 +369,57 @@ def get_ai_response(query, history=None, user_email=None, org_id=None, escalatio
             )
 
     return intent, reply, confidence, escalated
+
+
+# ── HELPERS ─────────────────────────────────────────────────────────────────────
+
+def handle_escalation(query, escalation_count):
+    if _user_wants_escalation(query):
+        if _escalation_limit_reached(escalation_count):
+            logger.info("User requested escalation but daily limit reached.")
+            return ("escalation_limit", ESCALATION_LIMIT_REPLY, 1.0, False)
+        return ("escalation", "Sure, let me connect you with a human agent right away.", 1.0, True)
+
+
+def extract_repetition(history, escalation_count):
+    # Scan ALL assistant messages in history, not just the last two positional
+    # slots — the 10-message window means the pair could appear anywhere.
+    # We flag it if any substantive reply (>60 chars) has appeared 2+ times.
+
+    assistant_msgs = [m["content"].strip() for m in history if m["role"] in ("assistant", "ai")]
+    # CHANGE: We now filter out the standardized "no-context" ladder replies.
+    # We only want to detect repetition of "substantive" factual answers 
+    # that might be wrong or unhelpful.
+    no_context_markers = [NO_CONTEXT_FIRST_REPLY[:40], NO_CONTEXT_SECOND_REPLY[:40]]
+    
+    substantive = [
+        m for m in assistant_msgs 
+        if len(m) > 60 and not any(m.startswith(marker) for marker in no_context_markers)
+    ]
+
+    if len(substantive) >= 1:
+        most_recent = substantive[-1]
+        
+
+        escalation_phrase = "I noticed I'm giving you the same answer repeatedly"
+        if escalation_phrase in most_recent:
+            pass 
+        else:
+            repeat_count = substantive.count(most_recent)
+            if repeat_count >= 2:
+                logger.warning("AI repeated factual reply %d times.", repeat_count)
+                if _escalation_limit_reached(escalation_count):
+                    return ("escalation_limit", ESCALATION_LIMIT_REPLY, 0.0, False)
+                
+                return (
+                    "escalation",
+                    "I noticed I'm giving you the same answer repeatedly, which means "
+                    "I don't have better information on this. Let me get a human agent "
+                    "to help you properly.",
+                    0.0,
+                    True,
+                )
+
 
 # ── TICKET STRUCTURE ──────────────────────────────────────────────────────────
 
