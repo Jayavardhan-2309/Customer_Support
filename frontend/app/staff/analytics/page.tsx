@@ -27,6 +27,32 @@ type CustomTooltipProps = Omit<TooltipProps<number, string>, "payload"> & {
 
 type WorkloadKey = keyof StaffAnalytics["workload"]
 
+type PerformanceKey = keyof StaffAnalytics["resolution_performance"]
+
+type RadarItem = {
+  metric: string
+  high: number
+  normal: number
+  low: number
+}
+
+type EfficiencyItem = {
+  date: string
+  efficiency: number
+}
+
+type CumulativeItem = {
+  date: string
+  "Cumulative Opened": number
+  "Cumulative Resolved": number
+}
+
+type CategoryComposedItem = {
+  name: string
+  Created: number
+  Resolved: number
+}
+
 // Visual constants (styling only, no data)
 const STAT_CARDS:{
   key: WorkloadKey
@@ -42,7 +68,12 @@ const STAT_CARDS:{
   { key: "resolved",    label: "Resolved",    color: "from-emerald-900 to-emerald-800", border: "border-emerald-500", text: "text-emerald-200", icon: "✅" },
 ]
 
-const PERF_CARDS = [
+const PERF_CARDS: {
+  key: PerformanceKey
+  label: string
+  accent: string
+  bg: string
+}[] = [
   { key: "resolved_today",       label: "Resolved Today",      accent: "text-emerald-400", bg: "bg-emerald-950/40 border-emerald-800" },
   { key: "resolved_this_week",   label: "This Week",            accent: "text-sky-400",     bg: "bg-sky-950/40 border-sky-800" },
   { key: "avg_resolution_hours", label: "Avg Resolution Time",  accent: "text-violet-400",  bg: "bg-violet-950/40 border-violet-800" },
@@ -110,7 +141,7 @@ function deriveMetrics(a: StaffAnalytics) {
   const RADAR_STATUS_KEYS: Record<string, string> = {
     open: "Open", in_progress: "In Progress", resolved: "Resolved", assigned: "Assigned",
   }
-  let radarData: any[] | null = null
+  let radarData: RadarItem[] | null = null
   if (priority_by_status && Object.keys(priority_by_status).length > 0) {
     const rows = Object.entries(RADAR_STATUS_KEYS)
       .filter(([key]) => priority_by_status[key])
@@ -124,14 +155,14 @@ function deriveMetrics(a: StaffAnalytics) {
   }
 
   // Resolution efficiency: resolved ÷ created each day — both from ticket_trends
-  const efficiencyData = (ticket_trends || []).slice(-14).map((d: any) => ({
+  const efficiencyData = (ticket_trends || []).slice(-14).map((d) => ({
     date:       d.date,
     efficiency: d.created > 0 ? Math.round((d.resolved / d.created) * 100) : 0,
   }))
 
   // Cumulative flow: running totals built from ticket_trends
   let cumOpen = 0; let cumResolved = 0
-  const cumulativeData = (ticket_trends || []).slice(-14).map((d: any) => {
+  const cumulativeData = (ticket_trends || []).slice(-14).map((d) => {
     cumOpen     += d.open_created || d.created || 0
     cumResolved += d.resolved || 0
     return { date: d.date, "Cumulative Opened": cumOpen, "Cumulative Resolved": cumResolved }
@@ -139,7 +170,7 @@ function deriveMetrics(a: StaffAnalytics) {
 
   // Category created vs resolved: category_distribution = created, category_resolved = resolved.
   // Both are real backend fields. Returns null → chart hidden if category_resolved is absent.
-  let categoryComposed: any[] | null = null
+  let categoryComposed: CategoryComposedItem[] | null = null
   if (category_resolved && Object.keys(category_resolved).length > 0) {
     categoryComposed = Object.entries(category_distribution).map(([name, created]) => ({
       name,
