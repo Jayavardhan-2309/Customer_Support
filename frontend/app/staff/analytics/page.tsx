@@ -7,73 +7,19 @@ import {
   PieChart, Pie, Cell, Tooltip, Legend,
   LineChart, Line, XAxis, YAxis, BarChart, Bar, CartesianGrid,
   ResponsiveContainer, RadarChart, Radar, PolarGrid,
-  PolarAngleAxis, PolarRadiusAxis, AreaChart, Area, ReferenceLine, TooltipProps
+  PolarAngleAxis, PolarRadiusAxis, AreaChart, Area, ReferenceLine,
 } from "recharts"
 import { logger } from "@/logger"
-import { StaffAnalytics } from "@/types/customTypes"
-
-type TooltipEntry = {
-  value: number;
-  name?: string;
-  dataKey?: string;
-  color?: string;
-  fill?: string;
-};
-
-type CustomTooltipProps = Omit<TooltipProps<number, string>, "payload"> & {
-  label?: string;
-  payload?: TooltipEntry[];
-};
-
-type WorkloadKey = keyof StaffAnalytics["workload"]
-
-type PerformanceKey = keyof StaffAnalytics["resolution_performance"]
-
-type RadarItem = {
-  metric: string
-  high: number
-  normal: number
-  low: number
-}
-
-type EfficiencyItem = {
-  date: string
-  efficiency: number
-}
-
-type CumulativeItem = {
-  date: string
-  "Cumulative Opened": number
-  "Cumulative Resolved": number
-}
-
-type CategoryComposedItem = {
-  name: string
-  Created: number
-  Resolved: number
-}
 
 // Visual constants (styling only, no data)
-const STAT_CARDS:{
-  key: WorkloadKey
-  label: string
-  color: string
-  border: string
-  text: string
-  icon: string
-}[] = [
+const STAT_CARDS = [
   { key: "assigned",    label: "Assigned",    color: "from-slate-700 to-slate-600",     border: "border-slate-500",   text: "text-slate-200",   icon: "📋" },
   { key: "open",        label: "Open",        color: "from-rose-900 to-rose-800",       border: "border-rose-600",    text: "text-rose-200",    icon: "🔴" },
   { key: "in_progress", label: "In Progress", color: "from-amber-900 to-amber-800",     border: "border-amber-500",   text: "text-amber-200",   icon: "🟡" },
   { key: "resolved",    label: "Resolved",    color: "from-emerald-900 to-emerald-800", border: "border-emerald-500", text: "text-emerald-200", icon: "✅" },
 ]
 
-const PERF_CARDS: {
-  key: PerformanceKey
-  label: string
-  accent: string
-  bg: string
-}[] = [
+const PERF_CARDS = [
   { key: "resolved_today",       label: "Resolved Today",      accent: "text-emerald-400", bg: "bg-emerald-950/40 border-emerald-800" },
   { key: "resolved_this_week",   label: "This Week",            accent: "text-sky-400",     bg: "bg-sky-950/40 border-sky-800" },
   { key: "avg_resolution_hours", label: "Avg Resolution Time",  accent: "text-violet-400",  bg: "bg-violet-950/40 border-violet-800" },
@@ -88,13 +34,13 @@ const gridStyle = { strokeDasharray: "3 3", stroke: "#1e293b" }
 
 // Shared tooltip
 
-const CustomTooltip = ({ active, payload, label }: CustomTooltipProps) => {
+const CustomTooltip = ({ active, payload, label }: any) => {
   if (!active || !payload?.length) return null
   return (
     <div className="bg-[#1a1f2e] border border-slate-700 rounded-lg px-4 py-2 shadow-xl text-sm">
       {label && <p className="text-slate-400 mb-1">{label}</p>}
-      {payload?.map((entry: NonNullable<CustomTooltipProps["payload"]>[number], i) => (
-        <p key={entry.dataKey || entry.name || i} style={{ color: entry.color || entry.fill }} className="font-semibold">
+      {payload.map((entry: any, i: number) => (
+        <p key={i} style={{ color: entry.color || entry.fill }} className="font-semibold">
           {entry.name}: {entry.value ?? "—"}
         </p>
       ))}
@@ -122,7 +68,7 @@ const EmptyChart = ({ message = "No data available" }: { message?: string }) => 
 
 // Pure derivation from real API fields — zero fabrication
 
-function deriveMetrics(a: StaffAnalytics) {
+function deriveMetrics(a: any) {
   const { workload, ticket_trends, category_distribution, category_resolved, priority_by_status } = a
 
   // Resolution rate: workload counts come directly from backend
@@ -141,7 +87,7 @@ function deriveMetrics(a: StaffAnalytics) {
   const RADAR_STATUS_KEYS: Record<string, string> = {
     open: "Open", in_progress: "In Progress", resolved: "Resolved", assigned: "Assigned",
   }
-  let radarData: RadarItem[] | null = null
+  let radarData: any[] | null = null
   if (priority_by_status && Object.keys(priority_by_status).length > 0) {
     const rows = Object.entries(RADAR_STATUS_KEYS)
       .filter(([key]) => priority_by_status[key])
@@ -155,14 +101,14 @@ function deriveMetrics(a: StaffAnalytics) {
   }
 
   // Resolution efficiency: resolved ÷ created each day — both from ticket_trends
-  const efficiencyData = (ticket_trends || []).slice(-14).map((d) => ({
+  const efficiencyData = (ticket_trends || []).slice(-14).map((d: any) => ({
     date:       d.date,
     efficiency: d.created > 0 ? Math.round((d.resolved / d.created) * 100) : 0,
   }))
 
   // Cumulative flow: running totals built from ticket_trends
   let cumOpen = 0; let cumResolved = 0
-  const cumulativeData = (ticket_trends || []).slice(-14).map((d) => {
+  const cumulativeData = (ticket_trends || []).slice(-14).map((d: any) => {
     cumOpen     += d.open_created || d.created || 0
     cumResolved += d.resolved || 0
     return { date: d.date, "Cumulative Opened": cumOpen, "Cumulative Resolved": cumResolved }
@@ -170,9 +116,9 @@ function deriveMetrics(a: StaffAnalytics) {
 
   // Category created vs resolved: category_distribution = created, category_resolved = resolved.
   // Both are real backend fields. Returns null → chart hidden if category_resolved is absent.
-  let categoryComposed: CategoryComposedItem[] | null = null
+  let categoryComposed: any[] | null = null
   if (category_resolved && Object.keys(category_resolved).length > 0) {
-    categoryComposed = Object.entries(category_distribution).map(([name, created]) => ({
+    categoryComposed = Object.entries(category_distribution as Record<string, number>).map(([name, created]) => ({
       name,
       Created:  created,
       Resolved: category_resolved[name] ?? 0,
@@ -185,13 +131,13 @@ function deriveMetrics(a: StaffAnalytics) {
 // Page
 
 export default function AnalyticsPage() {
-  const [analytics, setAnalytics] = useState<StaffAnalytics | null>(null)
-  const [statusFilter, setStatusFilter] = useState<string>("all")
-  const [daysFilter,   setDaysFilter]   = useState<number>(7)
+  const [analytics, setAnalytics] = useState<any>(null)
+  const [statusFilter, setStatusFilter] = useState("all")
+  const [daysFilter,   setDaysFilter]   = useState(7)
   const router = useRouter()
 
   useEffect(() => {
-    api.get<StaffAnalytics>("staff/analytics/").then(r => setAnalytics(r.data)).catch(logger.error)
+    api.get("staff/analytics/").then(r => setAnalytics(r.data)).catch(logger.error)
   }, [])
 
   if (!analytics)
@@ -219,24 +165,24 @@ export default function AnalyticsPage() {
   ]
 
   const categoryData: { name: string; value: number }[] = Object.entries(
-    analytics.category_distribution
+    analytics.category_distribution as Record<string, number>
   ).map(([name, value]) => ({ name, value }))
 
   // Trend filtering — purely slicing real backend data
-  const filteredTrends = daysFilter === 7 ? analytics.ticket_trends.slice(-7) : analytics.ticket_trends.slice(-3)
+  let filteredTrendData = [...(analytics.ticket_trends || [])]
+  filteredTrendData = daysFilter === 7 ? filteredTrendData.slice(-7) : filteredTrendData.slice(-3)
 
   let lineKey = "created"; let lineLabel = "Created"
   if (statusFilter === "open")        { lineKey = "open_created";         lineLabel = "Open Tickets Created" }
   if (statusFilter === "in_progress") { lineKey = "in_progress_created";  lineLabel = "In Progress Tickets Created" }
   if (statusFilter === "resolved")    { lineKey = "resolved";             lineLabel = "Resolved" }
 
-  const chartData =
-    statusFilter === "all"
-      ? filteredTrends
-      : filteredTrends.map(item => ({
-          date: item.date,
-          value: item[lineKey as keyof typeof item] ?? 0,
-        }))
+  if (statusFilter !== "all") {
+    filteredTrendData = filteredTrendData.map((item: any) => ({
+      date:  item.date,
+      value: item[lineKey] ?? 0,
+    }))
+  }
 
   const {
     resolutionRate, backlogPressure, radarData,
@@ -516,9 +462,9 @@ export default function AnalyticsPage() {
             </div>
           </div>
 
-          {chartData.length > 0 ? (
+          {filteredTrendData.length > 0 ? (
             <ResponsiveContainer width="100%" height={280}>
-              <LineChart data={chartData}>
+              <LineChart data={filteredTrendData}>
                 <CartesianGrid {...gridStyle} />
                 <XAxis dataKey="date" {...axisStyle} />
                 <YAxis {...axisStyle} />
