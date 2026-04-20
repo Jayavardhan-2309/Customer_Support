@@ -3,7 +3,15 @@
 import { useEffect, useState } from "react"
 import api from "@/src/lib/axios"
 import { useRouter } from "next/navigation"
-import { logger } from "@/logger";
+import { logger } from "@/logger"
+
+type ResolvedTicket = {
+  id: number
+  query: string
+  staff_name: string
+  resolution_note: string
+  has_feedback: boolean
+}
 
 function StarRating({ value, onChange }: { value: number; onChange: (v: number) => void }) {
   const [hovered, setHovered] = useState(0)
@@ -57,30 +65,31 @@ function StarRating({ value, onChange }: { value: number; onChange: (v: number) 
 }
 
 export default function FeedbackPage() {
-  const [tickets, setTickets] = useState<any[]>([])
-  const [selectedTicket, setSelectedTicket] = useState<any>(null)
+  const [tickets, setTickets] = useState<ResolvedTicket[]>([])
+  const [selectedTicket, setSelectedTicket] = useState<ResolvedTicket | null>(null)
   const [rating, setRating] = useState(5)
   const [comment, setComment] = useState("")
   const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
-  const router = useRouter()
   const [loading, setLoading] = useState(true)
+  const router = useRouter()
 
   useEffect(() => {
     const load = async () => {
       try {
-        const res = await api.get("/user/resolved-tickets/")
+        const res = await api.get<ResolvedTicket[]>("/user/resolved-tickets/")
         setTickets(res.data)
       } catch (err) {
-        logger.error("",err)
+        logger.error("Failed to load resolved tickets", err)
       } finally {
         setLoading(false)
       }
     }
+
     load()
   }, [])
 
-  const openModal = (ticket: any) => {
+  const openModal = (ticket: ResolvedTicket) => {
     setSelectedTicket(ticket)
     setRating(5)
     setComment("")
@@ -88,16 +97,19 @@ export default function FeedbackPage() {
   }
 
   const submitFeedback = async () => {
+    if (!selectedTicket) return
+
     setSubmitting(true)
     try {
       await api.post(`/tickets/${selectedTicket.id}/feedback/`, { rating, comment })
       setSubmitted(true)
       setTimeout(() => {
-        setTickets((prev) => prev.filter((t) => t.id !== selectedTicket.id))
+        setTickets((prev) => prev.filter((ticket) => ticket.id !== selectedTicket.id))
         setSelectedTicket(null)
         setSubmitting(false)
       }, 1200)
-    } catch {
+    } catch (err) {
+      logger.error("Failed to submit feedback", err)
       setSubmitting(false)
     }
   }
@@ -132,8 +144,6 @@ export default function FeedbackPage() {
 
   return (
     <div className="min-h-screen bg-slate-950">
-
-      {/* Header */}
       <div className="bg-slate-950 border-b border-slate-800 px-4 sm:px-8 py-4 sticky top-0 z-10">
         <div className="max-w-2xl mx-auto flex items-center justify-between">
           <div>
@@ -151,7 +161,6 @@ export default function FeedbackPage() {
         </div>
       </div>
 
-      {/* Ticket list */}
       <div className="max-w-2xl mx-auto px-4 sm:px-6 py-6 space-y-4">
         {tickets.map((ticket) => (
           <div
@@ -187,15 +196,12 @@ export default function FeedbackPage() {
         ))}
       </div>
 
-      {/* Modal */}
       {selectedTicket && (
         <div
           className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-0 sm:p-4"
           onClick={(e) => e.target === e.currentTarget && setSelectedTicket(null)}
         >
           <div className="bg-slate-900 border border-slate-800 w-full sm:max-w-md rounded-t-3xl sm:rounded-2xl px-5 sm:px-7 pt-6 pb-8 sm:py-7 shadow-2xl">
-
-            {/* Mobile drag handle */}
             <div className="sm:hidden w-10 h-1 bg-slate-700 rounded-full mx-auto mb-5" />
 
             {submitted ? (
@@ -216,7 +222,7 @@ export default function FeedbackPage() {
                   </button>
                 </div>
 
-                <p className="text-xs text-slate-500 italic truncate mb-1">"{selectedTicket.query}"</p>
+                <p className="text-xs text-slate-500 italic truncate mb-1">&quot;{selectedTicket.query}&quot;</p>
 
                 <div className="h-px bg-slate-800 my-4" />
 
