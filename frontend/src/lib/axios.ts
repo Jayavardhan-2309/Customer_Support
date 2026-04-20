@@ -27,7 +27,7 @@ api.interceptors.response.use(
     // Global auth handling
     if (status === 401) {
       logger.warn("Unauthorized or session expired, redirecting to login");
-      window.location.href = "/login";
+      globalThis.location.href = "/login";
     }
 
     // Optional: log errors globally
