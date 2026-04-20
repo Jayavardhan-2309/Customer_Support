@@ -4,13 +4,19 @@ import { useEffect, useState } from "react"
 import api from "@/src/lib/axios"
 import { useRouter } from "next/navigation"
 import {
-  PieChart, Pie, Cell, Tooltip, Legend,
+  PieChart, Pie, Tooltip, Legend,
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
-  ResponsiveContainer
+  ResponsiveContainer,
 } from "recharts"
 import { logger } from "@/logger"
 
 import { AdminAnalytics, StaffPerformance } from "@/types/customTypes"
+
+type StatusDatum = {
+  name: string
+  value: number
+  fill: string
+}
 
 export default function AdminAnalyticsPage() {
   const [data, setData] = useState<AdminAnalytics | null>(null)
@@ -50,25 +56,22 @@ export default function AdminAnalyticsPage() {
     ? ((ticket_stats.closed / ticket_stats.resolved) * 100).toFixed(1)
     : 0
 
-  const statusData = [
-    { name: "Open", value: ticket_stats.open },
-    { name: "In Progress", value: ticket_stats.in_progress },
-    { name: "Resolved", value: ticket_stats.resolved },
-    { name: "Closed", value: ticket_stats.closed },
+  const statusData: StatusDatum[] = [
+    { name: "Open", value: ticket_stats.open, fill: "#ef4444" },
+    { name: "In Progress", value: ticket_stats.in_progress, fill: "#f59e0b" },
+    { name: "Resolved", value: ticket_stats.resolved, fill: "#3b82f6" },
+    { name: "Closed", value: ticket_stats.closed, fill: "#22c55e" },
   ]
 
-  const staffChartData = staff_performance.map((s: StaffPerformance) => ({
-    name: s.name,
-    rating: s.avg_rating
+  const staffChartData = staff_performance.map((staff: StaffPerformance) => ({
+    name: staff.name,
+    rating: staff.avg_rating,
   }))
 
   return (
     <div className="min-h-screen bg-slate-950 text-white">
-
-      {/* HEADER */}
       <header className="border-b border-slate-800 px-4 sm:px-6 py-4 sticky top-0 z-10 bg-slate-950">
         <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 max-w-7xl mx-auto">
-
           <div>
             <h1 className="text-xl sm:text-2xl font-bold">
               Admin Analytics
@@ -94,13 +97,10 @@ export default function AdminAnalyticsPage() {
               {loggingOut ? "Logging out..." : "Logout"}
             </button>
           </div>
-
         </div>
       </header>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6 sm:space-y-8">
-
-        {/* TICKET STATS */}
         <section>
           <h2 className="text-xs uppercase tracking-widest text-slate-500 mb-4">
             Ticket Status
@@ -137,7 +137,6 @@ export default function AdminAnalyticsPage() {
           </div>
         </section>
 
-        {/* DERIVED METRICS */}
         <section className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
           <div className="bg-slate-900 border border-slate-800 p-4 sm:p-5 rounded-xl">
             <p className="text-xs sm:text-sm text-slate-400">Pending Feedback</p>
@@ -154,7 +153,6 @@ export default function AdminAnalyticsPage() {
           </div>
         </section>
 
-        {/* OVERALL METRICS */}
         <section className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
           <div className="bg-slate-900 border border-slate-800 p-4 sm:p-5 rounded-xl">
             <p className="text-xs sm:text-sm text-slate-400">Total Tickets</p>
@@ -178,9 +176,7 @@ export default function AdminAnalyticsPage() {
           </div>
         </section>
 
-        {/* CHARTS */}
         <section className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
-
           <div className="bg-slate-900 border border-slate-800 p-4 sm:p-5 rounded-xl">
             <h3 className="font-semibold mb-4 text-slate-300 text-sm sm:text-base">
               Ticket Distribution
@@ -188,12 +184,7 @@ export default function AdminAnalyticsPage() {
 
             <ResponsiveContainer width="100%" height={240}>
               <PieChart>
-                <Pie data={statusData} dataKey="value" nameKey="name" outerRadius={80}>
-                  <Cell fill="#ef4444"/>
-                  <Cell fill="#f59e0b"/>
-                  <Cell fill="#3b82f6"/>
-                  <Cell fill="#22c55e"/>
-                </Pie>
+                <Pie data={statusData} dataKey="value" nameKey="name" outerRadius={80} />
                 <Tooltip />
                 <Legend />
               </PieChart>
@@ -215,10 +206,8 @@ export default function AdminAnalyticsPage() {
               </BarChart>
             </ResponsiveContainer>
           </div>
-
         </section>
 
-        {/* STAFF PERFORMANCE */}
         <section>
           <h2 className="text-base sm:text-lg font-semibold mb-4">
             Staff Performance
@@ -226,10 +215,11 @@ export default function AdminAnalyticsPage() {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
             {staff_performance.map((staff: StaffPerformance, index: number) => (
-              <div
+              <button
                 key={staff.staff_id}
+                type="button"
                 onClick={() => router.push(`/admin/analytics/staff/${staff.staff_id}`)}
-                className="bg-slate-900 border border-slate-800 p-4 sm:p-5 rounded-xl cursor-pointer sm:hover:border-indigo-500 sm:hover:scale-[1.02] transition"
+                className="bg-slate-900 border border-slate-800 p-4 sm:p-5 rounded-xl text-left cursor-pointer sm:hover:border-indigo-500 sm:hover:scale-[1.02] transition"
               >
                 <h3 className="font-semibold text-white text-sm sm:text-base">
                   {staff.name}
@@ -246,11 +236,10 @@ export default function AdminAnalyticsPage() {
                 <p className="text-xs text-slate-500 mt-2">
                   Rank #{index + 1}
                 </p>
-              </div>
+              </button>
             ))}
           </div>
         </section>
-
       </main>
     </div>
   )

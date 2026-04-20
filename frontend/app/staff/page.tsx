@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { fetchers } from "@/src/lib/axios"
@@ -33,9 +33,9 @@ export default function StaffPage() {
   const router = useRouter()
   const queryClient = useQueryClient()
 
-  const [sortPriority, setPriority] = useState("default")
-  const [filterCategory, setFilterCategory] = useState("all")
-  const [filterStatus, setFilterStatus] = useState("all")
+  const [sortPriority, setSortPriority] = useState<string>("default")
+  const [filterCategory, setFilterCategory] = useState<string>("all")
+  const [filterStatus, setFilterStatus] = useState<string>("all")
   const [filtersOpen, setFiltersOpen] = useState(false)
 
   const { data: ticketsData } = useQuery({
@@ -54,39 +54,44 @@ export default function StaffPage() {
     onError: (err) => logger.error("Logout failed", err),
   })
 
+  const normalizeIncomingTicket = useCallback((incoming: IncomingTicket): Ticket => ({
+    id: incoming.id,
+    priority: (incoming.priority ?? "normal").toLowerCase(),
+    status: (incoming.status ?? "open").toLowerCase(),
+    category: incoming.category ?? null,
+    customer: incoming.customer ?? "Unknown",
+    message: incoming.message ?? "",
+    description: incoming.description ?? "",
+  }), [])
+
+  const updateTicketCache = useCallback((normalized: Ticket) => {
+    queryClient.setQueryData<StaffTicketsResponse>(["staff-tickets"], (oldData) => {
+      if (!oldData) return { results: [normalized] }
+
+      const exists = oldData.results.find((ticket) => ticket.id === normalized.id)
+      if (exists) {
+        return {
+          ...oldData,
+          results: oldData.results.map((ticket) => (
+            ticket.id === normalized.id ? { ...ticket, ...normalized } : ticket
+          )),
+        }
+      }
+
+      return {
+        ...oldData,
+        results: [normalized, ...oldData.results],
+      }
+    })
+  }, [queryClient])
+
   useEffect(() => {
     const socket = new WebSocket("wss://customer-support-2.onrender.com/ws/tickets/")
 
     socket.onmessage = (event) => {
       const incoming = JSON.parse(event.data) as IncomingTicket
-      const normalized: Ticket = {
-        id: incoming.id,
-        priority: (incoming.priority ?? "normal").toLowerCase(),
-        status: (incoming.status ?? "open").toLowerCase(),
-        category: incoming.category ?? null,
-        customer: incoming.customer ?? "Unknown",
-        message: incoming.message ?? "",
-        description: incoming.description ?? "",
-      }
-
-      queryClient.setQueryData<StaffTicketsResponse>(["staff-tickets"], (oldData) => {
-        if (!oldData) return { results: [normalized] }
-
-        const exists = oldData.results.find((ticket) => ticket.id === normalized.id)
-        if (exists) {
-          return {
-            ...oldData,
-            results: oldData.results.map((ticket) => (
-              ticket.id === normalized.id ? { ...ticket, ...normalized } : ticket
-            )),
-          }
-        }
-
-        return {
-          ...oldData,
-          results: [normalized, ...oldData.results],
-        }
-      })
+      const normalized = normalizeIncomingTicket(incoming)
+      updateTicketCache(normalized)
     }
 
     socket.onerror = (err) => {
@@ -98,7 +103,7 @@ export default function StaffPage() {
     }
 
     return () => socket.close()
-  }, [queryClient])
+  }, [queryClient, normalizeIncomingTicket, updateTicketCache])
 
   const tickets = ticketsData?.results ?? []
   const staffName = me?.username ?? ""
@@ -170,7 +175,7 @@ export default function StaffPage() {
         <div className="mb-5">
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-base sm:text-lg font-semibold text-white">
-              Assigned Tickets
+              Assigned Tickets{' '}
               <span className="ml-2 text-xs font-normal text-slate-500">({sortedTickets.length})</span>
             </h2>
             <button
@@ -183,8 +188,8 @@ export default function StaffPage() {
 
           <div className={`${filtersOpen ? "flex" : "hidden"} sm:flex flex-col sm:flex-row gap-3 sm:items-center sm:flex-wrap bg-slate-900 sm:bg-transparent p-3 sm:p-0 rounded-lg border sm:border-0 border-slate-800`}>
             <div className="flex flex-col sm:flex-row sm:items-center gap-1.5">
-              <label className="text-xs text-slate-400 whitespace-nowrap">Category:</label>
-              <select value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)} className={selectClass}>
+              <label htmlFor="ticket-category" className="text-xs text-slate-400 whitespace-nowrap">Category:</label>
+              <select id="ticket-category" value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)} className={selectClass}>
                 <option value="all">All</option>
                 <option value="authentication">Authentication</option>
                 <option value="billing">Billing</option>
@@ -194,8 +199,8 @@ export default function StaffPage() {
             </div>
             <div className="hidden sm:block w-px h-5 bg-slate-700" />
             <div className="flex flex-col sm:flex-row sm:items-center gap-1.5">
-              <label className="text-xs text-slate-400 whitespace-nowrap">Status:</label>
-              <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className={selectClass}>
+              <label htmlFor="ticket-status" className="text-xs text-slate-400 whitespace-nowrap">Status:</label>
+              <select id="ticket-status" value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className={selectClass}>
                 <option value="all">All</option>
                 <option value="open">Open</option>
                 <option value="in_progress">In Progress</option>
@@ -203,8 +208,8 @@ export default function StaffPage() {
             </div>
             <div className="hidden sm:block w-px h-5 bg-slate-700" />
             <div className="flex flex-col sm:flex-row sm:items-center gap-1.5">
-              <label className="text-xs text-slate-400 whitespace-nowrap">Sort by Priority:</label>
-              <select value={sortPriority} onChange={(e) => setPriority(e.target.value)} className={selectClass}>
+              <label htmlFor="ticket-priority" className="text-xs text-slate-400 whitespace-nowrap">Sort by Priority:</label>
+              <select id="ticket-priority" value={sortPriority} onChange={(e) => setSortPriority(e.target.value)} className={selectClass}>
                 <option value="default">Default</option>
                 <option value="high">High first</option>
                 <option value="normal">Normal first</option>

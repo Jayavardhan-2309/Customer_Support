@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type SyntheticEvent } from "react";
 import { useRouter } from "next/navigation";
 import { logger } from "@/logger";
 
@@ -13,7 +13,7 @@ export default function LoginPage() {
     const [loading, setLoading] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
 
-    const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
+    const handleLogin = async (e: SyntheticEvent<HTMLFormElement>) => {
         e.preventDefault();
         setError("");
         setLoading(true);
@@ -97,21 +97,23 @@ export default function LoginPage() {
                     
                     <p className="text-slate-300 text-center text-sm">
                         Don&apos;t have an account?{" "}
-                        <span
-                            className="text-indigo-400 cursor-pointer hover:underline font-medium"
-                            onClick={() => router.push("/signup")}
-                        >
-                            Signup
-                        </span>
+                        <button
+                        type="button"
+                        onClick={() => router.push("/signup")}
+                        className="text-indigo-400 hover:underline font-medium"
+                    >
+                        Signup
+                    </button>
                     </p>
 
                     <p className="text-slate-300 text-center text-sm">
-                        <span
-                            className="text-indigo-400 cursor-pointer hover:underline"
+                        <button
+                            type="button"
                             onClick={() => router.push("/")}
+                            className="text-indigo-400 hover:underline"
                         >
                             ← Back to Home
-                        </span>
+                        </button>
                     </p>
 
                 </div>

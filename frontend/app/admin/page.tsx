@@ -107,6 +107,46 @@ export default function AdminPage() {
     const formatDate = (iso: string) =>
         new Date(iso).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
 
+    let pdfListContent;
+    if (loadingPdfs) {
+        pdfListContent = (
+            <div className="space-y-3">
+                {[1, 2, 3].map((i) => <div key={i} className="h-16 bg-slate-800/50 rounded-lg animate-pulse" />)}
+            </div>
+        );
+    } else if (pdfs.length === 0) {
+        pdfListContent = (
+            <div className="text-center py-12 text-slate-600 text-sm border border-slate-800 rounded-xl">
+                No PDFs uploaded yet. Upload one above to expand the knowledge base.
+            </div>
+        );
+    } else {
+        pdfListContent = (
+            <div className="space-y-2">
+                {pdfs.map((pdf) => (
+                    <div key={pdf.id} className="flex items-start sm:items-center justify-between bg-slate-900 border border-slate-800 rounded-lg px-4 sm:px-5 py-4 hover:border-slate-700 transition-all gap-3">
+                        <div className="flex items-start sm:items-center gap-3 sm:gap-4 min-w-0">
+                            <span className="text-xl shrink-0 mt-0.5 sm:mt-0">📑</span>
+                            <div className="min-w-0">
+                                <p className="text-sm text-white truncate font-medium">{pdf.title}</p>
+                                <p className="text-xs text-slate-500 mt-0.5 wrap-break-word">
+                                    {pdf.size_kb} KB · {formatDate(pdf.uploaded_at)} · by {pdf.uploaded_by}
+                                </p>
+                            </div>
+                        </div>
+                        <button
+                            onClick={() => deletePdf(pdf.id, pdf.title)}
+                            disabled={deletingId === pdf.id}
+                            className="shrink-0 text-xs text-slate-600 hover:text-red-400 border border-transparent hover:border-red-900 px-3 py-1.5 rounded transition-all disabled:opacity-40"
+                        >
+                            {deletingId === pdf.id ? "Deleting..." : "Delete"}
+                        </button>
+                    </div>
+                ))}
+            </div>
+        );
+    }
+
     if (checkingAuth) {
         return (
             <div className="h-screen flex items-center justify-center text-white animate-pulse">
@@ -177,7 +217,8 @@ export default function AdminPage() {
                 {/* Upload Zone */}
                 <section>
                     <h2 className="text-xs uppercase tracking-widest text-slate-500 mb-4">Upload PDF</h2>
-                    <div
+                    <button
+                        type="button"
                         onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
                         onDragLeave={() => setDragOver(false)}
                         onDrop={handleDrop}
@@ -201,7 +242,7 @@ export default function AdminPage() {
                                 <p className="text-slate-600 text-xs">PDF only · Max 10MB</p>
                             </div>
                         )}
-                    </div>
+                    </button>
                 </section>
 
                 {/* PDF List */}
@@ -211,38 +252,7 @@ export default function AdminPage() {
                         <span className="text-xs text-slate-600">{pdfs.length} {pdfs.length === 1 ? "file" : "files"}</span>
                     </div>
 
-                    {loadingPdfs ? (
-                        <div className="space-y-3">
-                            {[1, 2, 3].map((i) => <div key={i} className="h-16 bg-slate-800/50 rounded-lg animate-pulse" />)}
-                        </div>
-                    ) : pdfs.length === 0 ? (
-                        <div className="text-center py-12 text-slate-600 text-sm border border-slate-800 rounded-xl">
-                            No PDFs uploaded yet. Upload one above to expand the knowledge base.
-                        </div>
-                    ) : (
-                        <div className="space-y-2">
-                            {pdfs.map((pdf) => (
-                                <div key={pdf.id} className="flex items-start sm:items-center justify-between bg-slate-900 border border-slate-800 rounded-lg px-4 sm:px-5 py-4 hover:border-slate-700 transition-all gap-3">
-                                    <div className="flex items-start sm:items-center gap-3 sm:gap-4 min-w-0">
-                                        <span className="text-xl shrink-0 mt-0.5 sm:mt-0">📑</span>
-                                        <div className="min-w-0">
-                                            <p className="text-sm text-white truncate font-medium">{pdf.title}</p>
-                                            <p className="text-xs text-slate-500 mt-0.5 wrap-break-word">
-                                                {pdf.size_kb} KB · {formatDate(pdf.uploaded_at)} · by {pdf.uploaded_by}
-                                            </p>
-                                        </div>
-                                    </div>
-                                    <button
-                                        onClick={() => deletePdf(pdf.id, pdf.title)}
-                                        disabled={deletingId === pdf.id}
-                                        className="shrink-0 text-xs text-slate-600 hover:text-red-400 border border-transparent hover:border-red-900 px-3 py-1.5 rounded transition-all disabled:opacity-40"
-                                    >
-                                        {deletingId === pdf.id ? "Deleting..." : "Delete"}
-                                    </button>
-                                </div>
-                            ))}
-                        </div>
-                    )}
+                    {pdfListContent}
                 </section>
 
                 {/* Info box */}

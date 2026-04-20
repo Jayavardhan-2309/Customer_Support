@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, type SyntheticEvent } from "react";
 import { useRouter } from "next/navigation";
 import api from "@/src/lib/axios";
 import { logger } from "@/logger";
@@ -8,13 +8,13 @@ import axios from "axios";
 import { Organization } from "@/types/customTypes";
 
 /* ALLOWED EMAIL DOMAINS */
-const ALLOWED_EMAIL_DOMAINS = [
+const ALLOWED_EMAIL_DOMAINS = new Set([
   "gmail.com",
   "outlook.com",
   "hotmail.com",
   "live.com",
   "yahoo.com",
-];
+]);
 
 /* EMAIL VALIDATION FUNCTION */
 const isAllowedEmail = (email: string) => {
@@ -22,7 +22,7 @@ const isAllowedEmail = (email: string) => {
   if (!emailRegex.test(email)) return false;
 
   const domain = email.split("@")[1]?.toLowerCase();
-  return ALLOWED_EMAIL_DOMAINS.includes(domain);
+  return domain ? ALLOWED_EMAIL_DOMAINS.has(domain) : false;
 };
 
 export default function SignupPage() {
@@ -63,7 +63,7 @@ export default function SignupPage() {
       });
   }, []);
 
-  const handleSignup = async (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSignup = async (e: SyntheticEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError("");
 
@@ -124,10 +124,11 @@ export default function SignupPage() {
 
           {/* EMAIL */}
           <div>
-            <label className="block text-sm font-medium text-slate-400 mb-1">
+            <label htmlFor="signup-email" className="block text-sm font-medium text-slate-400 mb-1">
               Email
             </label>
             <input
+              id="signup-email"
               type="email"
               placeholder="you@something.com"
               value={email}
@@ -139,10 +140,11 @@ export default function SignupPage() {
 
           {/* USERNAME */}
           <div>
-            <label className="block text-sm font-medium text-slate-400 mb-1">
+            <label htmlFor="signup-username" className="block text-sm font-medium text-slate-400 mb-1">
               Username
             </label>
             <input
+              id="signup-username"
               placeholder="your username"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
@@ -153,12 +155,13 @@ export default function SignupPage() {
 
           {/* PASSWORD */}
           <div>
-            <label className="block text-sm font-medium text-slate-400 mb-1">
+            <label htmlFor="signup-password" className="block text-sm font-medium text-slate-400 mb-1">
               Password
             </label>
 
             <div className="relative">
               <input
+                id="signup-password"
                 type={showPassword ? "text" : "password"}
                 placeholder="password"
                 value={password}
@@ -179,10 +182,11 @@ export default function SignupPage() {
 
           {/* ROLE */}
           <div>
-            <label className="block text-sm font-medium text-slate-400 mb-1">
+            <label htmlFor="signup-role" className="block text-sm font-medium text-slate-400 mb-1">
               Role
             </label>
             <select
+              id="signup-role"
               value={role}
               onChange={(e) => setRole(e.target.value as "user" | "admin")}
               className="w-full rounded-lg border border-slate-700 bg-slate-950 px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
@@ -195,10 +199,11 @@ export default function SignupPage() {
           {/* ORGANIZATION (ADMIN) */}
           {role === "admin" && (
             <div>
-              <label className="block text-sm font-medium text-slate-400 mb-1">
+              <label htmlFor="signup-organization-name" className="block text-sm font-medium text-slate-400 mb-1">
                 Organization Name
               </label>
               <input
+                id="signup-organization-name"
                 placeholder="Your company / bank name"
                 value={organizationName}
                 onChange={(e) => setOrganizationName(e.target.value)}
@@ -211,11 +216,12 @@ export default function SignupPage() {
           {/* ORGANIZATION (USER) */}
           {role === "user" && (
             <div>
-              <label className="block text-sm font-medium text-slate-400 mb-1">
+              <label htmlFor="signup-organization" className="block text-sm font-medium text-slate-400 mb-1">
                 Organization
               </label>
 
               <select
+                id="signup-organization"
                 value={organizationId ?? ""}
                 onChange={(e) => {
                   const val = e.target.value;
@@ -253,22 +259,23 @@ export default function SignupPage() {
         <div className="flex flex-col items-center gap-2 mt-6">
           <p className="text-slate-300 text-sm">
             Already have an account?{" "}
-            <span
-              className="text-indigo-400 cursor-pointer hover:underline font-medium"
+            <button
+              type="button"
               onClick={() => router.push("/login")}
+              className="text-indigo-400 hover:underline font-medium"
             >
               Login
-            </span>
+            </button>
           </p>
 
-          {/* ✅ Back to Home added (same as login) */}
           <p className="text-slate-300 text-sm">
-            <span
-              className="text-indigo-400 cursor-pointer hover:underline"
+            <button
+              type="button"
               onClick={() => router.push("/")}
+              className="text-indigo-400 hover:underline"
             >
               ← Back to Home
-            </span>
+            </button>
           </p>
         </div>
       </div>

@@ -112,9 +112,9 @@ export default function StaffAnalyticsDetailPage() {
             <p className="text-slate-500 text-sm">No feedback yet</p>
           ) : (
             <div className="space-y-3 sm:space-y-4">
-              {data.feedback.map((f: Feedback, i: number) => (
+              {data.feedback.map((f: Feedback) => (
                 <div
-                  key={i}
+                  key={`${f.user}-${f.date}-${f.rating}`}
                   className="border border-slate-800 rounded-lg p-3 sm:p-4"
                 >
                   <p className="text-yellow-400 text-sm sm:text-base">
