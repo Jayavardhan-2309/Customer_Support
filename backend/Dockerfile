@@ -1,22 +1,31 @@
-FROM python:3.13-slim
+FROM python:3.13.0-slim
 
-# Prevent Python buffering
+LABEL org.opencontainers.image.source="https://github.com/your-org/your-repo"
+
 ENV PYTHONUNBUFFERED=1
+ENV PATH="/home/appuser/.local/bin:$PATH"
+
+RUN adduser --disabled-password --gecos "" appuser
 
 WORKDIR /app
 
-# Install system deps (important for many libs)
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+COPY --chown=appuser:appuser requirements.txt .
 
-COPY . .
+RUN pip install --no-cache-dir --upgrade pip \
+    && pip install --no-cache-dir -r requirements.txt
 
-# Make script executable
+COPY --chown=appuser:appuser . .
+
 RUN chmod +x start.sh
+
+USER appuser
+
+HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
+  CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=2)" || exit 1
 
 CMD ["./start.sh"]
