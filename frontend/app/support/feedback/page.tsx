@@ -54,14 +54,15 @@ export default function FeedbackPage() {
     return api.post(`/tickets/${ticketId}/feedback/`, { rating, comment })
   }
 
+  const finalizeFeedback = (ticketId: number) => {
+    setTickets((prev) => prev.filter((t) => t.id !== ticketId))
+    setSelectedTicket(null)
+    setSubmitting(false)
+  }
+
   const handleSuccess = (ticketId: number) => {
     setSubmitted(true)
-  
-    setTimeout(() => {
-      setTickets((prev) => prev.filter((t) => t.id !== ticketId))
-      setSelectedTicket(null)
-      setSubmitting(false)
-    }, 1200)
+    setTimeout(() => finalizeFeedback(ticketId), 1200)
   }
 
   const submitFeedback = async () => {
