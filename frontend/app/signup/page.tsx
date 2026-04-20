@@ -17,12 +17,27 @@ const ALLOWED_EMAIL_DOMAINS = new Set([
 ]);
 
 /* EMAIL VALIDATION FUNCTION */
-const isAllowedEmail = (email: string) => {
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  if (!emailRegex.test(email)) return false;
+const isAllowedEmail = (email: string): boolean => {
+  // Reject any whitespace
+  if (/\s/.test(email)) return false;
 
-  const domain = email.split("@")[1]?.toLowerCase();
-  return domain ? ALLOWED_EMAIL_DOMAINS.has(domain) : false;
+  // Ensure exactly one '@' and non-empty local + domain parts
+  const parts = email.split("@");
+  if (parts.length !== 2 || !parts[0] || !parts[1]) return false;
+
+  const domain = parts[1].toLowerCase();
+
+  // Validate domain structure
+  if (
+    !domain.includes(".") ||
+    domain.endsWith(".") ||
+    domain.startsWith(".")
+  ) {
+    return false;
+  }
+
+  // Allow only trusted domains
+  return ALLOWED_EMAIL_DOMAINS.has(domain);
 };
 
 export default function SignupPage() {
