@@ -1,4 +1,5 @@
-from django.http import HttpResponse, require_GET
+from django.http import HttpResponse
+from django.views.decorators.http import require_GET
 from rest_framework.decorators import api_view
 
 @require_GET
