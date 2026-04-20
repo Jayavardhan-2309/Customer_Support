@@ -1,10 +1,9 @@
 "use client"
 
-import { useRef } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { fetchers } from "@/src/lib/axios"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { logger } from "@/logger"
 
 type Ticket = {
@@ -185,7 +184,7 @@ export default function TicketDetailPage() {
               messages.map((msg, index) => {
                 const isUser = msg.sender === "user"
                 return (
-                  <div key={index} className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
+                  <div key={`${msg.sender}-${msg.message}-${index}`} className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
                     <div className={`max-w-[80%] sm:max-w-[70%] px-3 py-2 rounded-2xl text-sm
                       ${isUser ? "bg-indigo-600 text-white" : "bg-slate-800 text-slate-200 border border-slate-700"}`}>
                       <span className="block text-xs mb-1 text-slate-400">{isUser ? "User" : "AI"}</span>
