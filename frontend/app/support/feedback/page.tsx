@@ -50,18 +50,28 @@ export default function FeedbackPage() {
     setSubmitted(false)
   }
 
+  const sendFeedback = async (ticketId: number, rating: number, comment: string) => {
+    return api.post(`/tickets/${ticketId}/feedback/`, { rating, comment })
+  }
+
+  const handleSuccess = (ticketId: number) => {
+    setSubmitted(true)
+  
+    setTimeout(() => {
+      setTickets((prev) => prev.filter((t) => t.id !== ticketId))
+      setSelectedTicket(null)
+      setSubmitting(false)
+    }, 1200)
+  }
+
   const submitFeedback = async () => {
     if (!selectedTicket) return
-
+  
     setSubmitting(true)
+  
     try {
-      await api.post(`/tickets/${selectedTicket.id}/feedback/`, { rating, comment })
-      setSubmitted(true)
-      setTimeout(() => {
-        setTickets((prev) => prev.filter((ticket) => ticket.id !== selectedTicket.id))
-        setSelectedTicket(null)
-        setSubmitting(false)
-      }, 1200)
+      await sendFeedback(selectedTicket.id, rating, comment)
+      handleSuccess(selectedTicket.id)
     } catch (err) {
       logger.error("Failed to submit feedback", err)
       setSubmitting(false)
