@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 
-type Message = { role: "user" | "ai"; content: string };
+type Message = { id: string; role: "user" | "ai"; content: string };
 
 type SpeechRecognitionAlternativeLike = {
   transcript: string;
@@ -46,6 +46,12 @@ type MeResponse = {
   organization_name?: string;
 };
 
+const createMessage = (role: Message["role"], content: string): Message => ({
+  id: `${role}-${Date.now()}-${(crypto.getRandomValues(new Uint32Array(1))[0] / 0x100000000).toString(36).slice(2)}`,
+  role,
+  content,
+});
+
 function useSpeechRecognition() {
   const [transcript, setTranscript] = useState("");
   const [interimTranscript, setInterimTranscript] = useState("");
@@ -57,8 +63,10 @@ function useSpeechRecognition() {
   const MAX_MS = 60000;
 
   const getSpeechRecognitionConstructor = (): SpeechRecognitionConstructorLike | null => {
-    if (typeof window === "undefined") return null;
-    const speechWindow = window as Window & {
+    if (globalThis.window === undefined) {
+      return null;
+    }
+    const speechWindow = globalThis as typeof globalThis & {
       SpeechRecognition?: SpeechRecognitionConstructorLike;
       webkitSpeechRecognition?: SpeechRecognitionConstructorLike;
     };
@@ -140,7 +148,7 @@ function useChatHistory() {
         const res = await fetch("/api/chat/history", { credentials: "include" });
         if (res.ok) {
           const data = (await res.json()) as ChatHistoryMessage[];
-          setMessages((data ?? []).map((message) => ({ role: message.sender, content: message.message })));
+          setMessages((data ?? []).map((message) => createMessage(message.sender, message.message)));
         }
       } catch {
       } finally {
@@ -161,7 +169,7 @@ export default function Support() {
   const router = useRouter();
   const [checkingAuth, setCheckingAuth] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
-  const [isLogout, setLoggingOut] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [orgName, setOrgName] = useState("");
   const [sendBlocked, setSendBlocked] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -193,7 +201,7 @@ export default function Support() {
   }
 
   const logout = async () => {
-    setLoggingOut(true);
+    setIsLoggingOut(true);
     await fetch("/api/logout", { method: "POST" });
     router.push("/login");
   };
@@ -206,7 +214,7 @@ export default function Support() {
     isSendingRef.current = true;
 
     try {
-      chat.addMessage({ role: "user", content: trimmed });
+      chat.addMessage(createMessage("user", trimmed));
       speech.setTranscript("");
       setIsLoading(true);
 
@@ -218,7 +226,7 @@ export default function Support() {
       });
 
       const data = (await res.json()) as { reply?: string };
-      chat.addMessage({ role: "ai", content: data.reply ?? "No response" });
+      chat.addMessage(createMessage("ai", data.reply ?? "No response"));
     } finally {
       setIsLoading(false);
       setTimeout(() => {
@@ -234,6 +242,31 @@ export default function Support() {
     setSendBlocked(true);
     setTimeout(() => setSendBlocked(false), 800);
   };
+
+  const shouldShowEmptyState =
+    !chat.loadingHistory && chat.messages.length === 0 && !speech.transcript && !speech.interimTranscript;
+
+  const micButton = speech.isListening ? (
+    <button
+      type="button"
+      onClick={handleStopMic}
+      className="w-9 h-9 flex items-center justify-center bg-red-500 rounded-full text-white animate-pulse"
+    >
+      ⏹
+    </button>
+  ) : (
+    <button
+      type="button"
+      disabled={isLoading}
+      onClick={() => {
+        hasSentSpeechRef.current = false;
+        speech.start(speech.transcript);
+      }}
+      className="w-9 h-9 flex items-center justify-center border border-slate-700 rounded-full text-red-400 hover:bg-slate-800"
+    >
+      🎙
+    </button>
+  );
 
   return (
     <div className="bg-slate-950 text-white flex flex-col" style={{ height: "100dvh" }}>
@@ -261,27 +294,29 @@ export default function Support() {
 
           <button
             type="button"
-            disabled={isLogout}
+            disabled={isLoggingOut}
             onClick={logout}
             className="text-[11px] text-red-400 border border-red-800 px-2.5 py-1.5 rounded-lg hover:bg-red-900/40"
           >
-            {isLogout ? "..." : "Logout"}
+            {isLoggingOut ? "..." : "Logout"}
           </button>
         </div>
       </header>
 
       <main className="flex-1 overflow-y-auto px-3 py-3 space-y-3 max-w-3xl w-full mx-auto">
-        {chat.loadingHistory ? (
+        {chat.loadingHistory && (
           <p className="text-center text-xs text-slate-500 animate-pulse mt-6">Loading history...</p>
-        ) : chat.messages.length === 0 && !speech.transcript && !speech.interimTranscript ? (
+        )}
+
+        {shouldShowEmptyState && (
           <div className="flex flex-col items-center justify-center h-full gap-2 text-center pb-8">
             <p className="text-2xl">💬</p>
             <p className="text-xs text-slate-500">Type or record to get help.</p>
           </div>
-        ) : null}
+        )}
 
-        {chat.messages.map((msg, i) => (
-          <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
+        {chat.messages.map((msg) => (
+          <div key={msg.id} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
             <div
               className={`max-w-[88%] px-3 py-2 rounded-2xl text-xs ${
                 msg.role === "user" ? "bg-indigo-600 text-white" : "bg-slate-900 border border-slate-800 text-slate-200"
@@ -333,27 +368,7 @@ export default function Support() {
             }}
           />
 
-          {!speech.isListening ? (
-            <button
-              type="button"
-              disabled={isLoading}
-              onClick={() => {
-                hasSentSpeechRef.current = false;
-                speech.start(speech.transcript);
-              }}
-              className="w-9 h-9 flex items-center justify-center border border-slate-700 rounded-full text-red-400 hover:bg-slate-800"
-            >
-              🎙
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={handleStopMic}
-              className="w-9 h-9 flex items-center justify-center bg-red-500 rounded-full text-white animate-pulse"
-            >
-              ⏹
-            </button>
-          )}
+          {micButton}
 
           <button
             type="button"
