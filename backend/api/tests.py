@@ -506,6 +506,13 @@ class ApiViewTests(TestCase):
         too_large = response.upload(request)
         self.assertEqual(too_large.status_code, 400)
 
+    @patch.dict(
+        "os.environ",
+        {
+            "SUPABASE_URL": "https://example-supabase.test",
+            "SUPABASE_SERVICE_KEY": "service-key",
+        },
+    )
     @patch("api.views.index_pdf.delay")
     @patch("api.views.create_client")
     def test_pdf_upload_saves_record_and_enqueues_indexing(self, create_client_mock, index_pdf_mock):
@@ -522,6 +529,7 @@ class ApiViewTests(TestCase):
         self.assertEqual(response.status_code, 201)
         created_pdf = UploadedPDF.objects.get(title="guide.pdf")
         self.assertEqual(created_pdf.organization, self.organization)
+        self.assertIn("/storage/v1/object/public/pdfs/", created_pdf.file_url)
         storage_bucket.upload.assert_called_once()
         index_pdf_mock.assert_called_once_with(created_pdf.id)
 
