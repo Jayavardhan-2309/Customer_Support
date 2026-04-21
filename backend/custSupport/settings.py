@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR / ".env")
 
-SECRET_KEY = os.getenv("SECRET_KEY")
+SECRET_KEY = os.getenv("SECRET_KEY", "test-secret-key")
 DEBUG = os.getenv("DEBUG", "False") == "True"
 
 _raw_hosts = os.getenv("ALLOWED_HOSTS", "*")
