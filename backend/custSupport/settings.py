@@ -70,8 +70,17 @@ _db_name = os.getenv("DB_NAME")
 _test_db_name = os.getenv("TEST_DB_NAME", "test_postgres1")
 _is_test_run = "test" in sys.argv or "PYTEST_CURRENT_TEST" in os.environ
 _has_postgres_env = bool(os.getenv("DATABASE_URL") or os.getenv("DB_HOST"))
+_use_sqlite_for_tests = os.getenv("USE_SQLITE_FOR_TESTS") == "1"
+_should_use_sqlite = _use_sqlite_for_tests or (_is_test_run and not _has_postgres_env)
 
-if os.getenv("DATABASE_URL"):
+if _should_use_sqlite:
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": BASE_DIR / "test_db.sqlite3",
+        }
+    }
+elif os.getenv("DATABASE_URL"):
     import dj_database_url
     default_db = dj_database_url.config(
         default=os.getenv("DATABASE_URL"),
@@ -82,13 +91,6 @@ if os.getenv("DATABASE_URL"):
     }
     DATABASES = {
         "default": default_db
-    }
-elif _is_test_run and not _has_postgres_env:
-    DATABASES = {
-        "default": {
-            "ENGINE": "django.db.backends.sqlite3",
-            "NAME": BASE_DIR / "test_db.sqlite3",
-        }
     }
 else:
     DATABASES = {

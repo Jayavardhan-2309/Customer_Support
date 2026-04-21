@@ -16,7 +16,7 @@ export function Card({ title, subtitle, children }: Readonly<CardProps>) {
         </div>
         <div className="h-12 w-12 rounded-2xl border border-white/10 bg-white/5 transition duration-300 group-hover:scale-105 group-hover:border-cyan-300/30" />
       </div>
-      <div className="min-h-[240px] sm:min-h-[260px]">{children}</div>
+      <div className="min-h-60 sm:min-h-65">{children}</div>
     </section>
   )
 }
