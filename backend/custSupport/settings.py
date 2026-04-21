@@ -65,24 +65,34 @@ ASGI_APPLICATION = 'custSupport.asgi.application' # used for websockets
 
 # ── Database
 
+_db_name = os.getenv("DB_NAME")
+_test_db_name = os.getenv("TEST_DB_NAME", "test_postgres1")
+
 if os.getenv("DATABASE_URL"):
     import dj_database_url
+    default_db = dj_database_url.config(
+        default=os.getenv("DATABASE_URL"),
+        conn_max_age=600,
+    )
+    default_db["TEST"] = {
+        "NAME": _test_db_name,
+    }
     DATABASES = {
-        'default': dj_database_url.config(
-            default=os.getenv("DATABASE_URL"),
-            conn_max_age=600,
-        )
+        "default": default_db
     }
 else:
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.postgresql',
-            "NAME": os.getenv("DB_NAME"),
+            "NAME": _db_name,
             "USER": os.getenv("DB_USER"),
             "PASSWORD": os.getenv("DB_PASSWORD"),
             "HOST": os.getenv("DB_HOST"),
             "PORT": os.getenv("DB_PORT", "5432"),
             "OPTIONS": {"sslmode": "require"},
+            "TEST": {
+                "NAME": _test_db_name,
+            },
         }
     }
 

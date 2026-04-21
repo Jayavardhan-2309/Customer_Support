@@ -110,6 +110,9 @@ class SerializerTests(TestCase):
         self.assertTrue(serializer.fields["staff"].read_only)
         self.assertTrue(serializer.fields["user"].read_only)
 
+    def test_organization_string_representation_uses_name(self):
+        self.assertEqual(str(self.organization), "Acme")
+
 
 class ApiViewTests(TestCase):
     def setUp(self):
@@ -165,6 +168,24 @@ class ApiViewTests(TestCase):
 
         ChatMessage.objects.create(user=self.user, sender="user", message="First message")
         ChatMessage.objects.create(user=self.user, sender="ai", message="Reply message")
+
+    def test_root_backend_endpoint_requires_authentication(self):
+        response = self.client.get("/")
+
+        self.assertEqual(response.status_code, 401)
+
+    def test_root_backend_endpoint_returns_health_markup_for_authenticated_user(self):
+        self.client.force_authenticate(user=self.user)
+
+        response = self.client.get("/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "backend working")
+
+    def test_root_backend_endpoint_rejects_non_get_requests(self):
+        response = self.client.post("/")
+
+        self.assertEqual(response.status_code, 405)
 
     def test_get_escalation_count_today_counts_recent_tickets_only(self):
         old_ticket = SupportTicket.objects.create(
@@ -267,8 +288,10 @@ class ApiViewTests(TestCase):
     @patch("api.views.get_channel_layer")
     def test_staff_ticket_endpoints(self, get_channel_layer_mock, async_to_sync_mock):
         sender_mock = MagicMock()
-        async_to_sync_mock.return_value = sender_mock
-        get_channel_layer_mock.return_value = object()
+        channel_layer_mock = MagicMock()
+        channel_layer_mock.group_send = MagicMock()
+        get_channel_layer_mock.return_value = channel_layer_mock
+        async_to_sync_mock.side_effect = lambda fn: sender_mock
 
         self.client.force_authenticate(user=self.staff)
 
