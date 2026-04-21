@@ -36,9 +36,8 @@ jobs:
           pip install -r backend/requirements.txt
 
       - name: Run backend tests with coverage
-        working-directory: backend
         run: |
-          python -m pytest --cov=custSupApp --cov=api --cov-config=.coveragerc --cov-report=xml:coverage.xml
+          python -m pytest backend --cov=backend/api --cov=backend/custSupApp --cov=backend/custSupport --cov-config=backend/.coveragerc --cov-report=xml:backend/coverage.xml
 
       - name: Install frontend dependencies
         working-directory: frontend
