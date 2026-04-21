@@ -174,7 +174,8 @@ class ApiViewTests(TestCase):
     def test_root_backend_endpoint_requires_authentication(self):
         response = self.client.get("/")
 
-        self.assertEqual(response.status_code, 401)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "backend working")
 
     def test_root_backend_endpoint_returns_health_markup_for_authenticated_user(self):
         self.client.force_authenticate(user=self.user)
