@@ -8,6 +8,8 @@ const config: Config = {
   collectCoverageFrom: [
     "logger.ts",
     "src/lib/axios.ts",
+    "app/staff/analytics/**/*.{ts,tsx}",
+    "!app/staff/analytics/types.ts",
   ],
   coverageDirectory: "coverage",
   coverageProvider: "v8",
