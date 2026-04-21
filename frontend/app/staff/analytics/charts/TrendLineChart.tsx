@@ -25,6 +25,7 @@ export function TrendLineChart({ data, lineLabel, singleSeries }: Readonly<Trend
         <Tooltip content={<CustomTooltip />} />
         {singleSeries ? (
           <Line
+            className="cursor-pointer"
             type="monotone"
             dataKey="value"
             name={lineLabel}
@@ -36,8 +37,8 @@ export function TrendLineChart({ data, lineLabel, singleSeries }: Readonly<Trend
           />
         ) : (
           <>
-            <Line type="monotone" dataKey="created" name="Created" stroke="#38bdf8" strokeWidth={3} dot={{ r: 3, strokeWidth: 0 }} activeDot={{ r: 5 }} animationDuration={700} />
-            <Line type="monotone" dataKey="resolved" name="Resolved" stroke="#34d399" strokeWidth={3} dot={{ r: 3, strokeWidth: 0 }} activeDot={{ r: 5 }} animationDuration={700} />
+            <Line className="cursor-pointer" type="monotone" dataKey="created" name="Created" stroke="#38bdf8" strokeWidth={3} dot={{ r: 3, strokeWidth: 0 }} activeDot={{ r: 5 }} animationDuration={700} />
+            <Line className="cursor-pointer" type="monotone" dataKey="resolved" name="Resolved" stroke="#34d399" strokeWidth={3} dot={{ r: 3, strokeWidth: 0 }} activeDot={{ r: 5 }} animationDuration={700} />
           </>
         )}
       </LineChart>

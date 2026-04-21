@@ -10,14 +10,20 @@ type BarConfig = {
   radius?: [number, number, number, number]
 }
 
-type BarMetricChartProps<TData extends object> = {
-  data: TData[] | null
+type BarMetricDatum = {
+  name: string
+} & Record<string, number | string>
+
+type BarMetricChartProps = {
+  data: BarMetricDatum[] | null
   bars: BarConfig[]
   emptyMessage?: string
 }
 
-export function BarMetricChart<TData extends { name: string }>({ data, bars, emptyMessage }: Readonly<BarMetricChartProps<TData>>) {
-  if (!data?.length) {
+export function BarMetricChart({ data, bars, emptyMessage }: Readonly<BarMetricChartProps>) {
+  const isEmpty = !data || data.length === 0;
+
+  if (isEmpty) {
     return <EmptyChart message={emptyMessage} />
   }
 
@@ -30,6 +36,7 @@ export function BarMetricChart<TData extends { name: string }>({ data, bars, emp
         <Tooltip content={<CustomTooltip />} cursor={{ fill: "rgba(148, 163, 184, 0.08)" }} />
         {bars.map((bar) => (
           <Bar
+            className="cursor-pointer"
             key={bar.dataKey}
             dataKey={bar.dataKey}
             fill={bar.color}

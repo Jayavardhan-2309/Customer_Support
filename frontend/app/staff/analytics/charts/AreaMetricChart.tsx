@@ -10,13 +10,17 @@ type AreaConfig = {
   fill: string
 }
 
-type AreaMetricChartProps<TData extends object> = {
-  data: TData[]
+type AreaMetricDatum = {
+  date: string
+} & Record<string, number | string>
+
+type AreaMetricChartProps = {
+  data: AreaMetricDatum[]
   areas: AreaConfig[]
   emptyMessage?: string
 }
 
-export function AreaMetricChart<TData extends { date: string }>({ data, areas, emptyMessage }: Readonly<AreaMetricChartProps<TData>>) {
+export function AreaMetricChart({ data, areas, emptyMessage }: Readonly<AreaMetricChartProps>) {
   if (!data.length) {
     return <EmptyChart message={emptyMessage} />
   }
@@ -38,6 +42,7 @@ export function AreaMetricChart<TData extends { date: string }>({ data, areas, e
         <Tooltip content={<CustomTooltip />} />
         {areas.map((area) => (
           <Area
+            className="cursor-pointer"
             key={area.dataKey}
             type="monotone"
             dataKey={area.dataKey}

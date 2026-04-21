@@ -19,6 +19,7 @@ export function DonutChart({ data, emptyMessage }: DonutChartProps) {
     <ResponsiveContainer width="100%" height={260}>
       <PieChart>
         <Pie
+          className="cursor-pointer"
           data={data}
           dataKey="value"
           nameKey="name"
@@ -30,7 +31,11 @@ export function DonutChart({ data, emptyMessage }: DonutChartProps) {
           fill="#8884d8"
         />
         <Tooltip content={<CustomTooltip />} />
-        <Legend verticalAlign="bottom" iconType="circle" wrapperStyle={{ fontSize: "12px", color: "#cbd5e1" }} />
+        <Legend
+          verticalAlign="bottom"
+          iconType="circle"
+          wrapperStyle={{ fontSize: "12px", color: "#cbd5e1", paddingTop: "12px" }}
+        />
       </PieChart>
     </ResponsiveContainer>
   )
