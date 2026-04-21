@@ -14,14 +14,19 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
-COPY --chown=appuser:appuser requirements.txt .
+COPY --chown=root:root --chmod=0444 requirements.txt ./
 
 RUN pip install --no-cache-dir --upgrade pip \
     && pip install --no-cache-dir -r requirements.txt
 
-COPY --chown=appuser:appuser . .
+COPY --chown=root:root --chmod=0555 manage.py start.sh ./
+COPY --chown=root:root --chmod=0555 api ./api
+COPY --chown=root:root --chmod=0555 custSupApp ./custSupApp
+COPY --chown=root:root --chmod=0555 custSupport ./custSupport
 
-RUN chmod +x start.sh
+RUN mkdir -p /app/staticfiles /app/media \
+    && chown appuser:appuser /app/staticfiles /app/media \
+    && chmod 0755 /app/staticfiles /app/media
 
 USER appuser
 

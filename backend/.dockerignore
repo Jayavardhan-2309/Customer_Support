@@ -12,6 +12,7 @@ Dockerfile
 
 # Python cache
 __pycache__/
+**/__pycache__/
 *.pyc
 *.pyo
 
@@ -53,9 +54,16 @@ celerybeat.pid
 
 # Testing / coverage
 .pytest_cache/
+**/.pytest_cache/
 htmlcov/
 .coverage
 coverage/
+coverage.xml
+.bandit
+
+# Tests
+**/tests/
+api/tests.py
 
 # Misc
 *.pem
