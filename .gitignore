@@ -72,3 +72,7 @@ celerybeat.pid
 .pytest_cache/
 htmlcov/
 .coverage
+coverage.xml
+
+# local test database
+test_db.sqlite3

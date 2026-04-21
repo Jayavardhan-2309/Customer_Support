@@ -1,6 +1,8 @@
 import unittest
 from unittest.mock import MagicMock, Mock, patch
 
+import requests
+
 from custSupApp import ai
 
 
@@ -29,6 +31,11 @@ class TestAIHelpers(unittest.TestCase):
     def test_evaluate_escalation_risk_for_critical_keyword_is_true(self):
         self.assertTrue(ai.evaluate_escalation_risk("I want a refund now", "general", 0.8, False))
 
+    def test_evaluate_escalation_risk_for_low_confidence_and_sensitive_intents(self):
+        self.assertTrue(ai.evaluate_escalation_risk("My account is locked", "general", 0.1, False))
+        self.assertTrue(ai.evaluate_escalation_risk("Please help", "account_security", 0.8, False))
+        self.assertTrue(ai.evaluate_escalation_risk("Please help", "general", 0.4, True))
+
     def test_build_prompt_includes_recent_history_and_context(self):
         prompt = ai.build_prompt(
             "KB details",
@@ -39,6 +46,11 @@ class TestAIHelpers(unittest.TestCase):
         self.assertIn("User: Hi", prompt)
         self.assertIn("assistant: Hello", prompt)
         self.assertIn("Where is my refund?", prompt)
+
+    def test_build_prompt_uses_fallback_text_when_history_is_empty(self):
+        prompt = ai.build_prompt("KB details", [], "Question")
+
+        self.assertIn("No previous conversation.", prompt)
 
     def test_build_sentiment_prompt_contains_message(self):
         prompt = ai.build_sentiment_prompt("I am upset")
@@ -85,6 +97,20 @@ class TestAIHelpers(unittest.TestCase):
 
         self.assertEqual(result, "groq answer")
 
+    @patch.dict("os.environ", {}, clear=True)
+    def test_call_groq_returns_none_without_api_key(self):
+        self.assertIsNone(ai.call_groq("hello"))
+
+    @patch("custSupApp.ai.requests.post")
+    @patch.dict("os.environ", {"GROQ_API_KEY": "token"})
+    def test_call_groq_retries_models_and_returns_none_after_failures(self, mock_post):
+        mock_post.side_effect = [
+            Mock(status_code=500),
+            requests.RequestException("network"),
+        ]
+
+        self.assertIsNone(ai.call_groq("hello"))
+
     @patch("custSupApp.ai.requests.post")
     @patch.dict("os.environ", {"OPENROUTER_API_KEY": "token"})
     def test_call_openrouter_returns_message_content(self, mock_post):
@@ -96,6 +122,24 @@ class TestAIHelpers(unittest.TestCase):
 
         self.assertEqual(result, "openrouter answer")
 
+    @patch.dict("os.environ", {}, clear=True)
+    def test_call_openrouter_returns_none_without_api_key(self):
+        self.assertIsNone(ai.call_openrouter("hello"))
+
+    @patch("custSupApp.ai.requests.post")
+    @patch.dict("os.environ", {"OPENROUTER_API_KEY": "token"})
+    def test_call_openrouter_returns_none_after_model_failures(self, mock_post):
+        mock_post.side_effect = [
+            Mock(status_code=429),
+            ValueError("bad json"),
+            KeyError("choices"),
+            IndexError("missing"),
+            requests.RequestException("network"),
+            Mock(status_code=500),
+        ]
+
+        self.assertIsNone(ai.call_openrouter("hello"))
+
     @patch("custSupApp.ai.requests.post")
     def test_call_ollama_returns_response_text(self, mock_post):
         response = Mock()
@@ -106,6 +150,10 @@ class TestAIHelpers(unittest.TestCase):
         result = ai.call_ollama("hello")
 
         self.assertEqual(result, "ollama answer")
+
+    @patch("custSupApp.ai.requests.post", side_effect=Exception("offline"))
+    def test_call_ollama_returns_none_when_request_fails(self, _mock_post):
+        self.assertIsNone(ai.call_ollama("hello"))
 
     def test_handle_escalated_returns_default_reply_when_not_frustrated(self):
         result = ai.handle_escalated("billing", 0, 0.2, True, False)
@@ -123,6 +171,30 @@ class TestAIHelpers(unittest.TestCase):
         result = ai.handle_escalation("please escalate this", 3)
         self.assertEqual(result, ("escalation_limit", ai.ESCALATION_LIMIT_REPLY, 1.0, False))
 
+    def test_handle_escalated_returns_limit_and_frustrated_variants(self):
+        limited = ai.handle_escalated("billing", 3, 0.2, True, False)
+        frustrated = ai.handle_escalated("billing", 0, 0.2, True, True)
+
+        self.assertEqual(limited, ("escalation_limit", ai.ESCALATION_LIMIT_REPLY, 0.2, False))
+        self.assertEqual(
+            frustrated,
+            (
+                "billing",
+                "I'm sorry you're experiencing this. I've escalated this to our team for immediate attention.",
+                0.2,
+                True,
+            ),
+        )
+
+    def test_handle_escalation_returns_none_for_non_escalation_queries(self):
+        self.assertIsNone(ai.handle_escalation("just checking on my order", 0))
+
+    def test_handle_escalation_returns_successful_escalation_response(self):
+        self.assertEqual(
+            ai.handle_escalation("yes escalate please", 0),
+            ("escalation", "Sure, let me connect you with a human agent right away.", 1.0, True),
+        )
+
     def test_extract_repetition_returns_escalation_when_same_reply_repeats(self):
         repeated = "This is a repeated answer that is definitely longer than sixty characters for the detector."
         history = [
@@ -135,10 +207,30 @@ class TestAIHelpers(unittest.TestCase):
         self.assertEqual(result[0], "escalation")
         self.assertTrue(result[3])
 
+    def test_extract_repetition_skips_no_context_and_respects_limit(self):
+        history = [
+            {"role": "ai", "content": ai.NO_CONTEXT_FIRST_REPLY},
+            {"role": "assistant", "content": ai.NO_CONTEXT_FIRST_REPLY},
+        ]
+        self.assertIsNone(ai.extract_repetition(history, 0))
+
+        repeated = "This is a repeated answer that is definitely longer than sixty characters for the detector."
+        limited = ai.extract_repetition(
+            [{"role": "ai", "content": repeated}, {"role": "assistant", "content": repeated}],
+            3,
+        )
+        self.assertEqual(limited, ("escalation_limit", ai.ESCALATION_LIMIT_REPLY, 0.0, False))
+
     def test_handle_no_context_progression(self):
         self.assertEqual(ai.handle_no_context(0, 0, 0.2), ("no_context", ai.NO_CONTEXT_FIRST_REPLY, 0.2, False))
         self.assertEqual(ai.handle_no_context(1, 0, 0.2), ("no_context", ai.NO_CONTEXT_SECOND_REPLY, 0.2, False))
         self.assertEqual(ai.handle_no_context(2, 0, 0.2)[0], "escalation")
+
+    def test_handle_no_context_respects_escalation_limit(self):
+        self.assertEqual(
+            ai.handle_no_context(4, 3, 0.2),
+            ("escalation_limit", ai.ESCALATION_LIMIT_REPLY, 0.2, False),
+        )
 
     def test_validate_ticket_structure_checks_required_fields(self):
         valid = {
@@ -149,6 +241,30 @@ class TestAIHelpers(unittest.TestCase):
         invalid = {"priority": "urgent", "category": "billing", "description": ""}
         self.assertTrue(ai.validate_ticket_structure(valid))
         self.assertFalse(ai.validate_ticket_structure(invalid))
+
+    @patch("custSupApp.ai.call_openrouter", return_value='{"priority": "high", "category": "billing", "description": "Issue", "context_summary": "Summary"}')
+    @patch("custSupApp.ai.call_groq", return_value=None)
+    def test_extract_ticket_structure_with_llm_falls_back_to_openrouter(self, _mock_groq, _mock_openrouter):
+        result = ai.extract_ticket_structure_with_llm("Billing issue", [{"role": "user", "content": "Help"}])
+
+        self.assertEqual(result["priority"], "high")
+        self.assertEqual(result["category"], "billing")
+
+    @patch("custSupApp.ai.call_ollama", side_effect=RuntimeError("offline"))
+    @patch("custSupApp.ai.call_openrouter", return_value=None)
+    @patch("custSupApp.ai.call_groq", return_value=None)
+    def test_extract_ticket_structure_with_llm_returns_none_when_backends_fail(
+        self,
+        _mock_groq,
+        _mock_openrouter,
+        _mock_ollama,
+    ):
+        self.assertIsNone(ai.extract_ticket_structure_with_llm("Billing issue", []))
+
+    @patch("custSupApp.ai.call_openrouter", return_value="not-json")
+    @patch("custSupApp.ai.call_groq", return_value=None)
+    def test_extract_ticket_structure_with_llm_returns_none_for_invalid_json(self, _mock_groq, _mock_openrouter):
+        self.assertIsNone(ai.extract_ticket_structure_with_llm("Billing issue", []))
 
 
 class TestAIResponseFlow(unittest.TestCase):
@@ -195,6 +311,13 @@ class TestAIResponseFlow(unittest.TestCase):
         self.assertEqual(result, ("general", "answer", 0.8, False))
 
     @patch("custSupApp.ai.handle_escalation", return_value=None)
+    @patch("custSupApp.ai.extract_repetition", return_value=("escalation", "repeat", 0.0, True))
+    def test_get_ai_response_returns_repetition_result(self, _mock_repetition, _mock_escalation):
+        result = ai.get_ai_response("same question", history=[], org_id=1, escalation_count=0)
+
+        self.assertEqual(result, ("escalation", "repeat", 0.0, True))
+
+    @patch("custSupApp.ai.handle_escalation", return_value=None)
     @patch("custSupApp.ai.extract_repetition", return_value=None)
     @patch("custSupApp.ai.is_user_frustrated", return_value=False)
     @patch("custSupApp.ai.search_similar_chunks", return_value=["doc"])
@@ -212,6 +335,22 @@ class TestAIResponseFlow(unittest.TestCase):
         result = ai.get_ai_response("billing issue", history=[], org_id=1, escalation_count=0)
         self.assertEqual(result[0], "billing")
         self.assertTrue(result[3])
+
+    @patch("custSupApp.ai.handle_escalation", return_value=None)
+    @patch("custSupApp.ai.extract_repetition", return_value=None)
+    @patch("custSupApp.ai.is_user_frustrated", return_value=False)
+    @patch("custSupApp.ai.search_similar_chunks", return_value=[])
+    @patch("custSupApp.ai.call_groq", return_value='{"intent":"general","reply":"hello there","confidence":0.9}')
+    def test_get_ai_response_skips_no_context_ladder_for_greetings(
+        self,
+        _mock_call_groq,
+        _mock_search,
+        _mock_frustrated,
+        _mock_repetition,
+        _mock_escalation,
+    ):
+        result = ai.get_ai_response("hello", history=[], org_id=1, escalation_count=0)
+        self.assertEqual(result, ("general", "hello there", 0.9, False))
 
     @patch("custSupApp.ai.handle_escalation", return_value=None)
     @patch("custSupApp.ai.extract_repetition", return_value=None)
