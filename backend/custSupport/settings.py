@@ -6,6 +6,7 @@ Production-ready for Render + Supabase + Redis (Celery).
 from pathlib import Path
 from datetime import timedelta
 import os
+import sys
 from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -67,6 +68,8 @@ ASGI_APPLICATION = 'custSupport.asgi.application' # used for websockets
 
 _db_name = os.getenv("DB_NAME")
 _test_db_name = os.getenv("TEST_DB_NAME", "test_postgres1")
+_is_test_run = "test" in sys.argv or "PYTEST_CURRENT_TEST" in os.environ
+_has_postgres_env = bool(os.getenv("DATABASE_URL") or os.getenv("DB_HOST"))
 
 if os.getenv("DATABASE_URL"):
     import dj_database_url
@@ -79,6 +82,13 @@ if os.getenv("DATABASE_URL"):
     }
     DATABASES = {
         "default": default_db
+    }
+elif _is_test_run and not _has_postgres_env:
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": BASE_DIR / "test_db.sqlite3",
+        }
     }
 else:
     DATABASES = {
