@@ -16,7 +16,7 @@ type AreaMetricChartProps<TData extends object> = {
   emptyMessage?: string
 }
 
-export function AreaMetricChart<TData extends { date: string }>({ data, areas, emptyMessage }: AreaMetricChartProps<TData>) {
+export function AreaMetricChart<TData extends { date: string }>({ data, areas, emptyMessage }: Readonly<AreaMetricChartProps<TData>>) {
   if (!data.length) {
     return <EmptyChart message={emptyMessage} />
   }

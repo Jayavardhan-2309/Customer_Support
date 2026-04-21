@@ -11,7 +11,7 @@ type TrendLineChartProps = {
   singleSeries: boolean
 }
 
-export function TrendLineChart({ data, lineLabel, singleSeries }: TrendLineChartProps) {
+export function TrendLineChart({ data, lineLabel, singleSeries }: Readonly<TrendLineChartProps>) {
   if (!data.length) {
     return <EmptyChart message="No ticket trend data available yet" />
   }

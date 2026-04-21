@@ -120,11 +120,14 @@ export function getTrendState(ticketTrends: TicketTrend[], statusFilter: StatusF
     }
   }
 
-  const key = statusFilter === "resolved"
-    ? "resolved"
-    : statusFilter === "open"
-      ? "open_created"
-      : "in_progress_created"
+
+  const statusMap: Record<Exclude<StatusFilter, "all">, keyof TicketTrend> = {
+    resolved: "resolved",
+    open: "open_created",
+    in_progress: "in_progress_created",
+  };
+  
+  const key = statusMap[statusFilter];
 
   return {
     lineLabel: statusFilter === "resolved" ? "Resolved" : `${statusFilter.replace("_", " ")} created`,

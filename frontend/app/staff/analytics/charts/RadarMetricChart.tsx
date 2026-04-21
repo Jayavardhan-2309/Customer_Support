@@ -9,7 +9,7 @@ type RadarMetricChartProps = {
   data: RadarDatum[] | null
 }
 
-export function RadarMetricChart({ data }: RadarMetricChartProps) {
+export function RadarMetricChart({ data }: Readonly<RadarMetricChartProps>) {
   if (!data?.length) {
     return <EmptyChart message="No priority-by-status data available yet" />
   }

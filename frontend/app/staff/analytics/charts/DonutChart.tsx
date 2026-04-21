@@ -1,14 +1,14 @@
 "use client"
 
-import { Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts"
+import { Legend, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts"
 import { CustomTooltip } from "../CustomTooltip"
 import { EmptyChart } from "../EmptyChart"
 import { ChartDatum } from "../types"
 
-type DonutChartProps = {
+type DonutChartProps = Readonly<{
   data: ChartDatum[]
   emptyMessage?: string
-}
+}>
 
 export function DonutChart({ data, emptyMessage }: DonutChartProps) {
   if (!data.length || data.every((item) => item.value === 0)) {
@@ -27,11 +27,8 @@ export function DonutChart({ data, emptyMessage }: DonutChartProps) {
           paddingAngle={4}
           strokeWidth={0}
           animationDuration={700}
-        >
-          {data.map((entry) => (
-            <Cell key={entry.name} fill={entry.fill} />
-          ))}
-        </Pie>
+          fill="#8884d8"
+        />
         <Tooltip content={<CustomTooltip />} />
         <Legend verticalAlign="bottom" iconType="circle" wrapperStyle={{ fontSize: "12px", color: "#cbd5e1" }} />
       </PieChart>

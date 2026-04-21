@@ -6,9 +6,9 @@ type StatCardProps = {
   ring: string
 }
 
-export function StatCard({ label, value, badge, tone, ring }: StatCardProps) {
+export function StatCard({ label, value, badge, tone, ring }: Readonly< StatCardProps>) {
   return (
-    <article className={`group rounded-[26px] bg-gradient-to-br ${tone} p-[1px] shadow-[0_20px_60px_-40px_rgba(56,189,248,0.7)] transition duration-300 hover:-translate-y-1`}>
+    <article className={`group rounded-[26px] bg-linear-to-br ${tone} p-px shadow-[0_20px_60px_-40px_rgba(56,189,248,0.7)] transition duration-300 hover:-translate-y-1`}>
       <div className={`rounded-[25px] bg-slate-950/95 p-5 ring-1 ${ring}`}>
         <div className="flex items-start justify-between gap-4">
           <div>
@@ -20,7 +20,7 @@ export function StatCard({ label, value, badge, tone, ring }: StatCardProps) {
           </span>
         </div>
         <div className="mt-6 h-1.5 overflow-hidden rounded-full bg-white/5">
-          <div className="h-full w-2/3 rounded-full bg-gradient-to-r from-cyan-400 via-sky-400 to-indigo-400 transition duration-500 group-hover:w-full" />
+          <div className="h-full w-2/3 rounded-full bg-linear-to-r from-cyan-400 via-sky-400 to-indigo-400 transition duration-500 group-hover:w-full" />
         </div>
       </div>
     </article>

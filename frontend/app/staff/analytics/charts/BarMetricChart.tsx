@@ -16,7 +16,7 @@ type BarMetricChartProps<TData extends object> = {
   emptyMessage?: string
 }
 
-export function BarMetricChart<TData extends { name: string }>({ data, bars, emptyMessage }: BarMetricChartProps<TData>) {
+export function BarMetricChart<TData extends { name: string }>({ data, bars, emptyMessage }: Readonly<BarMetricChartProps<TData>>) {
   if (!data?.length) {
     return <EmptyChart message={emptyMessage} />
   }
