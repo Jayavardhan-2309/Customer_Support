@@ -6,6 +6,7 @@ import { AnalyticsResponse } from "../app/staff/analytics/types"
 
 const pushMock = jest.fn()
 const apiGetMock = jest.fn()
+const loggerErrorMock = jest.fn()
 const trendChartMock = jest.fn(
   ({ lineLabel, singleSeries }: { lineLabel: string; singleSeries: boolean }) => (
     <div data-testid="trend-chart">{`${lineLabel}-${String(singleSeries)}`}</div>
@@ -22,7 +23,7 @@ jest.mock("@/src/lib/axios", () => ({
 }))
 
 jest.mock("@/logger", () => ({
-  logger: { error: jest.fn(), warn: jest.fn(), info: jest.fn() },
+  logger: { error: loggerErrorMock, warn: jest.fn(), info: jest.fn() },
 }))
 
 jest.mock("../app/staff/analytics/charts/DonutChart", () => ({
@@ -82,6 +83,7 @@ describe("AnalyticsPage", () => {
     root = createRoot(container)
     pushMock.mockReset()
     apiGetMock.mockReset()
+    loggerErrorMock.mockReset()
     trendChartMock.mockClear()
   })
 
@@ -142,5 +144,21 @@ describe("AnalyticsPage", () => {
       expect.objectContaining({ lineLabel: "Resolved", singleSeries: true }),
     )
     expect(pushMock).toHaveBeenCalledWith("/staff")
+  })
+
+  test("logs analytics load failures and stays on loading state", async () => {
+    apiGetMock.mockRejectedValue(new Error("network failed"))
+    const { default: AnalyticsPage } = await import("../app/staff/analytics/page")
+
+    await act(async () => {
+      root.render(<AnalyticsPage />)
+    })
+
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    expect(loggerErrorMock).toHaveBeenCalledWith("Failed to load staff analytics", expect.any(Error))
+    expect(container.textContent).toContain("Loading analytics")
   })
 })
