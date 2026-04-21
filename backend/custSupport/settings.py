@@ -69,9 +69,10 @@ ASGI_APPLICATION = 'custSupport.asgi.application' # used for websockets
 _db_name = os.getenv("DB_NAME")
 _test_db_name = os.getenv("TEST_DB_NAME", "test_postgres1")
 _is_test_run = "test" in sys.argv or "PYTEST_CURRENT_TEST" in os.environ
+_is_pytest_run = "pytest" in sys.modules or any("pytest" in arg for arg in sys.argv)
 _has_postgres_env = bool(os.getenv("DATABASE_URL") or os.getenv("DB_HOST"))
 _use_sqlite_for_tests = os.getenv("USE_SQLITE_FOR_TESTS") == "1"
-_should_use_sqlite = _use_sqlite_for_tests or (_is_test_run and not _has_postgres_env)
+_should_use_sqlite = _use_sqlite_for_tests or ((_is_test_run or _is_pytest_run) and not _has_postgres_env)
 
 if _should_use_sqlite:
     DATABASES = {
