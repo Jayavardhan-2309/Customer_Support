@@ -1,14 +1,14 @@
 import { describe, expect, jest, test } from "@jest/globals"
 import { renderToStaticMarkup } from "react-dom/server"
+import React from "react"
 
 import { TrendLineChart } from "../app/staff/analytics/charts/TrendLineChart"
 
 jest.mock("recharts", () => {
-  const React = require("react") as typeof import("react")
-
   const component = (name: string) => {
-    return ({ children, ...props }: { children?: React.ReactNode }) =>
-      React.createElement("div", { "data-testid": name, "data-props": JSON.stringify(props) }, children)
+    const Comp = ({ children, ...props }: { children?: React.ReactNode }) => React.createElement("div", { "data-testid": name, "data-props": JSON.stringify(props) }, children)
+    Comp.displayName = name
+    return Comp
   }
 
   return {

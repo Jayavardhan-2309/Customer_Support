@@ -1,5 +1,6 @@
 import { describe, expect, jest, test } from "@jest/globals"
 import { renderToStaticMarkup } from "react-dom/server"
+import React from "react"
 
 import { AreaMetricChart } from "../app/staff/analytics/charts/AreaMetricChart"
 import { BarMetricChart } from "../app/staff/analytics/charts/BarMetricChart"
@@ -8,10 +9,10 @@ import { RadarMetricChart } from "../app/staff/analytics/charts/RadarMetricChart
 import { TrendLineChart } from "../app/staff/analytics/charts/TrendLineChart"
 
 jest.mock("recharts", () => {
-  const React = require("react") as typeof import("react")
-
   const component = (name: string) => {
-    return ({ children }: { children?: React.ReactNode }) => React.createElement("div", { "data-testid": name }, children)
+    const Comp = ({ children }: { children?: React.ReactNode }) => React.createElement("div", { "data-testid": name }, children)
+    Comp.displayName = name
+    return Comp
   }
 
   return {
