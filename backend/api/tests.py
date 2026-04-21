@@ -1,4 +1,5 @@
 from datetime import timedelta
+from uuid import uuid4
 from unittest.mock import MagicMock, patch
 
 from django.contrib.auth import get_user_model
@@ -116,30 +117,31 @@ class SerializerTests(TestCase):
 
 class ApiViewTests(TestCase):
     def setUp(self):
+        self.test_id = uuid4().hex[:8]
         self.client = APIClient()
-        self.organization = Organization.objects.create(name="Support Org")
-        self.other_organization = Organization.objects.create(name="Other Org")
+        self.organization = Organization.objects.create(name=f"Support Org {self.test_id}")
+        self.other_organization = Organization.objects.create(name=f"Other Org {self.test_id}")
         self.admin = create_test_user(
-            username="admin",
-            email="admin@example.com",
+            username=f"admin-{self.test_id}",
+            email=f"admin-{self.test_id}@example.com",
             role="admin",
             organization=self.organization,
         )
         self.staff = create_test_user(
-            username="staff",
-            email="staff@example.com",
+            username=f"staff-{self.test_id}",
+            email=f"staff-{self.test_id}@example.com",
             role="staff",
             organization=self.organization,
         )
         self.other_staff = create_test_user(
-            username="otherstaff",
-            email="otherstaff@example.com",
+            username=f"otherstaff-{self.test_id}",
+            email=f"otherstaff-{self.test_id}@example.com",
             role="staff",
             organization=self.other_organization,
         )
         self.user = create_test_user(
-            username="user",
-            email="user@example.com",
+            username=f"user-{self.test_id}",
+            email=f"user-{self.test_id}@example.com",
             organization=self.organization,
         )
 
@@ -200,13 +202,21 @@ class ApiViewTests(TestCase):
         self.assertEqual(count, 2)
 
     def test_login_logout_and_me_views(self):
-        response = self.client.post("/api/v1/login/", {"username": "user", SECRET_FIELD: DEFAULT_SECRET}, format="json")
+        response = self.client.post(
+            "/api/v1/login/",
+            {"username": self.user.username, SECRET_FIELD: DEFAULT_SECRET},
+            format="json",
+        )
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["user"]["role"], "user")
         self.assertIn("access", response.cookies)
         self.assertIn("refresh", response.cookies)
 
-        invalid = self.client.post("/api/v1/login/", {"username": "user", SECRET_FIELD: "wrong"}, format="json")
+        invalid = self.client.post(
+            "/api/v1/login/",
+            {"username": self.user.username, SECRET_FIELD: "wrong"},
+            format="json",
+        )
         self.assertEqual(invalid.status_code, 401)
 
         self.client.force_authenticate(user=self.user)
@@ -228,7 +238,10 @@ class ApiViewTests(TestCase):
         self.client.force_authenticate(user=None)
         orgs_response = self.client.get("/api/v1/organizations/")
         self.assertEqual(orgs_response.status_code, 200)
-        self.assertEqual([org["name"] for org in orgs_response.data], ["Support Org", "Other Org"])
+        self.assertEqual(
+            [org["name"] for org in orgs_response.data],
+            [self.organization.name, self.other_organization.name],
+        )
 
     @patch("api.views.Organization.objects")
     def test_organization_list_handles_errors(self, organization_objects):
@@ -244,7 +257,7 @@ class ApiViewTests(TestCase):
 
         list_response = self.client.get("/api/v1/admin/staff/")
         self.assertEqual(list_response.status_code, 200)
-        self.assertEqual(list_response.data["results"][0]["username"], "staff")
+        self.assertEqual(list_response.data["results"][0]["username"], self.staff.username)
 
         invalid_create = self.client.post("/api/v1/admin/staff/", {"username": "", "email": "", SECRET_FIELD: ""}, format="json")
         self.assertEqual(invalid_create.status_code, 400)

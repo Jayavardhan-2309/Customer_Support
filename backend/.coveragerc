@@ -1,13 +1,15 @@
 [run]
 source =
-    custSupApp
     api
+    custSupApp
+    custSupport
+relative_files = True
 omit =
     */migrations/*
-    */tests/*
+    conftest.py
     manage.py
-    */__init__.py
-
-[report]
-skip_empty = True
-show_missing = True
+    custSupport/asgi.py
+    custSupport/celery.py
+    custSupport/settings.py
+    custSupport/test_settings.py
+    custSupport/wsgi.py
