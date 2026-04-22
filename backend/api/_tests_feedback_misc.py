@@ -3,6 +3,7 @@ from custSupApp.views import ChatMessageView, UserView
 
 from ._tests_shared import ApiViewBaseTestCase, User
 
+FEED_URL="/api/v1/user/resolved-tickets/"
 
 class FeedbackAndMiscViewTests(ApiViewBaseTestCase):
     def test_submit_feedback_and_user_resolved_tickets(self):
@@ -27,7 +28,7 @@ class FeedbackAndMiscViewTests(ApiViewBaseTestCase):
             description="Need account info", category="general", priority="low", status="resolved",
             resolution_note="Shared help article", resolved_at=self.resolved_ticket.resolved_at,
         )
-        resolved_response = self.client.get("/api/v1/user/resolved-tickets/")
+        resolved_response = self.client.get(FEED_URL)
         self.assertEqual(len(resolved_response.data), 1)
         self.assertEqual(resolved_response.data[0]["id"], another_resolved.id)
         self.assertEqual(resolved_response.data[0]["staff_name"], "Unknown")
@@ -55,7 +56,7 @@ class FeedbackAndMiscViewTests(ApiViewBaseTestCase):
         )
         TicketFeedback.objects.create(ticket=feedback_ticket, staff=self.staff, user=self.user, rating=4, comment="Solid help")
         self.client.force_authenticate(user=self.user)
-        response = self.client.get("/api/v1/user/resolved-tickets/")
+        response = self.client.get(FEED_URL)
         matching = [ticket for ticket in response.data if ticket["id"] == feedback_ticket.id]
         self.assertEqual(len(matching), 1)
         self.assertTrue(matching[0]["has_feedback"])
@@ -67,7 +68,7 @@ class FeedbackAndMiscViewTests(ApiViewBaseTestCase):
             description="", category="general", priority="low", status="resolved", resolution_note="",
         )
         self.client.force_authenticate(user=self.user)
-        response = self.client.get("/api/v1/user/resolved-tickets/")
+        response = self.client.get(FEED_URL)
         matching = [ticket for ticket in response.data if ticket["id"] == fallback_ticket.id]
         self.assertEqual(len(matching), 1)
         self.assertEqual(matching[0]["query"], "Fallback summary")

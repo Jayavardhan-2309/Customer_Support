@@ -7,19 +7,20 @@ from custSupApp.models import ChatMessage
 
 from ._tests_shared import ApiViewBaseTestCase, DEFAULT_SECRET, SECRET_FIELD
 
+STAFF_URL="/api/v1/admin/staff/"
 
 class StaffViewTests(ApiViewBaseTestCase):
     def test_staff_management_endpoints(self):
         self.client.force_authenticate(user=self.admin)
-        self.assertEqual(self.client.get("/api/v1/admin/staff/").data["results"][0]["username"], self.staff.username)
-        invalid_create = self.client.post("/api/v1/admin/staff/", {"username": "", "email": "", SECRET_FIELD: ""}, format="json")
+        self.assertEqual(self.client.get(STAFF_URL).data["results"][0]["username"], self.staff.username)
+        invalid_create = self.client.post(STAFF_URL, {"username": "", "email": "", SECRET_FIELD: ""}, format="json")
         self.assertEqual(invalid_create.status_code, 400)
-        create_response = self.client.post("/api/v1/admin/staff/", {"username": "helper", "email": "helper@example.com", SECRET_FIELD: DEFAULT_SECRET}, format="json")
+        create_response = self.client.post(STAFF_URL, {"username": "helper", "email": "helper@example.com", SECRET_FIELD: DEFAULT_SECRET}, format="json")
         self.assertEqual(create_response.status_code, 201)
         created_staff_id = create_response.data["id"]
-        duplicate_username = self.client.post("/api/v1/admin/staff/", {"username": "helper", "email": "new@example.com", SECRET_FIELD: DEFAULT_SECRET}, format="json")
+        duplicate_username = self.client.post(STAFF_URL, {"username": "helper", "email": "new@example.com", SECRET_FIELD: DEFAULT_SECRET}, format="json")
         self.assertEqual(duplicate_username.status_code, 400)
-        duplicate_email = self.client.post("/api/v1/admin/staff/", {"username": "helper-two", "email": "helper@example.com", SECRET_FIELD: DEFAULT_SECRET}, format="json")
+        duplicate_email = self.client.post(STAFF_URL, {"username": "helper-two", "email": "helper@example.com", SECRET_FIELD: DEFAULT_SECRET}, format="json")
         self.assertEqual(duplicate_email.status_code, 400)
         self.assertEqual(self.client.patch(f"/api/v1/admin/staff/{self.staff.id}/toggle/", format="json").status_code, 200)
         self.staff.refresh_from_db()
@@ -81,7 +82,7 @@ class StaffViewTests(ApiViewBaseTestCase):
     @patch("api.view_admin.StaffViewSet.paginate_queryset", return_value=None)
     def test_staff_list_returns_plain_serializer_data_when_pagination_not_applied(self, _paginate_mock):
         self.client.force_authenticate(user=self.admin)
-        response = self.client.get("/api/v1/admin/staff/")
+        response = self.client.get(STAFF_URL)
         self.assertIsInstance(response.data, list)
         self.assertEqual(response.data[0]["username"], self.staff.username)
 

@@ -8,6 +8,8 @@ from custSupApp.models import UploadedPDF
 
 from ._tests_shared import ApiViewBaseTestCase
 
+UPLOAD_URL="/api/v1/admin/pdfs/upload/"
+
 
 class AdminPdfViewTests(ApiViewBaseTestCase):
     def test_pdf_list_filters_to_admin_organization(self):
@@ -26,13 +28,13 @@ class AdminPdfViewTests(ApiViewBaseTestCase):
 
     def test_pdf_upload_validates_missing_extension_and_size(self):
         self.client.force_authenticate(user=self.admin)
-        self.assertEqual(self.client.post("/api/v1/admin/pdfs/upload/", {}, format="multipart").status_code, 400)
+        self.assertEqual(self.client.post(UPLOAD_URL, {}, format="multipart").status_code, 400)
         not_pdf = SimpleUploadedFile("notes.txt", b"plain text", content_type="text/plain")
-        self.assertEqual(self.client.post("/api/v1/admin/pdfs/upload/", {"file": not_pdf}, format="multipart").status_code, 400)
+        self.assertEqual(self.client.post(UPLOAD_URL, {"file": not_pdf}, format="multipart").status_code, 400)
         huge_pdf = MagicMock(name="huge.pdf")
         huge_pdf.name = "huge.pdf"
         huge_pdf.size = 11 * 1024 * 1024
-        request = self.factory.post("/api/v1/admin/pdfs/upload/")
+        request = self.factory.post(UPLOAD_URL)
         request.user = self.admin
         request.FILES["file"] = huge_pdf
         self.assertEqual(PDFViewSet().upload(request).status_code, 400)
@@ -47,7 +49,7 @@ class AdminPdfViewTests(ApiViewBaseTestCase):
         create_client_mock.return_value = MagicMock(storage=storage)
         self.client.force_authenticate(user=self.admin)
         pdf_file = SimpleUploadedFile("guide.pdf", b"%PDF-1.4 test", content_type="application/pdf")
-        response = self.client.post("/api/v1/admin/pdfs/upload/", {"file": pdf_file}, format="multipart")
+        response = self.client.post(UPLOAD_URL, {"file": pdf_file}, format="multipart")
         self.assertEqual(response.status_code, 201)
         created_pdf = UploadedPDF.objects.get(title="guide.pdf")
         self.assertEqual(created_pdf.organization, self.organization)

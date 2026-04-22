@@ -4,11 +4,12 @@ from custSupApp.models import ChatMessage, SupportTicket
 
 from ._tests_shared import ApiViewBaseTestCase
 
+SUPPORT_URL="/api/v1/support-ai/"
 
 class SupportAIViewTests(ApiViewBaseTestCase):
     def test_support_ai_requires_prompt(self):
         self.client.force_authenticate(user=self.user)
-        response = self.client.post("/api/v1/support-ai/", {}, format="json")
+        response = self.client.post(SUPPORT_URL, {}, format="json")
         self.assertEqual(response.status_code, 400)
         self.assertEqual(response.data["detail"], "Prompt is required")
 
@@ -16,7 +17,7 @@ class SupportAIViewTests(ApiViewBaseTestCase):
     @patch("api.view_support.get_ai_response", return_value=("general", "Helpful answer", 0.91, False))
     def test_support_ai_returns_reply_and_persists_messages(self, get_ai_response_mock, _count_mock):
         self.client.force_authenticate(user=self.user)
-        response = self.client.post("/api/v1/support-ai/", {"prompt": "How do I reset my password?"}, format="json")
+        response = self.client.post(SUPPORT_URL, {"prompt": "How do I reset my password?"}, format="json")
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["intent"], "general")
         self.assertEqual(response.data["reply"], "Helpful answer")
@@ -36,7 +37,7 @@ class SupportAIViewTests(ApiViewBaseTestCase):
     @patch("api.view_support.get_ai_response", side_effect=RuntimeError("backend offline"))
     def test_support_ai_returns_safe_error_when_backend_fails(self, _get_ai_response_mock, _count_mock):
         self.client.force_authenticate(user=self.user)
-        response = self.client.post("/api/v1/support-ai/", {"prompt": "Please help"}, format="json")
+        response = self.client.post(SUPPORT_URL, {"prompt": "Please help"}, format="json")
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["intent"], "error")
         self.assertEqual(response.data["reply"], "Sorry, something went wrong. Please try again.")
@@ -61,7 +62,7 @@ class SupportAIViewTests(ApiViewBaseTestCase):
         get_channel_layer_mock.return_value = MagicMock(group_send=MagicMock())
         create_ticket_mock.return_value = (escalated_ticket, None)
         self.client.force_authenticate(user=self.user)
-        response = self.client.post("/api/v1/support-ai/", {"prompt": "Please escalate this"}, format="json")
+        response = self.client.post(SUPPORT_URL, {"prompt": "Please escalate this"}, format="json")
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.data["escalated"])
         self.assertEqual(response.data["escalations_remaining"], 0)
@@ -86,7 +87,7 @@ class SupportAIViewTests(ApiViewBaseTestCase):
         get_channel_layer_mock.return_value = MagicMock(group_send=MagicMock())
         create_ticket_mock.return_value = (escalated_ticket, self.staff)
         self.client.force_authenticate(user=self.user)
-        response = self.client.post("/api/v1/support-ai/", {"prompt": "I need a real person"}, format="json")
+        response = self.client.post(SUPPORT_URL, {"prompt": "I need a real person"}, format="json")
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.data["escalated"])
         self.assertEqual(response.data["escalations_remaining"], 1)
