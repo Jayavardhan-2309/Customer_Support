@@ -36,19 +36,20 @@ jobs:
           pip install -r backend/requirements.txt
 
       - name: Run backend tests with coverage
+        working-directory: backend
         run: |
-          python -m pytest backend --cov=backend/api --cov=backend/custSupApp --cov=backend/custSupport --cov-config=backend/.coveragerc --cov-report=xml:backend/coverage.xml
+          python -m pytest api custSupApp --cov=api --cov=custSupApp --cov=custSupport --cov-config=.coveragerc --cov-report=xml:coverage.xml
 
       - name: Install frontend dependencies
         working-directory: frontend
-        run: npm ci
+        run: npm ci --ignore-scripts
 
       - name: Run frontend tests with coverage
         working-directory: frontend
         run: npm run test:coverage
 
       - name: SonarCloud Scan
-        uses: SonarSource/sonarqube-scan-action@v7
+        uses: SonarSource/sonarqube-scan-action@299e4b793aaa83bf2aba7c9c14bedbb485688ec4 # v7.1.0
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         with:

@@ -1,4 +1,6 @@
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone as dt_timezone
+
+from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase
@@ -28,6 +30,7 @@ User = get_user_model()
 
 class ModelsAndAnalyticsTests(TestCase):
     def setUp(self):
+        self.now = datetime(2026, 1, 15, 12, 0, tzinfo=dt_timezone.utc)
         self.organization = Organization.objects.create(name="Analytics Org")
         self.user = User.objects.create_user(
             username="customer",
@@ -49,8 +52,6 @@ class ModelsAndAnalyticsTests(TestCase):
             role="staff",
             organization=self.organization,
         )
-
-        now = timezone.now()
 
         self.open_ticket = SupportTicket.objects.create(
             user=self.user,
@@ -78,10 +79,15 @@ class ModelsAndAnalyticsTests(TestCase):
             category="billing",
             priority="low",
             status="resolved",
-            created_at=now - timedelta(hours=5),
-            resolved_at=now - timedelta(hours=1),
+            created_at=self.now - timedelta(hours=5),
+            resolved_at=self.now - timedelta(hours=1),
             resolution_note="Fixed",
         )
+        SupportTicket.objects.filter(id=self.resolved_ticket.id).update(
+            created_at=self.now - timedelta(hours=5),
+            resolved_at=self.now - timedelta(hours=1),
+        )
+        self.resolved_ticket.refresh_from_db()
         self.closed_ticket = SupportTicket.objects.create(
             user=self.user,
             assigned_to=self.staff,
@@ -90,9 +96,14 @@ class ModelsAndAnalyticsTests(TestCase):
             category="general",
             priority="high",
             status="closed",
-            created_at=now - timedelta(days=2),
-            resolved_at=now - timedelta(days=1, hours=2),
+            created_at=self.now - timedelta(days=2),
+            resolved_at=self.now - timedelta(days=1, hours=2),
         )
+        SupportTicket.objects.filter(id=self.closed_ticket.id).update(
+            created_at=self.now - timedelta(days=2),
+            resolved_at=self.now - timedelta(days=1, hours=2),
+        )
+        self.closed_ticket.refresh_from_db()
         self.resolved_today_ticket = SupportTicket.objects.create(
             user=self.user,
             assigned_to=self.staff,
@@ -101,9 +112,14 @@ class ModelsAndAnalyticsTests(TestCase):
             category="technical",
             priority="normal",
             status="resolved",
-            created_at=now - timedelta(hours=3),
-            resolved_at=now - timedelta(hours=1),
+            created_at=self.now - timedelta(hours=3),
+            resolved_at=self.now - timedelta(hours=1),
         )
+        SupportTicket.objects.filter(id=self.resolved_today_ticket.id).update(
+            created_at=self.now - timedelta(hours=3),
+            resolved_at=self.now - timedelta(hours=1),
+        )
+        self.resolved_today_ticket.refresh_from_db()
 
         ChatMessage.objects.create(user=self.user, sender="user", message="Hello")
         self.knowledge = KnowledgeSource.objects.create(title="FAQ", content="Helpful content")
@@ -135,7 +151,32 @@ class ModelsAndAnalyticsTests(TestCase):
         self.assertFalse(self.uploaded_pdf.is_indexed)
         self.assertEqual(self.feedback.comment, "Great support")
 
-    def test_staff_analytics_service_helpers(self):
+    def test_model_default_choices_and_related_names(self):
+        default_user = User.objects.create_user(
+            username="default-user",
+            email="default@example.com",
+            password="secret12345",
+        )
+        default_ticket = SupportTicket.objects.create(
+            user=default_user,
+            message="Default issue",
+        )
+
+        self.assertEqual(default_user.role, "user")
+        self.assertIsNone(default_user.organization)
+        self.assertEqual(default_ticket.status, "open")
+        self.assertEqual(default_ticket.priority, "normal")
+        self.assertEqual(default_ticket.category, "general")
+        self.assertEqual(self.organization.users.count(), 3)
+        self.assertEqual(self.organization.tickets.count(), 5)
+        self.assertEqual(self.organization.pdfs.count(), 1)
+        self.assertEqual(self.staff.received_feedback.count(), 1)
+        self.assertEqual(self.user.given_feedback.count(), 1)
+
+    @patch("custSupApp.services.analytics.analytics_service.timezone.now")
+    def test_staff_analytics_service_helpers(self, analytics_now_mock):
+        analytics_now_mock.return_value = self.now
+
         workload = get_ticket_workload_metrics(self.staff)
         resolution = get_ticket_resolution_metrics(self.staff)
         priority_distribution = get_priority_distribution(self.staff)
@@ -161,7 +202,10 @@ class ModelsAndAnalyticsTests(TestCase):
         self.assertEqual(analytics["workload"]["assigned"], 5)
         self.assertEqual(analytics["priority_distribution"]["normal"], 2)
 
-    def test_admin_analytics_helpers(self):
+    @patch("custSupApp.services.analytics.admin_analytics.timezone.now")
+    def test_admin_analytics_helpers(self, admin_now_mock):
+        admin_now_mock.return_value = self.now
+
         TicketFeedback.objects.create(
             ticket=self.resolved_today_ticket,
             staff=self.staff,

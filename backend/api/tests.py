@@ -10,8 +10,16 @@ from rest_framework.test import APIRequestFactory
 from rest_framework.test import APIClient
 
 from api.pagination import StaffCursorPagination, TicketCursorPagination
-from api.serializers import SignupSerializer, StaffSerializer, SupportTicketDetailSerializer, SupportTicketListSerializer
+from api.serializers import (
+    ChatMessageSerializer,
+    SampleSerializer,
+    SignupSerializer,
+    StaffSerializer,
+    SupportTicketDetailSerializer,
+    SupportTicketListSerializer,
+)
 from api.views import IsAdmin, IsStaff, PDFViewSet, get_escalation_count_today
+from api.models import Sample
 from custSupApp.models import ChatMessage, Organization, SupportTicket, TicketFeedback, UploadedPDF
 from custSupApp.serializers import AdminSignupSerializer, TicketFeedbackSerializer
 
@@ -126,6 +134,19 @@ class SerializerTests(TestCase):
         self.assertEqual(staff_data["email"], self.staff.email)
         self.assertEqual(staff_data["active_tickets"], 0)
 
+    def test_sample_and_chat_message_serializers_include_model_fields(self):
+        sample = Sample.objects.create(text="hello", s_id="sample-1")
+        message = ChatMessage.objects.create(user=self.user, sender="user", message="Need help")
+
+        sample_data = SampleSerializer(sample).data
+        message_data = ChatMessageSerializer(message).data
+
+        self.assertEqual(sample_data["text"], "hello")
+        self.assertEqual(sample_data["s_id"], "sample-1")
+        self.assertEqual(message_data["user"], self.user.id)
+        self.assertEqual(message_data["sender"], "user")
+        self.assertEqual(message_data["message"], "Need help")
+
     def test_ticket_feedback_serializer_marks_foreign_keys_read_only(self):
         serializer = TicketFeedbackSerializer()
         self.assertIn("ticket", serializer.fields)
@@ -213,6 +234,21 @@ class ApiViewTests(TestCase):
 
         self.assertEqual(response.status_code, 405)
 
+    def test_sample_view_can_create_and_list_samples(self):
+        self.client.force_authenticate(user=self.user)
+
+        create_response = self.client.post(
+            "/api/v1/samples/",
+            {"text": "hello sample", "s_id": "sample-123"},
+            format="json",
+        )
+        self.assertEqual(create_response.status_code, 201)
+        self.assertTrue(Sample.objects.filter(s_id="sample-123").exists())
+
+        list_response = self.client.get("/api/v1/samples/")
+        self.assertEqual(list_response.status_code, 200)
+        self.assertEqual(list_response.data[0]["text"], "hello sample")
+
     def test_get_escalation_count_today_counts_recent_tickets_only(self):
         old_ticket = SupportTicket.objects.create(
             user=self.user,
@@ -251,6 +287,49 @@ class ApiViewTests(TestCase):
         logout_response = self.client.post("/api/v1/logout/")
         self.assertEqual(logout_response.status_code, 200)
         self.assertEqual(logout_response.data["message"], "Logged out")
+
+    def test_signup_and_admin_signup_endpoints_create_accounts(self):
+        signup_response = self.client.post(
+            "/api/v1/signup/",
+            {
+                "username": "fresh-user",
+                "email": "fresh@example.com",
+                SECRET_FIELD: DEFAULT_SECRET,
+                "organization": self.organization.id,
+            },
+            format="json",
+        )
+        self.assertEqual(signup_response.status_code, 201)
+        created_user = User.objects.get(username="fresh-user")
+        self.assertEqual(created_user.role, "user")
+        self.assertEqual(created_user.organization, self.organization)
+
+        admin_signup_response = self.client.post(
+            "/api/v1/admin-signup/",
+            {
+                "username": "fresh-admin",
+                "email": "fresh-admin@example.com",
+                SECRET_FIELD: DEFAULT_SECRET,
+                "organization_name": "Brand New Org",
+            },
+            format="json",
+        )
+        self.assertEqual(admin_signup_response.status_code, 201)
+        created_admin = User.objects.get(username="fresh-admin")
+        self.assertEqual(created_admin.role, "admin")
+        self.assertEqual(created_admin.organization.name, "Brand New Org")
+
+    def test_me_view_returns_none_for_users_without_organization(self):
+        orgless_user = create_test_user(
+            username=f"orgless-{self.test_id}",
+            email=f"orgless-{self.test_id}@example.com",
+        )
+        self.client.force_authenticate(user=orgless_user)
+
+        response = self.client.get("/api/v1/me/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIsNone(response.data["organization_name"])
 
     def test_chat_history_and_organization_list_views(self):
         self.client.force_authenticate(user=self.user)
@@ -335,6 +414,53 @@ class ApiViewTests(TestCase):
         self.assertEqual(ChatMessage.objects.filter(user=self.user).count(), 3)
         last_message = ChatMessage.objects.filter(user=self.user).order_by("-created_at").first()
         self.assertEqual(last_message.sender, "user")
+
+    @patch("api.views.logger.warning")
+    @patch("api.views.send_ticket_email.delay")
+    @patch("api.views.async_to_sync")
+    @patch("api.views.get_channel_layer")
+    @patch("api.views.create_structured_ticket")
+    @patch("api.views.extract_ticket_structure_smart", return_value={"priority": "normal"})
+    @patch("api.views.get_ai_response", return_value=("billing", "Escalating now", 0.3, True))
+    @patch("api.views.get_escalation_count_today", return_value=2)
+    def test_support_ai_escalation_without_staff_skips_email(
+        self,
+        _count_mock,
+        _get_ai_response_mock,
+        _extract_ticket_mock,
+        create_ticket_mock,
+        get_channel_layer_mock,
+        async_to_sync_mock,
+        send_ticket_email_mock,
+        logger_warning_mock,
+    ):
+        escalated_ticket = SupportTicket.objects.create(
+            user=self.user,
+            organization=self.organization,
+            message="Escalated without staff",
+            description="Escalated by AI",
+            category="billing",
+            priority="normal",
+            status="open",
+        )
+        sender_mock = MagicMock()
+        async_to_sync_mock.side_effect = lambda fn: sender_mock
+        get_channel_layer_mock.return_value = MagicMock(group_send=MagicMock())
+        create_ticket_mock.return_value = (escalated_ticket, None)
+        self.client.force_authenticate(user=self.user)
+
+        response = self.client.post(
+            "/api/v1/support-ai/",
+            {"prompt": "Please escalate this"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.data["escalated"])
+        self.assertEqual(response.data["escalations_remaining"], 0)
+        sender_mock.assert_called_once()
+        send_ticket_email_mock.assert_not_called()
+        logger_warning_mock.assert_called_once()
 
     @patch("api.views.send_ticket_email.delay")
     @patch("api.views.async_to_sync")
@@ -485,6 +611,21 @@ class ApiViewTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual([item["title"] for item in response.data], ["Internal Guide"])
+
+    def test_pdf_list_marks_missing_uploader_as_unknown(self):
+        UploadedPDF.objects.create(
+            title="Unowned Guide",
+            file_url="https://files/unowned.pdf",
+            uploaded_by=None,
+            organization=self.organization,
+        )
+        self.client.force_authenticate(user=self.admin)
+
+        response = self.client.get("/api/v1/admin/pdfs/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data[0]["uploaded_by"], "unknown")
+        self.assertEqual(response.data[0]["size_kb"], 0)
 
     def test_pdf_upload_validates_missing_extension_and_size(self):
         self.client.force_authenticate(user=self.admin)
@@ -667,3 +808,14 @@ class ApiViewTests(TestCase):
         self.assertEqual(len(matching), 1)
         self.assertTrue(matching[0]["has_feedback"])
         self.assertEqual(matching[0]["staff_name"], self.staff.username)
+
+    def test_submit_feedback_rejects_non_resolved_ticket(self):
+        self.client.force_authenticate(user=self.user)
+
+        response = self.client.post(
+            f"/api/v1/tickets/{self.open_ticket.id}/feedback/",
+            {"rating": 2, "comment": "Still open"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 404)
