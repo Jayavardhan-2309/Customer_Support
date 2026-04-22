@@ -2,12 +2,14 @@
 relative_files = True
 include =
     backend/api/*.py
+    backend/api/views_folder/*.py
     backend/custSupApp/*.py
     backend/custSupApp/**/*.py
     backend/custSupport/*.py
 omit =
     backend/**/tests.py
     backend/**/tests/*.py
+    backend/**/tests_folder/*.py
     backend/*/migrations/*
     backend/conftest.py
     backend/env/**
