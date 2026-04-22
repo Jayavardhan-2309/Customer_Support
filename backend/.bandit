@@ -1,0 +1,3 @@
+[bandit]
+exclude = */tests/*,*/test_*.py,*/migrations/*
+skips = B101

@@ -4,11 +4,12 @@ import { useEffect, useState } from "react";
 import api from "@/src/lib/axios";
 import { useParams, useRouter } from "next/navigation";
 import { logger } from "@/logger";
+import { StaffDetail, Feedback } from "@/types/customTypes";
 
 export default function StaffAnalyticsDetailPage() {
   const { id } = useParams();
   const router = useRouter();
-  const [data, setData] = useState<any>(null);
+  const [data, setData] = useState<StaffDetail | null>(null)
   const [loggingOut, setLoggingOut] = useState(false);
 
   useEffect(() => {
@@ -111,9 +112,9 @@ export default function StaffAnalyticsDetailPage() {
             <p className="text-slate-500 text-sm">No feedback yet</p>
           ) : (
             <div className="space-y-3 sm:space-y-4">
-              {data.feedback.map((f: any, i: number) => (
+              {data.feedback.map((f: Feedback) => (
                 <div
-                  key={i}
+                  key={`${f.user}-${f.date}-${f.rating}`}
                   className="border border-slate-800 rounded-lg p-3 sm:p-4"
                 >
                   <p className="text-yellow-400 text-sm sm:text-base">

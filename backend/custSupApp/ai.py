@@ -215,7 +215,8 @@ def call_groq(prompt, max_tokens=300, system_prompt=None):
             )
             if response.status_code == 200:
                 return response.json()["choices"][0]["message"]["content"]
-        except Exception:
+        except (requests.RequestException, ValueError, KeyError, IndexError) as exc:
+            logger.warning("Groq call failed for model %s: %s", model, exc)
             continue
     return None
 
@@ -244,7 +245,8 @@ def call_openrouter(prompt):
             )
             if response.status_code == 200:
                 return response.json()["choices"][0]["message"]["content"]
-        except Exception:
+        except (requests.RequestException, ValueError, KeyError, IndexError) as exc:
+            logger.warning("OpenRouter call failed for model %s: %s", model, exc)
             continue
     return None
 
@@ -363,6 +365,12 @@ def handle_escalated(intent, escalation_count, confidence, escalated, sentiment_
                 "I've escalated this to our team for immediate attention."
             )
             return intent, reply, confidence, escalated
+    return (
+        intent,
+        "This issue needs human attention, so I've escalated it to our support team.",
+        confidence,
+        escalated,
+    )
 
 
 def handle_escalation(query, escalation_count):

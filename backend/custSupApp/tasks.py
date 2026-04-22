@@ -42,7 +42,10 @@ def send_ticket_email(self, ticket_id, staff_email, conversation_text, query):
 
         if response.status_code not in (200, 201):
             logger.error("Brevo API error")
-            raise Exception(f"Brevo API error {response.status_code}: {response.text}")
+            raise requests.HTTPError(
+                f"Brevo API error {response.status_code}: {response.text}",
+                response=response,
+            )
 
         logger.info(f"[send_ticket_email] Email sent for ticket #{ticket_id} to {staff_email}")
 

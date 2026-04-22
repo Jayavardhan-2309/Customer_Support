@@ -1,0 +1,19 @@
+[run]
+relative_files = True
+include =
+    backend/api/*.py
+    backend/custSupApp/*.py
+    backend/custSupApp/**/*.py
+    backend/custSupport/*.py
+omit =
+    backend/**/tests.py
+    backend/**/tests/*.py
+    backend/*/migrations/*
+    backend/conftest.py
+    backend/env/**
+    backend/manage.py
+    backend/custSupport/asgi.py
+    backend/custSupport/celery.py
+    backend/custSupport/settings.py
+    backend/custSupport/test_settings.py
+    backend/custSupport/wsgi.py

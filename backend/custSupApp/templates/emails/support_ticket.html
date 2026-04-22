@@ -6,7 +6,13 @@
     <title>Document</title>
 </head>
 <body style="font-family: Arial, sans-serif; background:#f6f6f6; padding:20px;">
-    <table width="100%" style="max-width:600px;margin:auto;background:white;border-radius:8px;padding:20px">
+    <table style="width:100%;max-width:600px;margin:auto;background:white;border-radius:8px;padding:20px;" aria-label="Support ticket email layout">
+    <thead>
+        <tr>
+            <th scope="col" style="display:none;">Support ticket email</th>
+        </tr>
+    </thead>
+    <tbody>
 
     <tr>
         <td>
@@ -19,33 +25,41 @@
 
         <h3>Ticket Details</h3>
 
-        <table style="width:100%; border-collapse:collapse">
+        <table style="width:100%; border-collapse:collapse" aria-label="Ticket details">
+        <thead>
+        <tr>
+            <th scope="col" style="text-align:left;padding-bottom:8px;">Field</th>
+            <th scope="col" style="text-align:left;padding-bottom:8px;">Value</th>
+        </tr>
+        </thead>
+        <tbody>
 
         <tr>
-            <td><b>Ticket ID</b></td>
+            <th scope="row"><b>Ticket ID</b></th>
             <td>{{ ticket.id }}</td>
         </tr>
 
         <tr>
-            <td><b>Customer</b></td>
+            <th scope="row"><b>Customer</b></th>
             <td>{{ ticket.user.username }}</td>
         </tr>
 
         <tr>
-            <td><b>Email</b></td>
+            <th scope="row"><b>Email</b></th>
             <td>{{ ticket.user.email }}</td>
         </tr>
 
         <tr>
-            <td><b>Category</b></td>
+            <th scope="row"><b>Category</b></th>
             <td>{{ ticket.category }}</td>
         </tr>
 
         <tr>
-            <td><b>Priority</b></td>
+            <th scope="row"><b>Priority</b></th>
             <td>{{ ticket.priority }}</td>
         </tr>
 
+        </tbody>
         </table>
 
         <hr>
@@ -71,6 +85,7 @@
         </td>
     </tr>
 
+    </tbody>
 </table>
 
 </body>

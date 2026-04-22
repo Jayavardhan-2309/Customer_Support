@@ -6,12 +6,13 @@ Production-ready for Render + Supabase + Redis (Celery).
 from pathlib import Path
 from datetime import timedelta
 import os
+import sys
 from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR / ".env")
 
-SECRET_KEY = os.getenv("SECRET_KEY")
+SECRET_KEY = os.getenv("SECRET_KEY", "test-secret-key")
 DEBUG = os.getenv("DEBUG", "False") == "True"
 
 _raw_hosts = os.getenv("ALLOWED_HOSTS", "*")
@@ -65,24 +66,46 @@ ASGI_APPLICATION = 'custSupport.asgi.application' # used for websockets
 
 # ── Database
 
-if os.getenv("DATABASE_URL"):
-    import dj_database_url
+_db_name = os.getenv("DB_NAME")
+_test_db_name = os.getenv("TEST_DB_NAME", "test_postgres1")
+_is_test_run = "test" in sys.argv or "PYTEST_CURRENT_TEST" in os.environ
+_is_pytest_run = "pytest" in sys.modules or any("pytest" in arg for arg in sys.argv)
+_has_postgres_env = bool(os.getenv("DATABASE_URL") or os.getenv("DB_HOST"))
+_use_sqlite_for_tests = os.getenv("USE_SQLITE_FOR_TESTS") == "1"
+_should_use_sqlite = _use_sqlite_for_tests or ((_is_test_run or _is_pytest_run) and not _has_postgres_env)
+
+if _should_use_sqlite:
     DATABASES = {
-        'default': dj_database_url.config(
-            default=os.getenv("DATABASE_URL"),
-            conn_max_age=600,
-        )
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": BASE_DIR / "test_db.sqlite3",
+        }
+    }
+elif os.getenv("DATABASE_URL"):
+    import dj_database_url
+    default_db = dj_database_url.config(
+        default=os.getenv("DATABASE_URL"),
+        conn_max_age=600,
+    )
+    default_db["TEST"] = {
+        "NAME": _test_db_name,
+    }
+    DATABASES = {
+        "default": default_db
     }
 else:
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.postgresql',
-            "NAME": os.getenv("DB_NAME"),
+            "NAME": _db_name,
             "USER": os.getenv("DB_USER"),
             "PASSWORD": os.getenv("DB_PASSWORD"),
             "HOST": os.getenv("DB_HOST"),
             "PORT": os.getenv("DB_PORT", "5432"),
             "OPTIONS": {"sslmode": "require"},
+            "TEST": {
+                "NAME": _test_db_name,
+            },
         }
     }
 
@@ -121,7 +144,7 @@ REST_FRAMEWORK = {
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=500),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
-    'ROTATE_REFRESH_TOKEN': False,
+    'ROTATE_REFRESH_TOKEN': False,  # nosec B105
     'AUTH_HEADER_TYPES': ('Bearer',),
     'AUTH_TOKEN_CLASSES': ('rest_framework_simplejwt.tokens.AccessToken',),
 }

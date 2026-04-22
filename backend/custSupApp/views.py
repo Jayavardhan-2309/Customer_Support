@@ -1,8 +1,6 @@
-from django.shortcuts import render
 from rest_framework.viewsets import ModelViewSet
 from .models import User, ChatMessage
-from .serializers import UserSerializer, ChatMessageSerializer, SignupSerializer
-# Create your views here.
+from .serializers import UserSerializer, ChatMessageSerializer
 
 class UserView(ModelViewSet):
     queryset= User.objects.all()

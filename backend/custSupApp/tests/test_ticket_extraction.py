@@ -15,8 +15,8 @@ def test_login_issue():
 
     data = extract_ticket_structure(query, history)
 
-    assert data["category"] == "authentication"
-    assert "login" in data["description"].lower()
+    assert data["category"] == "authentication"  # nosec B101
+    assert "login" in data["description"].lower()  # nosec B101
 
 
 def test_payment_issue():
@@ -27,8 +27,8 @@ def test_payment_issue():
 
     data = extract_ticket_structure(query, history)
 
-    assert data["category"] == "billing"
-    assert "payment" in data["description"].lower()
+    assert data["category"] == "billing"  # nosec B101
+    assert "payment" in data["description"].lower()  # nosec B101
 
 
 def test_error_issue():
@@ -39,8 +39,8 @@ def test_error_issue():
 
     data = extract_ticket_structure(query, history)
 
-    assert data["category"] == "technical"
-    assert "error" in data["description"].lower()
+    assert data["category"] == "technical"  # nosec B101
+    assert "error" in data["description"].lower()  # nosec B101
 
 
 def test_high_priority():
@@ -49,7 +49,7 @@ def test_high_priority():
 
     data = extract_ticket_structure(query, [])
 
-    assert data["priority"] == "high"
+    assert data["priority"] == "high"  # nosec B101
 
 
 def test_conversation_summary():
@@ -64,8 +64,8 @@ def test_conversation_summary():
 
     data = extract_ticket_structure(query, history)
 
-    assert "User : I cannot login" in data["context"]
-    assert "AI: Try resetting password" in data["context"]
+    assert "User : I cannot login" in data["context"]  # nosec B101
+    assert "AI: Try resetting password" in data["context"]  # nosec B101
 
 
 def test_description_cleaning():
@@ -74,7 +74,7 @@ def test_description_cleaning():
 
     data = extract_ticket_structure(query, [])
 
-    assert "login" in data["description"].lower()
+    assert "login" in data["description"].lower()  # nosec B101
 
 
 def test_general_category():
@@ -83,7 +83,7 @@ def test_general_category():
 
     data = extract_ticket_structure(query, [])
 
-    assert data["category"] == "general"
+    assert data["category"] == "general"  # nosec B101
 
 
 def test_empty_history():
@@ -94,7 +94,7 @@ def test_empty_history():
 
     data = extract_ticket_structure(query, history)
 
-    assert data["context"] == ""
+    assert data["context"] == ""  # nosec B101
 
 def test_keyword_extraction():
 
@@ -102,8 +102,8 @@ def test_keyword_extraction():
 
     data = extract_ticket_structure(query, [])
 
-    assert "login" in data["keywords"]
-    assert "password" in data["keywords"]
+    assert "login" in data["keywords"]  # nosec B101
+    assert "password" in data["keywords"]  # nosec B101
 
 # valid llm extraction
 
@@ -121,9 +121,9 @@ def test_llm_valid_structure(mock_llm):
 
     data= extract_ticket_structure_smart(query, history)
 
-    assert data["category"]== "authentication"
-    assert data["priority"]== 'high'
-    assert "login" in data["description"].lower()
+    assert data["category"]== "authentication"  # nosec B101
+    assert data["priority"]== 'high'  # nosec B101
+    assert "login" in data["description"].lower()  # nosec B101
 
 
 # invalid llm output
@@ -145,7 +145,7 @@ def test_llm_invalid_structure_fallback(mock_llm):
 
     # rule-based extraction should classify this as authentication
 
-    assert data["category"]== "authentication"
+    assert data["category"]== "authentication"  # nosec B101
 
 # llm returns None
 
@@ -157,4 +157,4 @@ def test_llm_none_fallback(mock_llm):
 
     data= extract_ticket_structure_smart(query, history)
 
-    assert data["category"]== "billing"
+    assert data["category"]== "billing"  # nosec B101

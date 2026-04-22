@@ -5,8 +5,7 @@ import { useRouter } from "next/navigation"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { fetchers } from "@/src/lib/axios"
 
-type Staff = { id: number; username: string; email: string; is_available: boolean; active_tickets: number }
-type Me = { role: string; organization_name?: string }
+import { Staff, Me } from "@/types/customTypes"
 
 export default function AdminStaffPage() {
   const router = useRouter()
@@ -115,6 +114,67 @@ export default function AdminStaffPage() {
   const availableCount = staff.filter((s) => s.is_available).length
   const orgName = me?.organization_name ?? ""
 
+  let staffListContent;
+  if (loadingStaff) {
+    staffListContent = (
+      <div className="space-y-3">
+        {[1, 2, 3].map((i) => <div key={i} className="h-16 bg-slate-800/50 rounded-lg animate-pulse" />)}
+      </div>
+    );
+  } else if (staff.length === 0) {
+    staffListContent = (
+      <div className="text-center py-12 text-slate-600 text-sm border border-slate-800 rounded-xl">
+        No support staff added yet. Add a team member above to start receiving escalated queries.
+      </div>
+    );
+  } else {
+    staffListContent = (
+      <div className="space-y-2">
+        {staff.map((s) => {
+          let buttonText;
+          if (toggleMutation.isPending && toggleMutation.variables === s.id) {
+            buttonText = "...";
+          } else if (s.is_available) {
+            buttonText = "Available";
+          } else {
+            buttonText = "Unavailable";
+          }
+          return (
+            <div key={s.id} className="flex flex-col sm:flex-row sm:items-center justify-between bg-slate-900 border border-slate-800 rounded-lg px-4 sm:px-5 py-4 hover:border-slate-700 transition-all gap-3">
+              <div className="flex items-center gap-3 sm:gap-4 min-w-0">
+                <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${s.is_available ? "bg-emerald-400" : "bg-slate-600"}`} />
+                <div className="min-w-0">
+                  <p className="text-sm text-white font-medium">{s.username}</p>
+                  <p className="text-xs text-slate-500 mt-0.5 truncate">{s.email}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
+                <button
+                  onClick={() => toggleMutation.mutate(s.id)}
+                  disabled={toggleMutation.isPending && toggleMutation.variables === s.id}
+                  className={`text-xs px-3 py-1.5 rounded border transition-all disabled:opacity-40 ${
+                    s.is_available
+                      ? "text-emerald-400 border-emerald-900 hover:bg-emerald-950"
+                      : "text-slate-500 border-slate-700 hover:bg-slate-800"
+                  }`}
+                >
+                  {buttonText}
+                </button>
+                <button
+                  onClick={() => deleteStaff(s.id, s.username)}
+                  disabled={deleteMutation.isPending && deleteMutation.variables?.id === s.id}
+                  className="text-xs text-slate-600 hover:text-red-400 border border-transparent hover:border-red-900 px-3 py-1.5 rounded transition-all disabled:opacity-40"
+                >
+                  {deleteMutation.isPending && deleteMutation.variables?.id === s.id ? "..." : "Remove"}
+                </button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-slate-950 text-white font-mono">
 
@@ -166,8 +226,9 @@ export default function AdminStaffPage() {
           <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 sm:p-6 space-y-4">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
-                <label className="text-xs text-slate-500 block mb-1.5">Full Name</label>
+                <label htmlFor="name" className="text-xs text-slate-500 block mb-1.5">Full Name</label>
                 <input
+                  id="name"
                   type="text"
                   placeholder="e.g. Ravi Kumar"
                   value={name}
@@ -177,8 +238,9 @@ export default function AdminStaffPage() {
                 />
               </div>
               <div>
-                <label className="text-xs text-slate-500 block mb-1.5">Email Address</label>
+                <label htmlFor="email" className="text-xs text-slate-500 block mb-1.5">Email Address</label>
                 <input
+                  id="email"
                   type="email"
                   placeholder="e.g. ravi@yourcompany.com"
                   value={email}
@@ -188,8 +250,9 @@ export default function AdminStaffPage() {
                 />
               </div>
               <div className="sm:col-span-2">
-                <label className="text-xs text-slate-500 block mb-1.5">Temporary Password</label>
+                <label htmlFor="password" className="text-xs text-slate-500 block mb-1.5">Temporary Password</label>
                 <input
+                  id="password"
                   type="password"
                   placeholder="Set initial password"
                   value={password}
@@ -216,57 +279,14 @@ export default function AdminStaffPage() {
             <span className="text-xs text-slate-600">{availableCount} of {staff.length} available</span>
           </div>
 
-          {loadingStaff ? (
-            <div className="space-y-3">
-              {[1, 2, 3].map((i) => <div key={i} className="h-16 bg-slate-800/50 rounded-lg animate-pulse" />)}
-            </div>
-          ) : staff.length === 0 ? (
-            <div className="text-center py-12 text-slate-600 text-sm border border-slate-800 rounded-xl">
-              No support staff added yet. Add a team member above to start receiving escalated queries.
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {staff.map((s) => (
-                <div key={s.id} className="flex flex-col sm:flex-row sm:items-center justify-between bg-slate-900 border border-slate-800 rounded-lg px-4 sm:px-5 py-4 hover:border-slate-700 transition-all gap-3">
-                  <div className="flex items-center gap-3 sm:gap-4 min-w-0">
-                    <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${s.is_available ? "bg-emerald-400" : "bg-slate-600"}`} />
-                    <div className="min-w-0">
-                      <p className="text-sm text-white font-medium">{s.username}</p>
-                      <p className="text-xs text-slate-500 mt-0.5 truncate">{s.email}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
-                    <button
-                      onClick={() => toggleMutation.mutate(s.id)}
-                      disabled={toggleMutation.isPending && toggleMutation.variables === s.id}
-                      className={`text-xs px-3 py-1.5 rounded border transition-all disabled:opacity-40 ${
-                        s.is_available
-                          ? "text-emerald-400 border-emerald-900 hover:bg-emerald-950"
-                          : "text-slate-500 border-slate-700 hover:bg-slate-800"
-                      }`}
-                    >
-                      {toggleMutation.isPending && toggleMutation.variables === s.id
-                        ? "..." : s.is_available ? "Available" : "Unavailable"}
-                    </button>
-                    <button
-                      onClick={() => deleteStaff(s.id, s.username)}
-                      disabled={deleteMutation.isPending && deleteMutation.variables?.id === s.id}
-                      className="text-xs text-slate-600 hover:text-red-400 border border-transparent hover:border-red-900 px-3 py-1.5 rounded transition-all disabled:opacity-40"
-                    >
-                      {deleteMutation.isPending && deleteMutation.variables?.id === s.id ? "..." : "Remove"}
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+          {staffListContent}
         </section>
 
         {/* Info box */}
         <section className="bg-slate-900 border border-slate-800 rounded-xl px-4 sm:px-6 py-5 text-xs text-slate-500 space-y-1.5">
           <p className="text-slate-400 font-semibold text-sm mb-2">How escalation works</p>
-          <p>• When a user expresses frustration or the AI's confidence is low, a support ticket is created automatically.</p>
-          <p>• The first <span className="text-emerald-400">available</span> staff member receives an email with the user's query and contact details.</p>
+          <p>• When a user expresses frustration or the AI&apos;s confidence is low, a support ticket is created automatically.</p>
+          <p>• The first <span className="text-emerald-400">available</span> staff member receives an email with the user&apos;s query and contact details.</p>
           <p>• Staff marked as <span className="text-slate-400">unavailable</span> are skipped during assignment.</p>
           <p>• The user is informed their query has been forwarded and will receive a follow-up.</p>
         </section>
