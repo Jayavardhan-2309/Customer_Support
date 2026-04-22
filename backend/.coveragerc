@@ -1,12 +1,13 @@
 [run]
 source =
-    backend/api
-    backend/custSupApp
-    backend/custSupport
+    backend
 relative_files = True
 omit =
+    backend/**/tests.py
+    backend/**/tests/*.py
     backend/*/migrations/*
     backend/conftest.py
+    backend/env/**
     backend/manage.py
     backend/custSupport/asgi.py
     backend/custSupport/celery.py
