@@ -22,6 +22,7 @@ from api.views import IsAdmin, IsStaff, PDFViewSet, get_escalation_count_today
 from api.models import Sample
 from custSupApp.models import ChatMessage, Organization, SupportTicket, TicketFeedback, UploadedPDF
 from custSupApp.serializers import AdminSignupSerializer, TicketFeedbackSerializer
+from custSupApp.views import ChatMessageView, UserView
 
 User = get_user_model()
 SECRET_FIELD = "".join(["pass", "word"])
@@ -682,6 +683,56 @@ class ApiViewTests(TestCase):
         self.assertEqual(response.status_code, 404)
         self.assertEqual(response.data["detail"], "PDF not found")
 
+    @patch.dict(
+        "os.environ",
+        {
+            "SUPABASE_URL": "https://example-supabase.test",
+            "SUPABASE_SERVICE_KEY": "service-key",
+        },
+    )
+    @patch("api.views.create_client")
+    def test_pdf_destroy_removes_pdf_even_when_storage_cleanup_fails(self, create_client_mock):
+        storage_bucket = MagicMock()
+        storage_bucket.remove.side_effect = RuntimeError("storage unavailable")
+        storage = MagicMock()
+        storage.from_.return_value = storage_bucket
+        create_client_mock.return_value = MagicMock(storage=storage)
+        pdf = UploadedPDF.objects.create(
+            title="Policy",
+            file_url="https://files.example/pdfs/policy.pdf",
+            uploaded_by=self.admin,
+            organization=self.organization,
+        )
+        self.client.force_authenticate(user=self.admin)
+
+        with patch("django.db.connection.cursor") as cursor_mock:
+            response = self.client.delete(f"/api/v1/admin/pdfs/{pdf.id}/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(UploadedPDF.objects.filter(id=pdf.id).exists())
+        storage_bucket.remove.assert_called_once_with(["policy.pdf"])
+        cursor_mock.return_value.__enter__.return_value.execute.assert_called_once()
+
+    @patch("api.views.StaffViewSet.paginate_queryset", return_value=None)
+    def test_staff_list_returns_plain_serializer_data_when_pagination_not_applied(self, _paginate_mock):
+        self.client.force_authenticate(user=self.admin)
+
+        response = self.client.get("/api/v1/admin/staff/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIsInstance(response.data, list)
+        self.assertEqual(response.data[0]["username"], self.staff.username)
+
+    @patch("api.views.StaffTicketViewSet.paginate_queryset", return_value=None)
+    def test_staff_ticket_list_returns_plain_serializer_data_when_pagination_not_applied(self, _paginate_mock):
+        self.client.force_authenticate(user=self.staff)
+
+        response = self.client.get("/api/v1/staff/tickets/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIsInstance(response.data, list)
+        self.assertEqual(response.data[0]["id"], self.open_ticket.id)
+
 
     @patch("api.views.get_staff_analytics", return_value={"resolved": 4})
     def test_staff_analytics_view_returns_service_data(self, get_staff_analytics_mock):
@@ -819,3 +870,12 @@ class ApiViewTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 404)
+
+    def test_custsupapp_viewsets_expose_expected_querysets_and_serializers(self):
+        user_view = UserView()
+        chat_view = ChatMessageView()
+
+        self.assertEqual(user_view.serializer_class.__name__, "UserSerializer")
+        self.assertEqual(chat_view.serializer_class.__name__, "ChatMessageSerializer")
+        self.assertEqual(user_view.queryset.model, User)
+        self.assertEqual(chat_view.queryset.model, ChatMessage)
