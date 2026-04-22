@@ -37,7 +37,8 @@ jobs:
 
       - name: Run backend tests with coverage
         run: |
-          python -m pytest backend --cov=backend/api --cov=backend/custSupApp --cov=backend/custSupport --cov-config=backend/.coveragerc --cov-report=xml:backend/coverage.xml
+          python -m coverage run --rcfile=backend/.coveragerc -m pytest backend
+          python -m coverage xml --rcfile=backend/.coveragerc -o backend/coverage.xml
 
       - name: Install frontend dependencies
         working-directory: frontend

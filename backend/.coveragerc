@@ -1,7 +1,10 @@
 [run]
-source =
-    backend
 relative_files = True
+include =
+    backend/api/*.py
+    backend/custSupApp/*.py
+    backend/custSupApp/**/*.py
+    backend/custSupport/*.py
 omit =
     backend/**/tests.py
     backend/**/tests/*.py
