@@ -34,6 +34,18 @@ describe("staff analytics UI primitives", () => {
     expect(metricMarkup).toContain("h")
   })
 
+  test("renders a card without subtitle content", () => {
+    const cardMarkup = renderToStaticMarkup(
+      <Card title="Overview">
+        <div>Body only</div>
+      </Card>,
+    )
+
+    expect(cardMarkup).toContain("Overview")
+    expect(cardMarkup).toContain("Body only")
+    expect(cardMarkup).not.toContain("Summary")
+  })
+
   test("renders empty chart and active tooltip payloads", () => {
     const emptyMarkup = renderToStaticMarkup(<EmptyChart message="Nothing to chart yet" />)
     const tooltipMarkup = renderToStaticMarkup(
@@ -51,6 +63,21 @@ describe("staff analytics UI primitives", () => {
     expect(tooltipMarkup).toContain("2026-04-18")
     expect(tooltipMarkup).toContain("Resolved")
     expect(tooltipMarkup).toContain("Created")
+  })
+
+  test("renders tooltip rows without a label or color fallback", () => {
+    const tooltipMarkup = renderToStaticMarkup(
+      <CustomTooltip
+        active
+        payload={[
+          { name: "Open", value: 0 },
+        ]}
+      />,
+    )
+
+    expect(tooltipMarkup).toContain("Open")
+    expect(tooltipMarkup).not.toContain("2026-04-18")
+    expect(tooltipMarkup).not.toContain("background-color")
   })
 
   test("returns empty markup for inactive tooltip", () => {

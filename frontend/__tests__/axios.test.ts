@@ -103,4 +103,19 @@ describe("api client", () => {
     expect(warnSpy).toHaveBeenCalledWith("Unauthorized or session expired, redirecting to login")
     expect(errorSpy).toHaveBeenCalledWith("API Error:", { detail: "expired" })
   })
+
+  test("logs non-server api errors with the raw message when response data is missing", async () => {
+    const rejected = getRejectedHandler()
+    const error = {
+      message: "bad request",
+      response: {
+        status: 400,
+      },
+    }
+
+    await expect(rejected(error)).rejects.toBe(error)
+    expect(alertMock).not.toHaveBeenCalled()
+    expect(warnSpy).not.toHaveBeenCalled()
+    expect(errorSpy).toHaveBeenCalledWith("API Error:", "bad request")
+  })
 })

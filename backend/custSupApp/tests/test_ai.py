@@ -36,6 +36,9 @@ class TestAIHelpers(unittest.TestCase):
         self.assertTrue(ai.evaluate_escalation_risk("Please help", "account_security", 0.8, False))
         self.assertTrue(ai.evaluate_escalation_risk("Please help", "general", 0.4, True))
 
+    def test_evaluate_escalation_risk_returns_false_when_no_rules_match(self):
+        self.assertFalse(ai.evaluate_escalation_risk("order status update please", "general", 0.8, False))
+
     def test_build_prompt_includes_recent_history_and_context(self):
         prompt = ai.build_prompt(
             "KB details",
@@ -242,6 +245,9 @@ class TestAIHelpers(unittest.TestCase):
         self.assertTrue(ai.validate_ticket_structure(valid))
         self.assertFalse(ai.validate_ticket_structure(invalid))
 
+    def test_validate_ticket_structure_requires_description_even_when_other_fields_are_valid(self):
+        self.assertFalse(ai.validate_ticket_structure({"priority": "high", "category": "billing"}))
+
     @patch("custSupApp.ai.call_openrouter", return_value='{"priority": "high", "category": "billing", "description": "Issue", "context_summary": "Summary"}')
     @patch("custSupApp.ai.call_groq", return_value=None)
     def test_extract_ticket_structure_with_llm_falls_back_to_openrouter(self, _mock_groq, _mock_openrouter):
@@ -268,6 +274,24 @@ class TestAIHelpers(unittest.TestCase):
 
 
 class TestAIResponseFlow(unittest.TestCase):
+    @patch("custSupApp.ai.handle_escalation", return_value=None)
+    @patch("custSupApp.ai.extract_repetition", return_value=None)
+    @patch("custSupApp.ai.is_user_frustrated", return_value=False)
+    @patch("custSupApp.ai.search_similar_chunks", return_value=["doc"])
+    @patch("custSupApp.ai.call_groq", return_value='{"intent":"general","reply":"answer","confidence":0.8}')
+    @patch("custSupApp.ai.evaluate_escalation_risk", return_value=False)
+    def test_get_ai_response_defaults_history_when_none(
+        self,
+        _mock_risk,
+        _mock_call_groq,
+        _mock_search,
+        _mock_frustrated,
+        _mock_repetition,
+        _mock_escalation,
+    ):
+        result = ai.get_ai_response("normal question", history=None, org_id=1, escalation_count=0)
+        self.assertEqual(result, ("general", "answer", 0.8, False))
+
     @patch("custSupApp.ai.handle_escalation")
     def test_get_ai_response_returns_explicit_escalation_result(self, mock_handle_escalation):
         mock_handle_escalation.return_value = ("escalation", "connecting", 1.0, True)

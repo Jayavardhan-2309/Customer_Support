@@ -57,24 +57,33 @@ export function getCategoryData(categoryDistribution: Record<string, number>): C
 
 export function deriveMetrics(analytics: AnalyticsResponse) {
   const { workload, ticket_trends, category_distribution, category_resolved, priority_by_status } = analytics
-  const total = (workload.open ?? 0) + (workload.in_progress ?? 0) + (workload.resolved ?? 0)
-  const resolutionRate = total > 0 ? Math.round(((workload.resolved ?? 0) / total) * 100) : 0
+  const open = workload.open ?? 0
+  const inProgress = workload.in_progress ?? 0
+  const resolved = workload.resolved ?? 0
+  const total = open + inProgress + resolved
+  const resolutionRate = total > 0 ? Math.round((resolved / total) * 100) : 0
 
   const backlogPressure: ChartDatum[] = [
-    { name: "Active", value: (workload.open ?? 0) + (workload.in_progress ?? 0), fill: "#f97316" },
-    { name: "Resolved", value: workload.resolved ?? 0, fill: "#22c55e" },
+    { name: "Active", value: open + inProgress, fill: "#f97316" },
+    { name: "Resolved", value: resolved, fill: "#22c55e" },
   ]
 
   const labels = { assigned: "Assigned", open: "Open", in_progress: "In Progress", resolved: "Resolved" } as const
   const radarData: RadarDatum[] | null = priority_by_status
-    ? (Object.entries(labels) as Array<[keyof typeof labels, string]>)
-        .filter(([key]) => priority_by_status[key])
-        .map(([key, metric]) => ({
+    ? (Object.entries(labels) as Array<[keyof typeof labels, string]>).flatMap(([key, metric]) => {
+        const priority = priority_by_status[key]
+
+        if (!priority) {
+          return []
+        }
+
+        return [{
           metric,
-          high: priority_by_status[key]?.high ?? 0,
-          normal: priority_by_status[key]?.normal ?? 0,
-          low: priority_by_status[key]?.low ?? 0,
-        }))
+          high: priority.high ?? 0,
+          normal: priority.normal ?? 0,
+          low: priority.low ?? 0,
+        }]
+      })
     : null
 
   let cumulativeOpened = 0
@@ -90,8 +99,11 @@ export function deriveMetrics(analytics: AnalyticsResponse) {
       efficiency: trend.created > 0 ? Math.round((trend.resolved / trend.created) * 100) : 0,
     })),
     cumulativeData: ticket_trends.slice(-14).map((trend) => {
-      cumulativeOpened += trend.open_created ?? trend.created ?? 0
-      cumulativeResolved += trend.resolved ?? 0
+      const openedIncrement = trend.open_created ?? trend.created ?? 0
+      const resolvedIncrement = trend.resolved ?? 0
+
+      cumulativeOpened += openedIncrement
+      cumulativeResolved += resolvedIncrement
 
       return {
         date: trend.date,
