@@ -6,7 +6,7 @@ from django.utils import timezone
 from api.models import Sample
 from api.views import get_escalation_count_today
 
-from ._tests_shared import ApiViewBaseTestCase, DEFAULT_SECRET, SECRET_FIELD, User, create_test_user
+from .shared import ApiViewBaseTestCase, DEFAULT_SECRET, SECRET_FIELD, User, create_test_user
 
 
 class ApiGeneralViewTests(ApiViewBaseTestCase):
@@ -92,7 +92,7 @@ class ApiGeneralViewTests(ApiViewBaseTestCase):
         orgs_response = self.client.get("/api/v1/organizations/")
         self.assertEqual([org["name"] for org in orgs_response.data], [self.organization.name, self.other_organization.name])
 
-    @patch("api.view_feedback.Organization.objects")
+    @patch("api.views_folder.feedback.Organization.objects")
     def test_organization_list_handles_errors(self, organization_objects):
         organization_objects.all.side_effect = RuntimeError("db down")
         response = self.client.get("/api/v1/organizations/")

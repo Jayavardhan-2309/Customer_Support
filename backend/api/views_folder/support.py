@@ -15,7 +15,7 @@ from custSupApp.services.ticket_extraction import extract_ticket_structure_smart
 from custSupApp.services.ticket_service import create_structured_ticket
 from custSupApp.tasks import send_ticket_email
 
-from .view_permissions import get_escalation_count_today
+from .permissions import get_escalation_count_today
 
 logger = logging.getLogger(__name__)
 

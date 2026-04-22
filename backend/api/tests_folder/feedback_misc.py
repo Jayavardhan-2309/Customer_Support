@@ -1,7 +1,7 @@
 from custSupApp.models import ChatMessage, SupportTicket, TicketFeedback
 from custSupApp.views import ChatMessageView, UserView
 
-from ._tests_shared import ApiViewBaseTestCase, User
+from .shared import ApiViewBaseTestCase, User
 
 FEED_URL="/api/v1/user/resolved-tickets/"
 

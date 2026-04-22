@@ -16,7 +16,7 @@ from custSupApp.authentication import CookieJWTAuthentication
 from custSupApp.models import ChatMessage, SupportTicket
 from custSupApp.services.analytics.analytics_service import get_staff_analytics
 
-from .view_permissions import IsStaff
+from .permissions import IsStaff
 
 
 class StaffTicketViewSet(GenericViewSet, ListModelMixin):

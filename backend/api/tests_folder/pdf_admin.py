@@ -6,10 +6,9 @@ from django.db import connection
 from api.views import PDFViewSet
 from custSupApp.models import UploadedPDF
 
-from ._tests_shared import ApiViewBaseTestCase
+from .shared import ApiViewBaseTestCase
 
 UPLOAD_URL="/api/v1/admin/pdfs/upload/"
-
 
 class AdminPdfViewTests(ApiViewBaseTestCase):
     def test_pdf_list_filters_to_admin_organization(self):
@@ -40,8 +39,8 @@ class AdminPdfViewTests(ApiViewBaseTestCase):
         self.assertEqual(PDFViewSet().upload(request).status_code, 400)
 
     @patch.dict("os.environ", {"SUPABASE_URL": "https://example-supabase.test", "SUPABASE_SERVICE_KEY": "service-key"})
-    @patch("api.view_admin.index_pdf.delay")
-    @patch("api.view_admin.create_client")
+    @patch("api.views_folder.admin.index_pdf.delay")
+    @patch("api.views_folder.admin.create_client")
     def test_pdf_upload_saves_record_and_enqueues_indexing(self, create_client_mock, index_pdf_mock):
         storage_bucket = MagicMock()
         storage = MagicMock()
@@ -64,7 +63,7 @@ class AdminPdfViewTests(ApiViewBaseTestCase):
         self.assertEqual(response.data["detail"], "PDF not found")
 
     @patch.dict("os.environ", {"SUPABASE_URL": "https://example-supabase.test", "SUPABASE_SERVICE_KEY": "service-key"})
-    @patch("api.view_admin.create_client")
+    @patch("api.views_folder.admin.create_client")
     def test_pdf_destroy_removes_pdf_even_when_storage_cleanup_fails(self, create_client_mock):
         storage_bucket = MagicMock()
         storage_bucket.remove.side_effect = RuntimeError("storage unavailable")
@@ -80,14 +79,14 @@ class AdminPdfViewTests(ApiViewBaseTestCase):
         self.assertFalse(UploadedPDF.objects.filter(id=pdf.id).exists())
         storage_bucket.remove.assert_called_once_with(["policy.pdf"])
 
-    @patch("api.view_admin.get_admin_analytics", return_value={"total_tickets": 12})
+    @patch("api.views_folder.admin.get_admin_analytics", return_value={"total_tickets": 12})
     def test_admin_analytics_view_returns_service_data(self, get_admin_analytics_mock):
         self.client.force_authenticate(user=self.admin)
         response = self.client.get("/api/v1/admin/analytics/")
         self.assertEqual(response.data["total_tickets"], 12)
         get_admin_analytics_mock.assert_called_once_with(self.organization)
 
-    @patch("api.view_admin.get_staff_detail", return_value={"id": 7, "name": "Staff Member"})
+    @patch("api.views_folder.admin.get_staff_detail", return_value={"id": 7, "name": "Staff Member"})
     def test_admin_staff_detail_view_returns_service_data(self, get_staff_detail_mock):
         self.client.force_authenticate(user=self.admin)
         response = self.client.get(f"/api/v1/admin/analytics/staff/{self.staff.id}/")

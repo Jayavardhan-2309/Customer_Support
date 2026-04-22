@@ -1,4 +1,3 @@
-from datetime import timedelta
 from uuid import uuid4
 
 from django.contrib.auth import get_user_model

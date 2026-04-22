@@ -27,6 +27,7 @@ from custSupApp.services.analytics.staff_detail_service import get_staff_detail
 
 User = get_user_model()
 
+TEST1 = "secret12345"
 
 class ModelsAndAnalyticsTests(TestCase):
     def setUp(self):
@@ -35,20 +36,20 @@ class ModelsAndAnalyticsTests(TestCase):
         self.user = User.objects.create_user(
             username="customer",
             email="customer@example.com",
-            password="secret12345",
+            password=TEST1,
             organization=self.organization,
         )
         self.staff = User.objects.create_user(
             username="staffer",
             email="staff@example.com",
-            password="secret12345",
+            password=TEST1,
             role="staff",
             organization=self.organization,
         )
         self.other_staff = User.objects.create_user(
             username="helper",
             email="helper@example.com",
-            password="secret12345",
+            password=TEST1,
             role="staff",
             organization=self.organization,
         )
@@ -155,7 +156,7 @@ class ModelsAndAnalyticsTests(TestCase):
         default_user = User.objects.create_user(
             username="default-user",
             email="default@example.com",
-            password="secret12345",
+            password=TEST1,
         )
         default_ticket = SupportTicket.objects.create(
             user=default_user,

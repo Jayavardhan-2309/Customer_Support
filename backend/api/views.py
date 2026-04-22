@@ -1,5 +1,5 @@
-from .view_admin import AdminAnalyticsView, AdminStaffDetailView, PDFViewSet, StaffViewSet
-from .view_auth import (
+from .views_folder.admin import AdminAnalyticsView, AdminStaffDetailView, PDFViewSet, StaffViewSet
+from .views_folder.auth import (
     AdminSignupView,
     ChatHistoryView,
     LoginView,
@@ -8,7 +8,7 @@ from .view_auth import (
     SampleView,
     SignupView,
 )
-from .view_feedback import OrganizationListView, SubmitFeedbackView, UserResolvedTicketsView
-from .view_permissions import IsAdmin, IsStaff, get_escalation_count_today
-from .view_staff import StaffAnalyticsView, StaffTicketViewSet
-from .view_support import SupportAIView
+from .views_folder.feedback import OrganizationListView, SubmitFeedbackView, UserResolvedTicketsView
+from .views_folder.permissions import IsAdmin, IsStaff, get_escalation_count_today
+from .views_folder.staff import StaffAnalyticsView, StaffTicketViewSet
+from .views_folder.support import SupportAIView

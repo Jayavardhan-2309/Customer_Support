@@ -5,7 +5,7 @@ from django.utils import timezone
 
 from custSupApp.models import ChatMessage
 
-from ._tests_shared import ApiViewBaseTestCase, DEFAULT_SECRET, SECRET_FIELD
+from .shared import ApiViewBaseTestCase, DEFAULT_SECRET, SECRET_FIELD
 
 STAFF_URL="/api/v1/admin/staff/"
 
@@ -29,8 +29,8 @@ class StaffViewTests(ApiViewBaseTestCase):
         self.assertEqual(self.client.delete(f"/api/v1/admin/staff/{created_staff_id}/").status_code, 200)
         self.assertEqual(self.client.delete("/api/v1/admin/staff/9999/").status_code, 404)
 
-    @patch("api.view_staff.async_to_sync")
-    @patch("api.view_staff.get_channel_layer")
+    @patch("api.views_folder.staff.async_to_sync")
+    @patch("api.views_folder.staff.get_channel_layer")
     def test_staff_ticket_endpoints(self, get_channel_layer_mock, async_to_sync_mock):
         sender_mock = MagicMock()
         channel_layer_mock = MagicMock(group_send=MagicMock())
@@ -79,21 +79,21 @@ class StaffViewTests(ApiViewBaseTestCase):
         self.assertEqual(response.data[0]["sender"], "user")
         self.assertEqual(response.data[0]["message"], "Recent issue detail")
 
-    @patch("api.view_admin.StaffViewSet.paginate_queryset", return_value=None)
+    @patch("api.views_folder.admin.StaffViewSet.paginate_queryset", return_value=None)
     def test_staff_list_returns_plain_serializer_data_when_pagination_not_applied(self, _paginate_mock):
         self.client.force_authenticate(user=self.admin)
         response = self.client.get(STAFF_URL)
         self.assertIsInstance(response.data, list)
         self.assertEqual(response.data[0]["username"], self.staff.username)
 
-    @patch("api.view_staff.StaffTicketViewSet.paginate_queryset", return_value=None)
+    @patch("api.views_folder.staff.StaffTicketViewSet.paginate_queryset", return_value=None)
     def test_staff_ticket_list_returns_plain_serializer_data_when_pagination_not_applied(self, _paginate_mock):
         self.client.force_authenticate(user=self.staff)
         response = self.client.get("/api/v1/staff/tickets/")
         self.assertIsInstance(response.data, list)
         self.assertEqual(response.data[0]["id"], self.open_ticket.id)
 
-    @patch("api.view_staff.get_staff_analytics", return_value={"resolved": 4})
+    @patch("api.views_folder.staff.get_staff_analytics", return_value={"resolved": 4})
     def test_staff_analytics_view_returns_service_data(self, get_staff_analytics_mock):
         self.client.force_authenticate(user=self.staff)
         response = self.client.get("/api/v1/staff/analytics/")

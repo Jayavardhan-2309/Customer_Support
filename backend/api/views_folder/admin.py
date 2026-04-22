@@ -18,7 +18,7 @@ from custSupApp.services.analytics.admin_analytics import get_admin_analytics
 from custSupApp.services.analytics.staff_detail_service import get_staff_detail
 from custSupApp.tasks import index_pdf
 
-from .view_permissions import IsAdmin
+from .permissions import IsAdmin
 
 logger = logging.getLogger(__name__)
 
