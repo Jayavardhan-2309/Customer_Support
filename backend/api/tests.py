@@ -3,6 +3,7 @@ from uuid import uuid4
 from unittest.mock import MagicMock, patch
 
 from django.contrib.auth import get_user_model
+from django.db import connection
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import SimpleTestCase, TestCase
 from django.utils import timezone
@@ -593,6 +594,45 @@ class ApiViewTests(TestCase):
         self.assertEqual(messages_response.status_code, 200)
         self.assertEqual(messages_response.data, [])
 
+    def test_staff_ticket_detail_rejects_tickets_assigned_to_other_staff(self):
+        self.client.force_authenticate(user=self.other_staff)
+
+        response = self.client.get(f"/api/v1/staff/tickets/{self.open_ticket.id}/")
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_staff_ticket_messages_returns_only_recent_messages_before_ticket_creation(self):
+        ticket = SupportTicket.objects.create(
+            user=self.user,
+            assigned_to=self.staff,
+            organization=self.organization,
+            message="Need timeline",
+            description="Collect related chat messages",
+            category="general",
+            priority="normal",
+            status="open",
+        )
+        ticket_created_at = timezone.now()
+        SupportTicket.objects.filter(id=ticket.id).update(created_at=ticket_created_at)
+        ChatMessage.objects.filter(user=self.user).update(created_at=ticket_created_at - timedelta(minutes=20))
+
+        included_message = ChatMessage.objects.create(user=self.user, sender="user", message="Recent issue detail")
+        old_message = ChatMessage.objects.create(user=self.user, sender="ai", message="Too old to include")
+        future_message = ChatMessage.objects.create(user=self.user, sender="user", message="Sent after escalation")
+
+        ChatMessage.objects.filter(id=included_message.id).update(created_at=ticket_created_at - timedelta(minutes=5))
+        ChatMessage.objects.filter(id=old_message.id).update(created_at=ticket_created_at - timedelta(minutes=16))
+        ChatMessage.objects.filter(id=future_message.id).update(created_at=ticket_created_at + timedelta(minutes=1))
+
+        self.client.force_authenticate(user=self.staff)
+
+        response = self.client.get(f"/api/v1/staff/tickets/{ticket.id}/messages/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["sender"], "user")
+        self.assertEqual(response.data[0]["message"], "Recent issue detail")
+
     def test_pdf_list_filters_to_admin_organization(self):
         UploadedPDF.objects.create(
             title="Internal Guide",
@@ -705,13 +745,14 @@ class ApiViewTests(TestCase):
         )
         self.client.force_authenticate(user=self.admin)
 
-        with patch("django.db.connection.cursor") as cursor_mock:
-            response = self.client.delete(f"/api/v1/admin/pdfs/{pdf.id}/")
+        with connection.cursor() as cursor:
+            cursor.execute("CREATE TABLE IF NOT EXISTS kb_chunks (pdf_id integer)")
+
+        response = self.client.delete(f"/api/v1/admin/pdfs/{pdf.id}/")
 
         self.assertEqual(response.status_code, 200)
         self.assertFalse(UploadedPDF.objects.filter(id=pdf.id).exists())
         storage_bucket.remove.assert_called_once_with(["policy.pdf"])
-        cursor_mock.return_value.__enter__.return_value.execute.assert_called_once()
 
     @patch("api.views.StaffViewSet.paginate_queryset", return_value=None)
     def test_staff_list_returns_plain_serializer_data_when_pagination_not_applied(self, _paginate_mock):
@@ -859,6 +900,29 @@ class ApiViewTests(TestCase):
         self.assertEqual(len(matching), 1)
         self.assertTrue(matching[0]["has_feedback"])
         self.assertEqual(matching[0]["staff_name"], self.staff.username)
+
+    def test_user_resolved_tickets_falls_back_to_message_and_default_resolution_text(self):
+        fallback_ticket = SupportTicket.objects.create(
+            user=self.user,
+            assigned_to=None,
+            organization=self.organization,
+            message="Fallback summary",
+            description="",
+            category="general",
+            priority="low",
+            status="resolved",
+            resolution_note="",
+        )
+        self.client.force_authenticate(user=self.user)
+
+        response = self.client.get("/api/v1/user/resolved-tickets/")
+
+        self.assertEqual(response.status_code, 200)
+        matching = [ticket for ticket in response.data if ticket["id"] == fallback_ticket.id]
+        self.assertEqual(len(matching), 1)
+        self.assertEqual(matching[0]["query"], "Fallback summary")
+        self.assertEqual(matching[0]["resolution_note"], "None")
+        self.assertEqual(matching[0]["staff_name"], "Unknown")
 
     def test_submit_feedback_rejects_non_resolved_ticket(self):
         self.client.force_authenticate(user=self.user)
