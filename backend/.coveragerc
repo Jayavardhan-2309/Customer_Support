@@ -1,15 +1,15 @@
 [run]
 source =
-    api
-    custSupApp
-    custSupport
+    backend/api
+    backend/custSupApp
+    backend/custSupport
 relative_files = True
 omit =
-    */migrations/*
-    conftest.py
-    manage.py
-    custSupport/asgi.py
-    custSupport/celery.py
-    custSupport/settings.py
-    custSupport/test_settings.py
-    custSupport/wsgi.py
+    backend/*/migrations/*
+    backend/conftest.py
+    backend/manage.py
+    backend/custSupport/asgi.py
+    backend/custSupport/celery.py
+    backend/custSupport/settings.py
+    backend/custSupport/test_settings.py
+    backend/custSupport/wsgi.py
