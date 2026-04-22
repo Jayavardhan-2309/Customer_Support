@@ -10,7 +10,17 @@ import { TrendLineChart } from "../app/staff/analytics/charts/TrendLineChart"
 
 jest.mock("recharts", () => {
   const component = (name: string) => {
-    const Comp = ({ children }: { children?: React.ReactNode }) => React.createElement("div", { "data-testid": name }, children)
+    const Comp = ({ children, ...props }: { children?: React.ReactNode } & Record<string, unknown>) =>
+      React.createElement(
+        "div",
+        {
+          "data-testid": name,
+          ...(props.dataKey ? { "data-prop-datakey": String(props.dataKey) } : {}),
+          ...(props.fill ? { "data-prop-fill": String(props.fill) } : {}),
+          ...(props.radius ? { "data-prop-radius": JSON.stringify(props.radius) } : {}),
+        },
+        children,
+      )
     Comp.displayName = name
     return Comp
   }
@@ -69,5 +79,22 @@ describe("staff analytics charts", () => {
     expect(areaMarkup).toContain("AreaChart")
     expect(radarMarkup).toContain("RadarChart")
     expect(trendMarkup).toContain("LineChart")
+  })
+
+  test("passes default and custom bar radii to recharts bars", () => {
+    const barMarkup = renderToStaticMarkup(
+      <BarMetricChart
+        data={[{ name: "Billing", created: 4, resolved: 3 }]}
+        bars={[
+          { dataKey: "created", color: "#38bdf8" },
+          { dataKey: "resolved", color: "#22c55e", radius: [4, 4, 0, 0] },
+        ]}
+      />,
+    )
+
+    expect(barMarkup).toContain('data-prop-datakey="created"')
+    expect(barMarkup).toContain('data-prop-radius="[10,10,0,0]"')
+    expect(barMarkup).toContain('data-prop-datakey="resolved"')
+    expect(barMarkup).toContain('data-prop-radius="[4,4,0,0]"')
   })
 })
