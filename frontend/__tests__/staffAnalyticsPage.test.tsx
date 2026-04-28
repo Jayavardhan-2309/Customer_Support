@@ -5,7 +5,7 @@ import { createRoot, Root } from "react-dom/client"
 import { AnalyticsResponse } from "../app/staff/analytics/types"
 
 const pushMock = jest.fn()
-const apiGetMock = jest.fn()
+const apiGetMock = jest.fn<() => Promise<{ data: AnalyticsResponse }>>()
 const loggerErrorMock = jest.fn()
 const trendChartMock = jest.fn(
   ({ lineLabel, singleSeries }: { lineLabel: string; singleSeries: boolean }) => (
