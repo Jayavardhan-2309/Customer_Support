@@ -4,14 +4,15 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { PDF } from "@/types/customTypes";
 import { safeFetch } from "@/src/lib/safeFetch";
-import { AdminPdfList } from "./AdminPdfList";
-import { AdminPdfUpload } from "./AdminPdfUpload";
+import { AdminHeader } from "./AdminHeader";
+import { AdminPdfManager } from "./AdminPdfManager";
+import { AdminToast } from "./AdminToast";
+import { useAdminAuth } from "./useAdminAuth";
 
 export default function AdminPage() {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [checkingAuth, setCheckingAuth] = useState(true);
   const [pdfs, setPdfs] = useState<PDF[]>([]);
   const [loadingPdfs, setLoadingPdfs] = useState(true);
   const [uploading, setUploading] = useState(false);
@@ -19,7 +20,7 @@ export default function AdminPage() {
   const [dragOver, setDragOver] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
-  const [orgName, setOrgName] = useState("");
+  const { checkingAuth, orgName } = useAdminAuth();
 
   const showToast = useCallback((message: string, type: "success" | "error") => {
     if (toastTimeoutRef.current) {
@@ -29,32 +30,14 @@ export default function AdminPage() {
     toastTimeoutRef.current = setTimeout(() => setToast(null), 3000);
   }, []);
 
-  useEffect(() => {
-    const controller = new AbortController();
-    void safeFetch("/api/me", { credentials: "include", signal: controller.signal }).then(async (res) => {
-      if (controller.signal.aborted) {
-        return;
-      }
-      if (!res.ok) {
-        router.replace("/login");
-        return;
-      }
-      const data = await res.json();
-      if (data.role !== "admin") {
-        router.replace("/support");
-        return;
-      }
-      setOrgName(data.organization_name || "");
-      setCheckingAuth(false);
-    });
-
-    return () => {
-      controller.abort();
+  useEffect(
+    () => () => {
       if (toastTimeoutRef.current) {
         clearTimeout(toastTimeoutRef.current);
       }
-    };
-  }, [router]);
+    },
+    [],
+  );
 
   const fetchPdfs = useCallback(async (signal?: AbortSignal) => {
     setLoadingPdfs(true);
@@ -151,50 +134,29 @@ export default function AdminPage() {
 
   return (
     <div className="min-h-screen bg-slate-950 text-white font-mono">
-      {toast && (
-        <div className={`fixed top-4 right-4 left-4 sm:left-auto z-50 px-5 py-3 rounded-lg text-sm shadow-lg transition-all ${toast.type === "success" ? "bg-emerald-500 text-white" : "bg-red-500 text-white"}`}>
-          {toast.message}
-        </div>
-      )}
+      <AdminToast toast={toast} />
+      <AdminHeader
+        isLoggingOut={isLoggingOut}
+        orgName={orgName}
+        onAnalytics={() => router.push("/admin/analytics")}
+        onLogout={logout}
+        onStaff={() => router.push("/admin/staff")}
+        subtitle="Admin Context Management"
+        title="Knowledge Base"
+      />
 
-      <header className="border-b border-slate-800 px-4 sm:px-8 py-4 sm:py-5">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0">
-          <div className="flex flex-col gap-1">
-            <div className="flex items-center flex-wrap gap-2">
-              <h1 className="text-lg sm:text-xl font-bold tracking-tight text-white">Knowledge Base</h1>
-              {orgName && <span className="text-[10px] sm:text-xs px-2 py-0.5 rounded-md bg-indigo-900/40 text-indigo-400 border border-indigo-800/40">{orgName}</span>}
-            </div>
-            <p className="text-slate-400 text-xs">Admin Context Management</p>
-          </div>
-          <div className="flex items-center gap-2 flex-wrap">
-            <button onClick={() => router.push("/admin/staff")} className="text-xs text-slate-400 hover:text-white border border-slate-700 hover:border-slate-500 px-3 py-2 rounded transition-all">Staff</button>
-            <button onClick={() => router.push("/admin/analytics")} className="text-xs text-slate-400 hover:text-white border border-slate-700 hover:border-slate-500 px-3 py-2 rounded transition-all">Analytics</button>
-            <button onClick={logout} disabled={isLoggingOut} className="text-xs text-slate-400 hover:text-red-400 border border-slate-700 hover:border-red-800 px-3 py-2 rounded transition-all disabled:opacity-50">
-              {isLoggingOut ? "Logging out..." : "Logout"}
-            </button>
-          </div>
-        </div>
-      </header>
-
-      <main className="max-w-3xl mx-auto px-4 sm:px-6 py-8 sm:py-10 space-y-8 sm:space-y-10">
-        <AdminPdfUpload
-          dragOver={dragOver}
-          fileInputRef={fileInputRef}
-          handleDrop={(event) => {
-            event.preventDefault();
-            setDragOver(false);
-            const file = event.dataTransfer.files?.[0];
-            if (file) uploadFile(file);
-          }}
-          handleFileInput={(event) => {
-            const file = event.target.files?.[0];
-            if (file) uploadFile(file);
-          }}
-          setDragOver={setDragOver}
-          uploading={uploading}
-        />
-        <AdminPdfList deletingId={deletingId} deletePdf={deletePdf} formatDate={formatDate} loadingPdfs={loadingPdfs} pdfs={pdfs} />
-      </main>
+      <AdminPdfManager
+        deletingId={deletingId}
+        deletePdf={deletePdf}
+        dragOver={dragOver}
+        fileInputRef={fileInputRef}
+        formatDate={formatDate}
+        loadingPdfs={loadingPdfs}
+        onFileSelected={uploadFile}
+        pdfs={pdfs}
+        setDragOver={setDragOver}
+        uploading={uploading}
+      />
     </div>
   );
 }

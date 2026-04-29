@@ -5,8 +5,9 @@ import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { fetchers } from "@/src/lib/axios";
 import { Me, Staff } from "@/types/customTypes";
-import { AdminStaffForm } from "./AdminStaffForm";
-import { AdminStaffList } from "./AdminStaffList";
+import { AdminHeader } from "../AdminHeader";
+import { AdminToast } from "../AdminToast";
+import { AdminStaffManager } from "./AdminStaffManager";
 
 export default function AdminStaffPage() {
   const router = useRouter();
@@ -131,64 +132,33 @@ export default function AdminStaffPage() {
 
   return (
     <div className="min-h-screen bg-slate-950 text-white font-mono">
-      {toast && (
-        <div className={`fixed top-4 right-4 left-4 sm:left-auto z-50 px-5 py-3 rounded-lg text-sm shadow-lg ${toast.type === "success" ? "bg-emerald-500 text-white" : "bg-red-500 text-white"}`}>
-          {toast.message}
-        </div>
-      )}
+      <AdminToast toast={toast} />
+      <AdminHeader
+        isLoggingOut={isLoggingOut}
+        orgName={orgName}
+        onKnowledgeBase={() => router.push("/admin")}
+        onLogout={logout}
+        subtitle="Admin Staff Management"
+        title="Support Staff"
+      />
 
-      <header className="border-b border-slate-800 px-4 sm:px-8 py-4 sm:py-5">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <div className="flex flex-col gap-1">
-            <div className="flex items-center flex-wrap gap-2">
-              <h1 className="text-lg sm:text-xl font-bold tracking-tight text-white">Support Staff</h1>
-              {orgName && (
-                <span className="text-[10px] sm:text-xs px-2 py-0.5 rounded-md bg-indigo-900/40 text-indigo-400 border border-indigo-800/40">
-                  {orgName}
-                </span>
-              )}
-            </div>
-            <p className="text-slate-400 text-xs">Admin Staff Management</p>
-          </div>
-          <div className="flex items-center gap-2 flex-wrap">
-            <button
-              onClick={() => router.push("/admin")}
-              className="text-xs text-slate-400 hover:text-white border border-slate-700 hover:border-slate-500 px-3 py-2 rounded transition-all"
-            >
-              Knowledge Base
-            </button>
-            <button
-              onClick={logout}
-              disabled={isLoggingOut}
-              className="text-xs text-slate-400 hover:text-red-400 border border-slate-700 hover:border-red-800 px-3 py-2 rounded transition-all disabled:opacity-50"
-            >
-              {isLoggingOut ? "Logging out..." : "Logout"}
-            </button>
-          </div>
-        </div>
-      </header>
-
-      <main className="max-w-3xl mx-auto px-4 sm:px-6 py-8 sm:py-10 space-y-8 sm:space-y-10">
-        <AdminStaffForm
-          addStaff={addStaff}
-          email={email}
-          isAdding={addMutation.isPending}
-          name={name}
-          password={password}
-          setEmail={setEmail}
-          setName={setName}
-          setPassword={setPassword}
-        />
-        <AdminStaffList
-          availableCount={availableCount}
-          deletePendingId={deleteMutation.variables?.id}
-          loadingStaff={loadingStaff}
-          onDelete={deleteStaff}
-          onToggle={(id) => toggleMutation.mutate(id)}
-          staff={staff}
-          togglePendingId={togglePendingId}
-        />
-      </main>
+      <AdminStaffManager
+        addStaff={addStaff}
+        availableCount={availableCount}
+        deletePendingId={deleteMutation.variables?.id}
+        email={email}
+        isAdding={addMutation.isPending}
+        loadingStaff={loadingStaff}
+        name={name}
+        onDelete={deleteStaff}
+        onToggle={(id) => toggleMutation.mutate(id)}
+        password={password}
+        setEmail={setEmail}
+        setName={setName}
+        setPassword={setPassword}
+        staff={staff}
+        togglePendingId={togglePendingId}
+      />
     </div>
   );
 }
