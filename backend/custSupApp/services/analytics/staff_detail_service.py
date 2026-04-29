@@ -25,14 +25,15 @@ def get_staff_detail(staff_id):
     # All tickets for stats
     all_tickets = SupportTicket.objects.filter(assigned_to=staff)
 
+    completed_statuses = ["resolved", "closed"]
     stats = all_tickets.aggregate(
         total=Count("id"),
-        resolved=Count("id", filter=models.Q(status="resolved"))
+        resolved=Count("id", filter=models.Q(status__in=completed_statuses))
     )
 
-    # Resolution time (only resolved tickets)
+    # Resolution time includes closed tickets because they have already been resolved.
     resolved_tickets = all_tickets.filter(
-        status="resolved",
+        status__in=completed_statuses,
         resolved_at__isnull=False
     ).annotate(
         resolution_time=ExpressionWrapper(

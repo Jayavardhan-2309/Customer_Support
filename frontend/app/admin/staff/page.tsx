@@ -82,6 +82,9 @@ export default function AdminStaffPage() {
       showToast(`${updated.username} marked as ${updated.is_available ? "available" : "unavailable"}`, "success");
     },
     onError: () => showToast("Failed to update. Try again.", "error"),
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: ["admin-staff"] });
+    },
   });
 
   const deleteMutation = useMutation({
@@ -124,6 +127,7 @@ export default function AdminStaffPage() {
 
   const availableCount = staff.filter((member) => member.is_available).length;
   const orgName = me?.organization_name ?? "";
+  const togglePendingId = toggleMutation.isPending ? toggleMutation.variables : undefined;
 
   return (
     <div className="min-h-screen bg-slate-950 text-white font-mono">
@@ -182,7 +186,7 @@ export default function AdminStaffPage() {
           onDelete={deleteStaff}
           onToggle={(id) => toggleMutation.mutate(id)}
           staff={staff}
-          togglePendingId={toggleMutation.variables}
+          togglePendingId={togglePendingId}
         />
       </main>
     </div>

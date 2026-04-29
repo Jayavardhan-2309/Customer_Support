@@ -113,7 +113,7 @@ class ModelsAndAnalyticsTests(AnalyticsTestBase):
         detail = get_staff_detail(self.staff.id)
         self.assertEqual(detail["staff"]["name"], "staffer")
         self.assertEqual(detail["performance"]["total_tickets"], 5)
-        self.assertEqual(detail["performance"]["resolved_tickets"], 2)
+        self.assertEqual(detail["performance"]["resolved_tickets"], 3)
         self.assertIsNotNone(detail["performance"]["avg_resolution_time"])
         self.assertEqual(detail["feedback"][0]["comment"], "Great support")
     def test_staff_detail_service_returns_none_average_without_resolved_tickets(self):

@@ -4,6 +4,8 @@ from datetime import timedelta
 
 from custSupApp.models import SupportTicket
 
+COMPLETED_STATUSES = ["resolved", "closed"]
+
 def get_ticket_workload_metrics(staff_user):
     tickets= SupportTicket.objects.filter(assigned_to=staff_user)
 
@@ -16,7 +18,7 @@ def get_ticket_workload_metrics(staff_user):
 
 # Resolution performance metrics
 def get_ticket_resolution_metrics(staff_user):
-    tickets= SupportTicket.objects.filter(assigned_to=staff_user, status="resolved")
+    tickets= SupportTicket.objects.filter(assigned_to=staff_user, status__in=COMPLETED_STATUSES)
 
     today= timezone.now().date()
     week_start= today- timedelta(days=7)
@@ -156,7 +158,7 @@ def get_category_resolved(staff_user) -> dict:
     """
     rows = (
         SupportTicket.objects
-        .filter(assigned_to=staff_user, status="resolved")
+        .filter(assigned_to=staff_user, status__in=COMPLETED_STATUSES)
         .values("category")
         .annotate(count=Count("id"))
     )
