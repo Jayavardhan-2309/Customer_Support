@@ -4,6 +4,8 @@ import { createRoot, Root } from "react-dom/client"
 
 import { AnalyticsResponse } from "../app/staff/analytics/types"
 
+(globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true
+
 const pushMock = jest.fn()
 const apiGetMock = jest.fn<() => Promise<{ data: AnalyticsResponse }>>()
 const loggerErrorMock = jest.fn()
@@ -159,6 +161,6 @@ describe("AnalyticsPage", () => {
     })
 
     expect(loggerErrorMock).toHaveBeenCalledWith("Failed to load staff analytics", expect.any(Error))
-    expect(container.textContent).toContain("Loading analytics")
+    expect(container.textContent).toContain("Unable to load analytics.")
   })
 })
