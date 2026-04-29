@@ -2,6 +2,7 @@ from unittest.mock import MagicMock, patch
 
 from django.test import SimpleTestCase
 from rest_framework.exceptions import AuthenticationFailed
+from rest_framework_simplejwt.exceptions import TokenError
 
 from custSupApp.authentication import CookieJWTAuthentication
 
@@ -32,7 +33,7 @@ class CookieJwtAuthenticationTests(SimpleTestCase):
     def test_raises_authentication_failed_for_invalid_token(self):
         self.request.COOKIES.get.return_value = "bad-token"
 
-        with patch.object(self.authentication, "get_validated_token", side_effect=Exception("expired")):
+        with patch.object(self.authentication, "get_validated_token", side_effect=TokenError("expired")):
             with self.assertRaises(AuthenticationFailed) as error:
                 self.authentication.authenticate(self.request)
 
