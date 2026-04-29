@@ -61,6 +61,10 @@ def _call_response_backend(prompt: str) -> str | None:
     return call_groq(prompt) or call_openrouter(prompt) or call_ollama(prompt)
 
 
+def _early_escalation_response(query: str, history: list[dict], escalation_count: int):
+    return handle_escalation(query, escalation_count) or extract_repetition(history, escalation_count)
+
+
 def _parse_ai_json(text: str) -> dict | object | None:
     match = re.search(r"\{.*\}", text, re.DOTALL)
     if not match:
@@ -112,11 +116,7 @@ def is_user_frustrated(message: str) -> bool:
 
 def get_ai_response(query: str, history: list[dict] | None = None, org_id: int | None = None, escalation_count: int = 0):
     history = _get_history(history)
-    result = handle_escalation(query, escalation_count)
-    if result:
-        return result
-
-    result = extract_repetition(history, escalation_count)
+    result = _early_escalation_response(query, history, escalation_count)
     if result:
         return result
 
