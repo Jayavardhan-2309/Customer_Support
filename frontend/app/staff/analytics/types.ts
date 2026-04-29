@@ -61,6 +61,10 @@ export type TrendValueDatum = {
 
 export type TrendChartDatum = TicketTrend | TrendValueDatum
 
+export type MetricSeriesDatum = {
+  date: string
+} & Record<string, number | string>
+
 export type StatCardConfig = {
   key: WorkloadKey
   label: string

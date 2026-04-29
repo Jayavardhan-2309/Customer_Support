@@ -3,14 +3,14 @@ import { AreaMetricChart } from "./charts/AreaMetricChart"
 import { BarMetricChart } from "./charts/BarMetricChart"
 import { DonutChart } from "./charts/DonutChart"
 import { RadarMetricChart } from "./charts/RadarMetricChart"
-import { CategoryChartDatum, CategoryComparisonDatum, ChartDatum, RadarDatum, TrendChartDatum } from "./types"
+import { CategoryChartDatum, CategoryComparisonDatum, ChartDatum, MetricSeriesDatum, RadarDatum } from "./types"
 
 type Props = {
   readonly backlogPressure: ChartDatum[]
   readonly categoryComparison: CategoryComparisonDatum[] | null
   readonly categoryData: CategoryChartDatum[]
-  readonly cumulativeData: TrendChartDatum[]
-  readonly efficiencyData: TrendChartDatum[]
+  readonly cumulativeData: MetricSeriesDatum[]
+  readonly efficiencyData: MetricSeriesDatum[]
   readonly priorityData: ChartDatum[]
   readonly radarData: RadarDatum[] | null
   readonly statusData: ChartDatum[]
