@@ -3,9 +3,7 @@ import logging
 import re
 from typing import Any
 
-import requests
 from dotenv import load_dotenv
-from django.db import connection
 
 from custSupApp.ai_config import (
     ESCALATION_LIMIT_REPLY,
@@ -27,12 +25,12 @@ from custSupApp.ai_escalation import (
     user_wants_escalation,
 )
 from custSupApp.ai_http import call_groq, call_ollama, call_openrouter, post_with_retry
+from custSupApp.ai_knowledge import search_similar_chunks
 from custSupApp.ai_prompts import build_prompt, build_sentiment_prompt
 from custSupApp.ai_ticketing import (
     extract_ticket_structure_with_llm as extract_ticket_structure_with_llm_impl,
     validate_ticket_structure,
 )
-from custSupApp.embeddings import embed_text
 
 load_dotenv()
 logger = logging.getLogger(__name__)
@@ -99,28 +97,6 @@ def _build_response_tuple(data: dict) -> tuple[str, str, float]:
         data.get("reply", ""),
         _safe_float(data.get("confidence", 0.0)),
     )
-
-
-def search_similar_chunks(query: str, org_id: int | None, k: int = 2) -> list[str]:
-    try:
-        query_vector = embed_text(query)
-    except (RuntimeError, ValueError, requests.RequestException) as exc:
-        logger.info("[EMBED ERROR QUERY] %s", exc)
-        return []
-
-    with connection.cursor() as cursor:
-        query_vector_str = "[" + ",".join(map(str, query_vector)) + "]"
-        cursor.execute(
-            """
-            SELECT content
-            FROM kb_chunks
-            WHERE org_id = %s
-            ORDER BY embedding <-> %s::vector
-            LIMIT %s
-            """,
-            [org_id, query_vector_str, k],
-        )
-        return [row[0] for row in cursor.fetchall()]
 
 
 def is_user_frustrated(message: str) -> bool:
