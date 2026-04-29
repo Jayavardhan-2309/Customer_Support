@@ -23,6 +23,7 @@ from .permissions import IsAdmin
 
 logger = logging.getLogger(__name__)
 
+NO_STAFF= "Staff not found"
 
 def _get_supabase_client() -> Any:
     return create_client(required_env("SUPABASE_URL"), required_env("SUPABASE_SERVICE_KEY"))
@@ -153,7 +154,7 @@ class StaffViewSet(ListModelMixin, CreateModelMixin, DestroyModelMixin, GenericV
         try:
             staff = User.objects.get(id=pk, role="staff", organization=request.user.organization)
         except User.DoesNotExist:
-            return Response({"detail": "Staff not found"}, status=404)
+            return Response({"detail": NO_STAFF}, status=404)
         staff.delete()
         return Response({"message": "Staff user removed"})
 
@@ -162,7 +163,7 @@ class StaffViewSet(ListModelMixin, CreateModelMixin, DestroyModelMixin, GenericV
         try:
             staff = User.objects.get(id=pk, role="staff", organization=request.user.organization)
         except User.DoesNotExist:
-            return Response({"detail": "Staff not found"}, status=404)
+            return Response({"detail": NO_STAFF}, status=404)
         staff.is_available = not staff.is_available
         staff.save()
         return Response({
@@ -188,5 +189,5 @@ class AdminStaffDetailView(APIView):
 
     def get(self, request, staff_id):
         if not User.objects.filter(id=staff_id, role="staff", organization=request.user.organization).exists():
-            return Response({"detail": "Staff not found"}, status=404)
+            return Response({"detail": NO_STAFF}, status=404)
         return Response(get_staff_detail(staff_id))
