@@ -3,46 +3,32 @@
 import { useCallback, useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { fetchers } from "@/src/lib/axios"
 import { logger } from "@/logger"
-
-type Ticket = {
-  id: number
-  priority: string
-  status: string
-  category: string | null
-  customer: string
-  message: string
-  description?: string
-}
-
-type StaffTicketsResponse = {
-  results: Ticket[]
-}
-
-type Me = {
-  username: string
-  organization_name?: string
-}
-
-type IncomingTicket = Partial<Ticket> & {
-  id: number
-}
+import { fetchers } from "@/src/lib/axios"
+import { TicketCard } from "./TicketCard"
+import {
+  IncomingTicket,
+  Me,
+  SELECT_CLASS,
+  StaffTicketsResponse,
+  Ticket,
+  filterTickets,
+  normalizeIncomingTicket,
+  sortTicketsByPriority,
+} from "./ticketUtils"
 
 export default function StaffPage() {
   const router = useRouter()
   const queryClient = useQueryClient()
-
-  const [sortPriority, setSortPriority] = useState<string>("default")
-  const [filterCategory, setFilterCategory] = useState<string>("all")
-  const [filterStatus, setFilterStatus] = useState<string>("all")
+  const [sortPriority, setSortPriority] = useState("default")
+  const [filterCategory, setFilterCategory] = useState("all")
+  const [filterStatus, setFilterStatus] = useState("all")
   const [filtersOpen, setFiltersOpen] = useState(false)
 
   const { data: ticketsData } = useQuery({
     queryKey: ["staff-tickets"],
     queryFn: () => fetchers.get<StaffTicketsResponse>("staff/tickets/"),
   })
-
   const { data: me } = useQuery({
     queryKey: ["me"],
     queryFn: () => fetchers.get<Me>("me/"),
@@ -54,20 +40,9 @@ export default function StaffPage() {
     onError: (err) => logger.error("Logout failed", err),
   })
 
-  const normalizeIncomingTicket = useCallback((incoming: IncomingTicket): Ticket => ({
-    id: incoming.id,
-    priority: (incoming.priority ?? "normal").toLowerCase(),
-    status: (incoming.status ?? "open").toLowerCase(),
-    category: incoming.category ?? null,
-    customer: incoming.customer ?? "Unknown",
-    message: incoming.message ?? "",
-    description: incoming.description ?? "",
-  }), [])
-
   const updateTicketCache = useCallback((normalized: Ticket) => {
     queryClient.setQueryData<StaffTicketsResponse>(["staff-tickets"], (oldData) => {
       if (!oldData) return { results: [normalized] }
-
       const exists = oldData.results.find((ticket) => ticket.id === normalized.id)
       if (exists) {
         return {
@@ -77,62 +52,26 @@ export default function StaffPage() {
           )),
         }
       }
-
-      return {
-        ...oldData,
-        results: [normalized, ...oldData.results],
-      }
+      return { ...oldData, results: [normalized, ...oldData.results] }
     })
   }, [queryClient])
 
   useEffect(() => {
     const socket = new WebSocket("wss://customer-support-2.onrender.com/ws/tickets/")
-
     socket.onmessage = (event) => {
       const incoming = JSON.parse(event.data) as IncomingTicket
-      const normalized = normalizeIncomingTicket(incoming)
-      updateTicketCache(normalized)
+      updateTicketCache(normalizeIncomingTicket(incoming))
     }
-
-    socket.onerror = (err) => {
-      logger.error("WebSocket error", err)
-    }
-
-    socket.onclose = () => {
-      logger.info("WebSocket disconnected")
-    }
-
+    socket.onerror = (err) => logger.error("WebSocket error", err)
+    socket.onclose = () => logger.info("WebSocket disconnected")
     return () => socket.close()
-  }, [queryClient, normalizeIncomingTicket, updateTicketCache])
+  }, [queryClient, updateTicketCache])
 
   const tickets = ticketsData?.results ?? []
   const staffName = me?.username ?? ""
   const orgName = me?.organization_name ?? ""
-
-  const priorityOrder: Record<string, Record<string, number>> = {
-    high: { high: 0, normal: 1, low: 2 },
-    normal: { normal: 0, high: 1, low: 2 },
-    low: { low: 0, normal: 1, high: 2 },
-  }
-
-  const filteredTickets = tickets
-    .filter((ticket) => filterCategory === "all" || ticket.category?.toLowerCase() === filterCategory)
-    .filter((ticket) => filterStatus === "all" || ticket.status.toLowerCase() === filterStatus)
-
-  const sortedTickets = [...filteredTickets].sort((a, b) => {
-    if (sortPriority === "default") return 0
-    const order = priorityOrder[sortPriority]
-    return (order[a.priority.toLowerCase()] ?? 99) - (order[b.priority.toLowerCase()] ?? 99)
-  })
-
-  const priorityBadge = (priority: string) => {
-    if (priority === "high" || priority === "High") return "bg-red-900/40 text-red-400 border-red-700"
-    if (priority === "normal") return "bg-orange-900/40 text-orange-400 border-orange-700"
-    return "bg-slate-800 text-slate-400 border-slate-700"
-  }
-
-  const selectClass =
-    "w-full px-3 py-2 rounded-md border border-slate-700 text-sm cursor-pointer bg-slate-900 text-slate-300 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+  const filteredTickets = filterTickets(tickets, filterCategory, filterStatus)
+  const sortedTickets = sortTicketsByPriority(filteredTickets, sortPriority)
 
   return (
     <div className="min-h-screen bg-slate-950 text-white">
@@ -147,11 +86,7 @@ export default function StaffPage() {
                 </span>
               )}
             </div>
-            {staffName && (
-              <p className="text-xs sm:text-sm text-slate-400">
-                Welcome, <b className="text-white">{staffName}</b>
-              </p>
-            )}
+            {staffName && <p className="text-xs sm:text-sm text-slate-400">Welcome, <b className="text-white">{staffName}</b></p>}
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -175,21 +110,20 @@ export default function StaffPage() {
         <div className="mb-5">
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-base sm:text-lg font-semibold text-white">
-              Assigned Tickets{' '}
-              <span className="ml-2 text-xs font-normal text-slate-500">({sortedTickets.length})</span>
+              Assigned Tickets <span className="ml-2 text-xs font-normal text-slate-500">({sortedTickets.length})</span>
             </h2>
             <button
               onClick={() => setFiltersOpen(!filtersOpen)}
               className="sm:hidden px-3 py-1.5 text-xs border border-slate-700 rounded-md bg-slate-900 text-slate-400"
             >
-              {filtersOpen ? "Hide Filters" : "Filters ▾"}
+              {filtersOpen ? "Hide Filters" : "Filters"}
             </button>
           </div>
 
           <div className={`${filtersOpen ? "flex" : "hidden"} sm:flex flex-col sm:flex-row gap-3 sm:items-center sm:flex-wrap bg-slate-900 sm:bg-transparent p-3 sm:p-0 rounded-lg border sm:border-0 border-slate-800`}>
             <div className="flex flex-col sm:flex-row sm:items-center gap-1.5">
               <label htmlFor="ticket-category" className="text-xs text-slate-400 whitespace-nowrap">Category:</label>
-              <select id="ticket-category" value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)} className={selectClass}>
+              <select id="ticket-category" value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)} className={SELECT_CLASS}>
                 <option value="all">All</option>
                 <option value="authentication">Authentication</option>
                 <option value="billing">Billing</option>
@@ -200,7 +134,7 @@ export default function StaffPage() {
             <div className="hidden sm:block w-px h-5 bg-slate-700" />
             <div className="flex flex-col sm:flex-row sm:items-center gap-1.5">
               <label htmlFor="ticket-status" className="text-xs text-slate-400 whitespace-nowrap">Status:</label>
-              <select id="ticket-status" value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className={selectClass}>
+              <select id="ticket-status" value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className={SELECT_CLASS}>
                 <option value="all">All</option>
                 <option value="open">Open</option>
                 <option value="in_progress">In Progress</option>
@@ -209,7 +143,7 @@ export default function StaffPage() {
             <div className="hidden sm:block w-px h-5 bg-slate-700" />
             <div className="flex flex-col sm:flex-row sm:items-center gap-1.5">
               <label htmlFor="ticket-priority" className="text-xs text-slate-400 whitespace-nowrap">Sort by Priority:</label>
-              <select id="ticket-priority" value={sortPriority} onChange={(e) => setSortPriority(e.target.value)} className={selectClass}>
+              <select id="ticket-priority" value={sortPriority} onChange={(e) => setSortPriority(e.target.value)} className={SELECT_CLASS}>
                 <option value="default">Default</option>
                 <option value="high">High first</option>
                 <option value="normal">Normal first</option>
@@ -224,7 +158,6 @@ export default function StaffPage() {
             No tickets assigned yet
           </div>
         )}
-
         {sortedTickets.length === 0 && tickets.length > 0 && (
           <div className="text-center py-16 text-slate-500 text-sm border border-dashed border-slate-800 rounded-xl bg-slate-900">
             No tickets match the selected filters
@@ -233,40 +166,7 @@ export default function StaffPage() {
 
         <div className="flex flex-col gap-3">
           {sortedTickets.map((ticket) => (
-            <div
-              key={ticket.id}
-              className="bg-slate-900 border border-slate-800 rounded-xl px-4 sm:px-5 py-4 hover:border-slate-600 transition"
-            >
-              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
-                <div className="space-y-1 text-sm text-slate-300 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-semibold text-slate-500 text-xs">#{ticket.id}</span>
-                    <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${priorityBadge(ticket.priority)}`}>
-                      {ticket.priority}
-                    </span>
-                    <span className="text-xs px-2 py-0.5 rounded-full border border-slate-700 bg-slate-800 text-slate-400">
-                      {ticket.status}
-                    </span>
-                    {ticket.category && (
-                      <span className="text-xs px-2 py-0.5 rounded-full border border-indigo-800 bg-indigo-900/30 text-indigo-400">
-                        {ticket.category}
-                      </span>
-                    )}
-                  </div>
-                  <p className="font-medium text-white">{ticket.customer}</p>
-                  <p className="text-slate-400 text-sm line-clamp-2">{ticket.message}</p>
-                  {ticket.description && (
-                    <p className="text-slate-500 text-xs line-clamp-1">{ticket.description}</p>
-                  )}
-                </div>
-                <button
-                  onClick={() => router.push(`/staff/ticket/${ticket.id}`)}
-                  className="self-start sm:self-center px-4 py-2 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700 transition font-medium"
-                >
-                  Open →
-                </button>
-              </div>
-            </div>
+            <TicketCard key={ticket.id} onOpen={(ticketId) => router.push(`/staff/ticket/${ticketId}`)} ticket={ticket} />
           ))}
         </div>
       </div>

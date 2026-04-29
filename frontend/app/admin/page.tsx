@@ -1,270 +1,200 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { PDF } from "@/types/customTypes";
-
+import { safeFetch } from "@/src/lib/safeFetch";
+import { AdminPdfList } from "./AdminPdfList";
+import { AdminPdfUpload } from "./AdminPdfUpload";
 
 export default function AdminPage() {
-    const router = useRouter();
-    const fileInputRef = useRef<HTMLInputElement>(null);
+  const router = useRouter();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [checkingAuth, setCheckingAuth] = useState(true);
+  const [pdfs, setPdfs] = useState<PDF[]>([]);
+  const [loadingPdfs, setLoadingPdfs] = useState(true);
+  const [uploading, setUploading] = useState(false);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [dragOver, setDragOver] = useState(false);
+  const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [orgName, setOrgName] = useState("");
 
-    const [checkingAuth, setCheckingAuth] = useState(true);
-    const [pdfs, setPdfs] = useState<PDF[]>([]);
-    const [loadingPdfs, setLoadingPdfs] = useState(true);
-    const [uploading, setUploading] = useState(false);
-    const [deletingId, setDeletingId] = useState<number | null>(null);
-    const [dragOver, setDragOver] = useState(false);
-    const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
-    const [isLoggingOut, setIsLoggingOut] = useState(false);
-    const [orgName, setOrgName] = useState("");
-
-    const showToast = (message: string, type: "success" | "error") => {
-        setToast({ message, type });
-        setTimeout(() => setToast(null), 3000);
-    };
-
-    useEffect(() => {
-        fetch("/api/me", { credentials: "include" }).then(async (res) => {
-            if (!res.ok) { router.replace("/login"); return; }
-            const data = await res.json();
-            if (data.role !== "admin") { router.replace("/support"); return; }
-            setOrgName(data.organization_name || "");
-            setCheckingAuth(false);
-        });
-    }, [router]);
-
-    const fetchPdfs = useCallback(async () => {
-        setLoadingPdfs(true);
-        try {
-            const res = await fetch("/api/admin/pdfs", { credentials: "include" });
-            if (res.ok) setPdfs(await res.json());
-        } catch {
-            showToast("Failed to load PDFs", "error");
-        } finally {
-            setLoadingPdfs(false);
-        }
-    }, []);
-
-    useEffect(() => {
-        if (!checkingAuth) fetchPdfs();
-    }, [checkingAuth, fetchPdfs]);
-
-
-    const uploadFile = async (file: File) => {
-        if (!file.name.endsWith(".pdf")) { showToast("Only PDF files are allowed", "error"); return; }
-        if (file.size > 10 * 1024 * 1024) { showToast("File too large. Max size is 10MB", "error"); return; }
-
-        setUploading(true);
-        const formData = new FormData();
-        formData.append("file", file);
-
-        try {
-            const res = await fetch("/api/admin/pdfs/upload", { method: "POST", body: formData, credentials: "include" });
-            const data = await res.json();
-            if (res.ok) { showToast("PDF uploaded! Re-indexing knowledge base...", "success"); await fetchPdfs(); }
-            else showToast(data.detail ?? "Upload failed", "error");
-        } catch {
-            showToast("Upload failed. Try again.", "error");
-        } finally {
-            setUploading(false);
-            if (fileInputRef.current) fileInputRef.current.value = "";
-        }
-    };
-
-    const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (file) uploadFile(file);
-    };
-
-    const handleDrop = (e: React.DragEvent) => {
-        e.preventDefault();
-        setDragOver(false);
-        const file = e.dataTransfer.files?.[0];
-        if (file) uploadFile(file);
-    };
-
-    const deletePdf = async (id: number, title: string) => {
-        if (!confirm(`Delete "${title}"? This will remove it from the knowledge base.`)) return;
-        setDeletingId(id);
-        try {
-            const res = await fetch(`/api/admin/pdfs/${id}`, { method: "DELETE", credentials: "include" });
-            if (res.ok) { showToast("PDF deleted. Re-indexing knowledge base...", "success"); setPdfs((prev) => prev.filter((p) => p.id !== id)); }
-            else { const data = await res.json(); showToast(data.detail ?? "Delete failed", "error"); }
-        } catch {
-            showToast("Delete failed. Try again.", "error");
-        } finally {
-            setDeletingId(null);
-        }
-    };
-
-    const logout = async () => {
-        setIsLoggingOut(true);
-        await fetch("/api/logout", { method: "POST" });
-        router.push("/login");
-    };
-
-    const formatDate = (iso: string) =>
-        new Date(iso).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
-
-    let pdfListContent;
-    if (loadingPdfs) {
-        pdfListContent = (
-            <div className="space-y-3">
-                {[1, 2, 3].map((i) => <div key={i} className="h-16 bg-slate-800/50 rounded-lg animate-pulse" />)}
-            </div>
-        );
-    } else if (pdfs.length === 0) {
-        pdfListContent = (
-            <div className="text-center py-12 text-slate-600 text-sm border border-slate-800 rounded-xl">
-                No PDFs uploaded yet. Upload one above to expand the knowledge base.
-            </div>
-        );
-    } else {
-        pdfListContent = (
-            <div className="space-y-2">
-                {pdfs.map((pdf) => (
-                    <div key={pdf.id} className="flex items-start sm:items-center justify-between bg-slate-900 border border-slate-800 rounded-lg px-4 sm:px-5 py-4 hover:border-slate-700 transition-all gap-3">
-                        <div className="flex items-start sm:items-center gap-3 sm:gap-4 min-w-0">
-                            <span className="text-xl shrink-0 mt-0.5 sm:mt-0">📑</span>
-                            <div className="min-w-0">
-                                <p className="text-sm text-white truncate font-medium">{pdf.title}</p>
-                                <p className="text-xs text-slate-500 mt-0.5 wrap-break-word">
-                                    {pdf.size_kb} KB · {formatDate(pdf.uploaded_at)} · by {pdf.uploaded_by}
-                                </p>
-                            </div>
-                        </div>
-                        <button
-                            onClick={() => deletePdf(pdf.id, pdf.title)}
-                            disabled={deletingId === pdf.id}
-                            className="shrink-0 text-xs text-slate-600 hover:text-red-400 border border-transparent hover:border-red-900 px-3 py-1.5 rounded transition-all disabled:opacity-40"
-                        >
-                            {deletingId === pdf.id ? "Deleting..." : "Delete"}
-                        </button>
-                    </div>
-                ))}
-            </div>
-        );
+  const showToast = useCallback((message: string, type: "success" | "error") => {
+    if (toastTimeoutRef.current) {
+      clearTimeout(toastTimeoutRef.current);
     }
+    setToast({ message, type });
+    toastTimeoutRef.current = setTimeout(() => setToast(null), 3000);
+  }, []);
 
+  useEffect(() => {
+    const controller = new AbortController();
+    void safeFetch("/api/me", { credentials: "include", signal: controller.signal }).then(async (res) => {
+      if (controller.signal.aborted) {
+        return;
+      }
+      if (!res.ok) {
+        router.replace("/login");
+        return;
+      }
+      const data = await res.json();
+      if (data.role !== "admin") {
+        router.replace("/support");
+        return;
+      }
+      setOrgName(data.organization_name || "");
+      setCheckingAuth(false);
+    });
+
+    return () => {
+      controller.abort();
+      if (toastTimeoutRef.current) {
+        clearTimeout(toastTimeoutRef.current);
+      }
+    };
+  }, [router]);
+
+  const fetchPdfs = useCallback(async (signal?: AbortSignal) => {
+    setLoadingPdfs(true);
+    try {
+      const res = await safeFetch("/api/admin/pdfs", { credentials: "include", signal });
+      if (signal?.aborted) {
+        return;
+      }
+      if (res.ok) {
+        setPdfs(await res.json());
+      }
+    } catch {
+      if (signal?.aborted) {
+        return;
+      }
+      showToast("Failed to load PDFs", "error");
+    } finally {
+      if (!signal?.aborted) {
+        setLoadingPdfs(false);
+      }
+    }
+  }, [showToast]);
+
+  useEffect(() => {
     if (checkingAuth) {
-        return (
-            <div className="h-screen flex items-center justify-center text-white animate-pulse">
-                Checking authentication...
-            </div>
-        );
+      return undefined;
+    }
+    const controller = new AbortController();
+    void fetchPdfs(controller.signal);
+    return () => controller.abort();
+  }, [checkingAuth, fetchPdfs]);
+
+  const uploadFile = async (file: File) => {
+    if (!file.name.endsWith(".pdf")) {
+      showToast("Only PDF files are allowed", "error");
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      showToast("File too large. Max size is 10MB", "error");
+      return;
     }
 
-    return (
-        <div className="min-h-screen bg-slate-950 text-white font-mono">
+    setUploading(true);
+    const formData = new FormData();
+    formData.append("file", file);
+    try {
+      const res = await safeFetch("/api/admin/pdfs/upload", { method: "POST", body: formData, credentials: "include" });
+      const data = await res.json();
+      if (res.ok) {
+        showToast("PDF uploaded! Re-indexing knowledge base...", "success");
+        await fetchPdfs();
+      } else {
+        showToast(data.detail ?? "Upload failed", "error");
+      }
+    } catch {
+      showToast("Upload failed. Try again.", "error");
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
 
-            {/* Toast */}
-            {toast && (
-                <div className={`fixed top-4 right-4 left-4 sm:left-auto z-50 px-5 py-3 rounded-lg text-sm shadow-lg transition-all
-                    ${toast.type === "success" ? "bg-emerald-500 text-white" : "bg-red-500 text-white"}`}>
-                    {toast.message}
-                </div>
-            )}
+  const deletePdf = async (id: number, title: string) => {
+    if (!confirm(`Delete "${title}"? This will remove it from the knowledge base.`)) return;
+    setDeletingId(id);
+    try {
+      const res = await safeFetch(`/api/admin/pdfs/${id}`, { method: "DELETE", credentials: "include" });
+      if (res.ok) {
+        showToast("PDF deleted. Re-indexing knowledge base...", "success");
+        setPdfs((prev) => prev.filter((pdf) => pdf.id !== id));
+      } else {
+        const data = await res.json();
+        showToast(data.detail ?? "Delete failed", "error");
+      }
+    } catch {
+      showToast("Delete failed. Try again.", "error");
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
-            {/* Header */}
-            <header className="border-b border-slate-800 px-4 sm:px-8 py-4 sm:py-5">
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0">
-                    <div className="flex flex-col gap-1">
-    
-                        <div className="flex items-center flex-wrap gap-2">
-                            <h1 className="text-lg sm:text-xl font-bold tracking-tight text-white">
-                                Knowledge Base
-                            </h1>
+  const logout = async () => {
+    setIsLoggingOut(true);
+    await safeFetch("/api/logout", { method: "POST" });
+    router.push("/login");
+  };
 
-                            {orgName && (
-                                <span className="text-[10px] sm:text-xs px-2 py-0.5 rounded-md bg-indigo-900/40 text-indigo-400 border border-indigo-800/40">
-                                    {orgName}
-                                </span>
-                            )}
-                        </div>
+  const formatDate = (iso: string) =>
+    new Date(iso).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
 
-                        <p className="text-slate-400 text-xs">
-                            Admin · Context Management
-                        </p>
+  if (checkingAuth) {
+    return <div className="h-screen flex items-center justify-center text-white animate-pulse">Checking authentication...</div>;
+  }
 
-                    </div>
-                    <div className="flex items-center gap-2 flex-wrap">
-                        <button
-                            onClick={() => router.push("/admin/staff")}
-                            className="text-xs text-slate-400 hover:text-white border border-slate-700 hover:border-slate-500 px-3 py-2 rounded transition-all"
-                        >
-                            Staff →
-                        </button>
-                        <button
-                            onClick={() => router.push("/admin/analytics")}
-                            className="text-xs text-slate-400 hover:text-white border border-slate-700 hover:border-slate-500 px-3 py-2 rounded transition-all"
-                        >
-                            Analytics →
-                        </button>
-                        <button
-                            onClick={logout}
-                            disabled={isLoggingOut}
-                            className="text-xs text-slate-400 hover:text-red-400 border border-slate-700 hover:border-red-800 px-3 py-2 rounded transition-all disabled:opacity-50"
-                        >
-                            {isLoggingOut ? "Logging out..." : "Logout"}
-                        </button>
-                    </div>
-                </div>
-            </header>
-
-            <main className="max-w-3xl mx-auto px-4 sm:px-6 py-8 sm:py-10 space-y-8 sm:space-y-10">
-
-                {/* Upload Zone */}
-                <section>
-                    <h2 className="text-xs uppercase tracking-widest text-slate-500 mb-4">Upload PDF</h2>
-                    <button
-                        type="button"
-                        onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
-                        onDragLeave={() => setDragOver(false)}
-                        onDrop={handleDrop}
-                        onClick={() => !uploading && fileInputRef.current?.click()}
-                        className={`relative border-2 border-dashed rounded-xl p-8 sm:p-12 text-center cursor-pointer transition-all
-                            ${dragOver ? "border-emerald-400 bg-emerald-950/30" : "border-slate-700 hover:border-slate-500 bg-slate-900/50"}
-                            ${uploading ? "pointer-events-none opacity-60" : ""}`}
-                    >
-                        <input ref={fileInputRef} type="file" accept=".pdf" onChange={handleFileInput} className="hidden" />
-                        {uploading ? (
-                            <div className="space-y-3">
-                                <div className="w-8 h-8 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin mx-auto" />
-                                <p className="text-slate-400 text-sm">Uploading and indexing...</p>
-                            </div>
-                        ) : (
-                            <div className="space-y-3">
-                                <div className="text-4xl">📄</div>
-                                <p className="text-slate-300 text-sm">
-                                    Drop a PDF here or <span className="text-emerald-400 underline">click to browse</span>
-                                </p>
-                                <p className="text-slate-600 text-xs">PDF only · Max 10MB</p>
-                            </div>
-                        )}
-                    </button>
-                </section>
-
-                {/* PDF List */}
-                <section>
-                    <div className="flex items-center justify-between mb-4">
-                        <h2 className="text-xs uppercase tracking-widest text-slate-500">Uploaded PDFs</h2>
-                        <span className="text-xs text-slate-600">{pdfs.length} {pdfs.length === 1 ? "file" : "files"}</span>
-                    </div>
-
-                    {pdfListContent}
-                </section>
-
-                {/* Info box */}
-                <section className="bg-slate-900 border border-slate-800 rounded-xl px-4 sm:px-6 py-5 text-xs text-slate-500 space-y-1.5">
-                    <p className="text-slate-400 font-semibold text-sm mb-2">How it works</p>
-                    <p>• Uploaded PDFs are used to form the AI&apos;s context.</p>
-                    <p>• After each upload or delete, the knowledge base is automatically re-indexed in the background.</p>
-                    <p>• Re-indexing takes 10–30 seconds. New context is available on the next user query after that.</p>
-                    <p>• Max file size is 10MB per PDF. Only text-based PDFs are supported (not scanned images).</p>
-                </section>
-
-            </main>
+  return (
+    <div className="min-h-screen bg-slate-950 text-white font-mono">
+      {toast && (
+        <div className={`fixed top-4 right-4 left-4 sm:left-auto z-50 px-5 py-3 rounded-lg text-sm shadow-lg transition-all ${toast.type === "success" ? "bg-emerald-500 text-white" : "bg-red-500 text-white"}`}>
+          {toast.message}
         </div>
-    );
+      )}
+
+      <header className="border-b border-slate-800 px-4 sm:px-8 py-4 sm:py-5">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0">
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center flex-wrap gap-2">
+              <h1 className="text-lg sm:text-xl font-bold tracking-tight text-white">Knowledge Base</h1>
+              {orgName && <span className="text-[10px] sm:text-xs px-2 py-0.5 rounded-md bg-indigo-900/40 text-indigo-400 border border-indigo-800/40">{orgName}</span>}
+            </div>
+            <p className="text-slate-400 text-xs">Admin Context Management</p>
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <button onClick={() => router.push("/admin/staff")} className="text-xs text-slate-400 hover:text-white border border-slate-700 hover:border-slate-500 px-3 py-2 rounded transition-all">Staff</button>
+            <button onClick={() => router.push("/admin/analytics")} className="text-xs text-slate-400 hover:text-white border border-slate-700 hover:border-slate-500 px-3 py-2 rounded transition-all">Analytics</button>
+            <button onClick={logout} disabled={isLoggingOut} className="text-xs text-slate-400 hover:text-red-400 border border-slate-700 hover:border-red-800 px-3 py-2 rounded transition-all disabled:opacity-50">
+              {isLoggingOut ? "Logging out..." : "Logout"}
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <main className="max-w-3xl mx-auto px-4 sm:px-6 py-8 sm:py-10 space-y-8 sm:space-y-10">
+        <AdminPdfUpload
+          dragOver={dragOver}
+          fileInputRef={fileInputRef}
+          handleDrop={(event) => {
+            event.preventDefault();
+            setDragOver(false);
+            const file = event.dataTransfer.files?.[0];
+            if (file) uploadFile(file);
+          }}
+          handleFileInput={(event) => {
+            const file = event.target.files?.[0];
+            if (file) uploadFile(file);
+          }}
+          setDragOver={setDragOver}
+          uploading={uploading}
+        />
+        <AdminPdfList deletingId={deletingId} deletePdf={deletePdf} formatDate={formatDate} loadingPdfs={loadingPdfs} pdfs={pdfs} />
+      </main>
+    </div>
+  );
 }

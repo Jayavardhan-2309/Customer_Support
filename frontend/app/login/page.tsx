@@ -1,5 +1,7 @@
 "use client";
 
+import { safeFetch } from "@/src/lib/safeFetch";
+
 import { useState, type SyntheticEvent } from "react";
 import { useRouter } from "next/navigation";
 import { logger } from "@/logger";
@@ -19,7 +21,7 @@ export default function LoginPage() {
         setLoading(true);
 
         try {
-            const res = await fetch("/api/login", {
+            const res = await safeFetch("/api/login", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ username, password }),

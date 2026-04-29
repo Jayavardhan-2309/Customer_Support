@@ -1,5 +1,7 @@
 "use client";
 
+import { safeFetch } from "@/src/lib/safeFetch";
+
 import { useEffect, useState } from "react";
 import api from "@/src/lib/axios";
 import { useParams, useRouter } from "next/navigation";
@@ -26,7 +28,7 @@ export default function StaffAnalyticsDetailPage() {
 
   const logout = async () => {
     setLoggingOut(true);
-    await fetch("/api/logout", { method: "POST" });
+    await safeFetch("/api/logout", { method: "POST" });
     router.push("/login");
   };
 

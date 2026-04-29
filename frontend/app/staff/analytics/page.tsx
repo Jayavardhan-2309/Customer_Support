@@ -1,9 +1,9 @@
 "use client"
-
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import api from "@/src/lib/axios"
 import { logger } from "@/logger"
+import { AnalyticsLoading } from "./AnalyticsLoading"
 import { PERFORMANCE_CARDS, STAT_CARDS, deriveMetrics, formatPerformanceValue, getCategoryData, getPriorityData, getStatusData, getTrendState } from "./analyticsData"
 import { Card } from "./Card"
 import { FilterSelect } from "./FilterSelect"
@@ -14,50 +14,35 @@ import { BarMetricChart } from "./charts/BarMetricChart"
 import { DonutChart } from "./charts/DonutChart"
 import { RadarMetricChart } from "./charts/RadarMetricChart"
 import { TrendLineChart } from "./charts/TrendLineChart"
+import { RANGE_OPTIONS, STATUS_OPTIONS } from "./filterOptions"
 import { AnalyticsResponse, StatusFilter } from "./types"
-
-const STATUS_OPTIONS = [
-  { label: "All tickets", value: "all" },
-  { label: "Open", value: "open" },
-  { label: "In progress", value: "in_progress" },
-  { label: "Resolved", value: "resolved" },
-] as const
-
-const RANGE_OPTIONS = [
-  { label: "Last 7 days", value: 7 },
-  { label: "Last 3 days", value: 3 },
-] as const
-
 export default function AnalyticsPage() {
   const [analytics, setAnalytics] = useState<AnalyticsResponse | null>(null)
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all")
   const [daysFilter, setDaysFilter] = useState(7)
   const router = useRouter()
-
   useEffect(() => {
+    const controller = new AbortController()
     const loadAnalytics = async () => {
       try {
-        const response = await api.get<AnalyticsResponse>("staff/analytics/")
+        const response = await api.get<AnalyticsResponse>("staff/analytics/", { signal: controller.signal })
+        if (controller.signal.aborted) {
+          return
+        }
         setAnalytics(response.data)
       } catch (error) {
+        if (controller.signal.aborted) {
+          return
+        }
         logger.error("Failed to load staff analytics", error)
       }
     }
-
     void loadAnalytics()
+    return () => controller.abort()
   }, [])
-
   if (!analytics) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-[radial-gradient(circle_at_top,#164e63_0%,#020617_44%,#020617_100%)] px-6">
-        <div className="flex flex-col items-center gap-4 rounded-[28px] border border-white/10 bg-slate-950/70 px-10 py-8 backdrop-blur">
-          <div className="h-12 w-12 rounded-full border-4 border-cyan-400 border-t-transparent animate-spin" />
-          <p className="text-xs uppercase tracking-[0.32em] text-slate-400">Loading analytics</p>
-        </div>
-      </div>
-    )
+    return <AnalyticsLoading />
   }
-
   const statusData = getStatusData(analytics.workload)
   const priorityData = getPriorityData(analytics.priority_distribution)
   const categoryData = getCategoryData(analytics.category_distribution)
@@ -65,8 +50,12 @@ export default function AnalyticsPage() {
   const trendState = getTrendState(analytics.ticket_trends, statusFilter, daysFilter)
   const handleBackClick = () => router.push("/staff")
   const handleStatusFilterChange = (value: string) => setStatusFilter(value as StatusFilter)
-  const handleRangeFilterChange = (value: string) => setDaysFilter(Number(value))
-
+  const handleRangeFilterChange = (value: string) => {
+    const selectedDays = Number(value)
+    if (Number.isFinite(selectedDays)) {
+      setDaysFilter(selectedDays)
+    }
+  }
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,#0f766e_0%,#082f49_24%,#020617_62%,#020617_100%)] text-slate-100">
       <header className="sticky top-0 z-20 border-b border-white/10 bg-slate-950/70 backdrop-blur-xl">
@@ -88,7 +77,6 @@ export default function AnalyticsPage() {
           </button>
         </div>
       </header>
-
       <main className="mx-auto max-w-7xl space-y-8 px-4 py-6 sm:px-6 sm:py-8 lg:space-y-10 lg:px-8 lg:py-10">
         <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {STAT_CARDS.map((card) => (
@@ -102,7 +90,6 @@ export default function AnalyticsPage() {
             />
           ))}
         </section>
-
         <section className="grid grid-cols-1 gap-4 xl:grid-cols-4">
           {PERFORMANCE_CARDS.map((card) => (
             <MetricCard
@@ -135,7 +122,6 @@ export default function AnalyticsPage() {
             </div>
           </Card>
         </section>
-
         <section className="grid grid-cols-1 gap-6 xl:grid-cols-3">
           <Card title="Status split" subtitle="Open, in progress, and resolved ticket mix">
             <DonutChart data={statusData} emptyMessage="Status data is not available yet" />
@@ -147,7 +133,6 @@ export default function AnalyticsPage() {
             <DonutChart data={categoryData} emptyMessage="Category data is not available yet" />
           </Card>
         </section>
-
         <section className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           <Card title="Backlog pressure" subtitle="Active tickets versus resolved tickets">
             <DonutChart data={backlogPressure} emptyMessage="Backlog comparison is not available yet" />
@@ -156,7 +141,6 @@ export default function AnalyticsPage() {
             <RadarMetricChart data={radarData} />
           </Card>
         </section>
-
         <section className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           <Card title="Category volume" subtitle="Ticket count by category">
             <BarMetricChart
@@ -176,7 +160,6 @@ export default function AnalyticsPage() {
             />
           </Card>
         </section>
-
         <section className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           <Card title="Daily efficiency" subtitle="Resolved percentage against created tickets over the last 14 days">
             <AreaMetricChart
@@ -196,7 +179,6 @@ export default function AnalyticsPage() {
             />
           </Card>
         </section>
-
         <section className="rounded-[30px] border border-white/10 bg-slate-950/70 p-4 shadow-[0_24px_80px_-48px_rgba(34,211,238,0.4)] backdrop-blur sm:p-6">
           <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>

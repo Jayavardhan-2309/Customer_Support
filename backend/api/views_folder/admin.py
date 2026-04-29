@@ -1,5 +1,5 @@
 import logging
-import os
+from typing import Any
 
 from django.db import connection
 from rest_framework.decorators import action
@@ -13,6 +13,7 @@ from supabase import create_client
 from api.pagination import StaffCursorPagination
 from api.serializers import StaffSerializer
 from custSupApp.authentication import CookieJWTAuthentication
+from custSupApp.config import ConfigurationError, required_env
 from custSupApp.models import UploadedPDF, User
 from custSupApp.services.analytics.admin_analytics import get_admin_analytics
 from custSupApp.services.analytics.staff_detail_service import get_staff_detail
@@ -21,6 +22,10 @@ from custSupApp.tasks import index_pdf
 from .permissions import IsAdmin
 
 logger = logging.getLogger(__name__)
+
+
+def _get_supabase_client() -> Any:
+    return create_client(required_env("SUPABASE_URL"), required_env("SUPABASE_SERVICE_KEY"))
 
 
 class PDFViewSet(ListModelMixin, DestroyModelMixin, GenericViewSet):
@@ -53,10 +58,16 @@ class PDFViewSet(ListModelMixin, DestroyModelMixin, GenericViewSet):
         if file.size > 10 * 1024 * 1024:
             return Response({"detail": "File too large. Max size is 10MB"}, status=400)
 
-        supabase = create_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_SERVICE_KEY"])
+        try:
+            supabase = _get_supabase_client()
+            supabase_url = required_env("SUPABASE_URL")
+        except ConfigurationError as exc:
+            logger.error("PDF upload configuration error: %s", exc)
+            return Response({"detail": "PDF storage is not configured"}, status=503)
+
         file_name = f"{request.user.id}_{file.name}"
         supabase.storage.from_("pdfs").upload(file_name, file.read())
-        file_url = f"{os.environ['SUPABASE_URL']}/storage/v1/object/public/pdfs/{file_name}"
+        file_url = f"{supabase_url}/storage/v1/object/public/pdfs/{file_name}"
 
         pdf = UploadedPDF.objects.create(
             title=file.name,
@@ -80,10 +91,15 @@ class PDFViewSet(ListModelMixin, DestroyModelMixin, GenericViewSet):
         except UploadedPDF.DoesNotExist:
             return Response({"detail": "PDF not found"}, status=404)
 
-        supabase = create_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_SERVICE_KEY"])
+        try:
+            supabase = _get_supabase_client()
+        except ConfigurationError as exc:
+            logger.error("PDF delete configuration error: %s", exc)
+            return Response({"detail": "PDF storage is not configured"}, status=503)
+
         try:
             supabase.storage.from_("pdfs").remove([pdf.file_url.split("/")[-1]])
-        except Exception as exc:
+        except (RuntimeError, ValueError) as exc:
             logger.error("[DELETE ERROR] %s", exc)
 
         with connection.cursor() as cursor:

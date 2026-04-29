@@ -1,3 +1,4 @@
+import { safeFetch } from "@/app/api/_lib/safeFetch";
 import { NextRequest, NextResponse } from "next/server";
 import { logger } from "@/logger";
 
@@ -7,14 +8,9 @@ export async function GET(req: NextRequest) {
   const cookies = req.headers.get("cookie") ?? "";
 
   try {
-    logger.info("pdfs baseUrl:", baseUrl);
-    logger.info("pdfs cookies:", cookies);
-
-    const djangoRes = await fetch(`${baseUrl}/api/v1/admin/pdfs/`, {
+    const djangoRes = await safeFetch(`${baseUrl}/api/v1/admin/pdfs/`, {
       headers: { "Cookie": cookies },
     });
-
-    logger.info("django pdfs status:", djangoRes.status);
 
     if (!djangoRes.ok) {
       const data = await djangoRes.json();
@@ -27,7 +23,7 @@ export async function GET(req: NextRequest) {
   } catch (err) {
     logger.error("pdfs route error:", err);
     return NextResponse.json(
-      { detail: "Internal server error", error: String(err) },
+      { detail: "Internal server error" },
       { status: 500 }
     );
   }

@@ -1,5 +1,5 @@
 "use client"
-
+import { safeFetch } from "@/src/lib/safeFetch";
 import { useEffect, useState } from "react"
 import api from "@/src/lib/axios"
 import { useRouter } from "next/navigation"
@@ -9,20 +9,13 @@ import {
   ResponsiveContainer,
 } from "recharts"
 import { logger } from "@/logger"
-
 import { AdminAnalytics, StaffPerformance } from "@/types/customTypes"
-
-type StatusDatum = {
-  name: string
-  value: number
-  fill: string
-}
-
+import { AdminAnalyticsLoading } from "./AdminAnalyticsLoading"
+import { StatusDatum, getStaffChartData, getStatusData } from "./analyticsHelpers"
 export default function AdminAnalyticsPage() {
   const [data, setData] = useState<AdminAnalytics | null>(null)
   const [loggingOut, setLoggingOut] = useState(false)
   const router = useRouter()
-
   useEffect(() => {
     const load = async () => {
       try {
@@ -34,40 +27,21 @@ export default function AdminAnalyticsPage() {
     }
     load()
   }, [])
-
   const logout = async () => {
     setLoggingOut(true)
-    await fetch("/api/logout", { method: "POST" })
+    await safeFetch("/api/logout", { method: "POST" })
     router.push("/login")
   }
-
   if (!data) {
-    return (
-      <div className="h-screen bg-slate-950 flex items-center justify-center text-slate-400 animate-pulse px-4 text-center">
-        Loading analytics...
-      </div>
-    )
+    return <AdminAnalyticsLoading />
   }
-
   const { ticket_stats, overall_metrics, staff_performance } = data
-
   const pendingFeedback = ticket_stats.resolved - ticket_stats.closed
   const feedbackRate = ticket_stats.resolved
     ? ((ticket_stats.closed / ticket_stats.resolved) * 100).toFixed(1)
     : 0
-
-  const statusData: StatusDatum[] = [
-    { name: "Open", value: ticket_stats.open, fill: "#ef4444" },
-    { name: "In Progress", value: ticket_stats.in_progress, fill: "#f59e0b" },
-    { name: "Resolved", value: ticket_stats.resolved, fill: "#3b82f6" },
-    { name: "Closed", value: ticket_stats.closed, fill: "#22c55e" },
-  ]
-
-  const staffChartData = staff_performance.map((staff: StaffPerformance) => ({
-    name: staff.name,
-    rating: staff.avg_rating,
-  }))
-
+  const statusData: StatusDatum[] = getStatusData(ticket_stats)
+  const staffChartData = getStaffChartData(staff_performance)
   return (
     <div className="min-h-screen bg-slate-950 text-white">
       <header className="border-b border-slate-800 px-4 sm:px-6 py-4 sticky top-0 z-10 bg-slate-950">
@@ -80,7 +54,6 @@ export default function AdminAnalyticsPage() {
               System Insights & Performance
             </p>
           </div>
-
           <div className="flex flex-wrap items-center gap-2">
             <button
               onClick={() => router.push("/admin")}
@@ -88,7 +61,6 @@ export default function AdminAnalyticsPage() {
             >
               ← Dashboard
             </button>
-
             <button
               onClick={logout}
               disabled={loggingOut}
@@ -99,13 +71,11 @@ export default function AdminAnalyticsPage() {
           </div>
         </div>
       </header>
-
       <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6 sm:space-y-8">
         <section>
           <h2 className="text-xs uppercase tracking-widest text-slate-500 mb-4">
             Ticket Status
           </h2>
-
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
             <div className="bg-slate-900 border border-slate-800 p-4 sm:p-5 rounded-xl">
               <p className="text-xs sm:text-sm text-slate-400">Open</p>
@@ -113,21 +83,18 @@ export default function AdminAnalyticsPage() {
                 {ticket_stats.open}
               </p>
             </div>
-
             <div className="bg-slate-900 border border-slate-800 p-4 sm:p-5 rounded-xl">
               <p className="text-xs sm:text-sm text-slate-400">In Progress</p>
               <p className="text-2xl sm:text-3xl font-bold mt-1 text-yellow-400">
                 {ticket_stats.in_progress}
               </p>
             </div>
-
             <div className="bg-slate-900 border border-slate-800 p-4 sm:p-5 rounded-xl">
               <p className="text-xs sm:text-sm text-slate-400">Resolved</p>
               <p className="text-2xl sm:text-3xl font-bold mt-1 text-blue-400">
                 {ticket_stats.resolved}
               </p>
             </div>
-
             <div className="bg-slate-900 border border-slate-800 p-4 sm:p-5 rounded-xl">
               <p className="text-xs sm:text-sm text-slate-400">Closed</p>
               <p className="text-2xl sm:text-3xl font-bold mt-1 text-green-400">
@@ -136,7 +103,6 @@ export default function AdminAnalyticsPage() {
             </div>
           </div>
         </section>
-
         <section className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
           <div className="bg-slate-900 border border-slate-800 p-4 sm:p-5 rounded-xl">
             <p className="text-xs sm:text-sm text-slate-400">Pending Feedback</p>
@@ -144,7 +110,6 @@ export default function AdminAnalyticsPage() {
               {pendingFeedback}
             </p>
           </div>
-
           <div className="bg-slate-900 border border-slate-800 p-4 sm:p-5 rounded-xl">
             <p className="text-xs sm:text-sm text-slate-400">Feedback Rate</p>
             <p className="text-2xl sm:text-3xl font-bold mt-1 text-indigo-400">
@@ -152,7 +117,6 @@ export default function AdminAnalyticsPage() {
             </p>
           </div>
         </section>
-
         <section className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
           <div className="bg-slate-900 border border-slate-800 p-4 sm:p-5 rounded-xl">
             <p className="text-xs sm:text-sm text-slate-400">Total Tickets</p>
@@ -160,14 +124,12 @@ export default function AdminAnalyticsPage() {
               {overall_metrics.total_tickets}
             </p>
           </div>
-
           <div className="bg-slate-900 border border-slate-800 p-4 sm:p-5 rounded-xl">
             <p className="text-xs sm:text-sm text-slate-400">Resolved Today</p>
             <p className="text-2xl sm:text-3xl font-bold mt-1 text-blue-400">
               {overall_metrics.resolved_today}
             </p>
           </div>
-
           <div className="bg-slate-900 border border-slate-800 p-4 sm:p-5 rounded-xl">
             <p className="text-xs sm:text-sm text-slate-400">Resolved This Week</p>
             <p className="text-2xl sm:text-3xl font-bold mt-1 text-purple-400">
@@ -175,13 +137,11 @@ export default function AdminAnalyticsPage() {
             </p>
           </div>
         </section>
-
         <section className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
           <div className="bg-slate-900 border border-slate-800 p-4 sm:p-5 rounded-xl">
             <h3 className="font-semibold mb-4 text-slate-300 text-sm sm:text-base">
               Ticket Distribution
             </h3>
-
             <ResponsiveContainer width="100%" height={240}>
               <PieChart>
                 <Pie data={statusData} dataKey="value" nameKey="name" outerRadius={80} />
@@ -190,12 +150,10 @@ export default function AdminAnalyticsPage() {
               </PieChart>
             </ResponsiveContainer>
           </div>
-
           <div className="bg-slate-900 border border-slate-800 p-4 sm:p-5 rounded-xl">
             <h3 className="font-semibold mb-4 text-slate-300 text-sm sm:text-base">
               Staff Ratings
             </h3>
-
             <ResponsiveContainer width="100%" height={240}>
               <BarChart data={staffChartData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
@@ -207,12 +165,10 @@ export default function AdminAnalyticsPage() {
             </ResponsiveContainer>
           </div>
         </section>
-
         <section>
           <h2 className="text-base sm:text-lg font-semibold mb-4">
             Staff Performance
           </h2>
-
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
             {staff_performance.map((staff: StaffPerformance, index: number) => (
               <button
@@ -224,15 +180,12 @@ export default function AdminAnalyticsPage() {
                 <h3 className="font-semibold text-white text-sm sm:text-base">
                   {staff.name}
                 </h3>
-
                 <p className="text-yellow-400 mt-2 text-base sm:text-lg">
                   ⭐ {staff.avg_rating}
                 </p>
-
                 <p className="text-xs sm:text-sm text-slate-400">
                   {staff.total_feedbacks} reviews
                 </p>
-
                 <p className="text-xs text-slate-500 mt-2">
                   Rank #{index + 1}
                 </p>

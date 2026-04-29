@@ -1,6 +1,5 @@
-import traceback
-
 from django.shortcuts import get_object_or_404
+from django.db import DatabaseError
 from django.utils import timezone
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
@@ -17,8 +16,8 @@ class OrganizationListView(APIView):
         try:
             orgs = Organization.objects.all().values("id", "name")
             return Response(list(orgs))
-        except Exception as exc:
-            return Response({"error": str(exc), "trace": traceback.format_exc()}, status=500)
+        except (DatabaseError, RuntimeError) as exc:
+            return Response({"error": str(exc)}, status=500)
 
 
 class SubmitFeedbackView(APIView):

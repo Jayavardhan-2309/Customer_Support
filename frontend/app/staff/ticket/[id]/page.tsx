@@ -5,22 +5,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { fetchers } from "@/src/lib/axios"
 import { useState, useEffect, useRef } from "react"
 import { logger } from "@/logger"
-
-type Ticket = {
-  id: number
-  status: string
-  priority: string
-  customer: string
-  customer_email: string
-  category: string
-  message: string
-  context?: string
-}
-
-type Message = {
-  sender: string
-  message: string
-}
+import { Message, Ticket } from "./types"
 
 export default function TicketDetailPage() {
   const { id } = useParams()

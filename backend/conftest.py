@@ -1,6 +1,6 @@
 import os
 
-os.environ["USE_SQLITE_FOR_TESTS"] = "1"
+os.environ.setdefault("USE_SQLITE_FOR_TESTS", "1")
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "custSupport.test_settings")
 
 import django
