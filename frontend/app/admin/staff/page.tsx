@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { fetchers } from "@/src/lib/axios";
@@ -16,11 +16,24 @@ export default function AdminStaffPage() {
   const [password, setPassword] = useState("");
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const showToast = (message: string, type: "success" | "error") => {
+  const showToast = useCallback((message: string, type: "success" | "error") => {
+    if (toastTimeoutRef.current) {
+      clearTimeout(toastTimeoutRef.current);
+    }
     setToast({ message, type });
-    setTimeout(() => setToast(null), 3000);
-  };
+    toastTimeoutRef.current = setTimeout(() => setToast(null), 3000);
+  }, []);
+
+  useEffect(
+    () => () => {
+      if (toastTimeoutRef.current) {
+        clearTimeout(toastTimeoutRef.current);
+      }
+    },
+    [],
+  );
 
   const { data: me, isLoading: checkingAuth } = useQuery({
     queryKey: ["me"],
@@ -97,8 +110,12 @@ export default function AdminStaffPage() {
 
   const logout = async () => {
     setIsLoggingOut(true);
-    await fetchers.post("logout/");
-    router.push("/login");
+    try {
+      await fetchers.post("logout/");
+      router.push("/login");
+    } finally {
+      setIsLoggingOut(false);
+    }
   };
 
   if (checkingAuth) {

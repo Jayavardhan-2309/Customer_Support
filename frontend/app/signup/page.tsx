@@ -33,9 +33,19 @@ export default function SignupPage() {
   const [organizationId, setOrganizationId] = useState<number | null>(null);
 
   useEffect(() => {
-    api.get("organizations/")
-      .then((res) => setOrganizations(res.data))
-      .catch((err) => logger.error("Failed to load organizations", err));
+    const controller = new AbortController();
+    api.get("organizations/", { signal: controller.signal })
+      .then((res) => {
+        if (!controller.signal.aborted) {
+          setOrganizations(res.data);
+        }
+      })
+      .catch((err) => {
+        if (!controller.signal.aborted) {
+          logger.error("Failed to load organizations", err);
+        }
+      });
+    return () => controller.abort();
   }, []);
 
   const handleSignup = async (event: SyntheticEvent<HTMLFormElement>) => {

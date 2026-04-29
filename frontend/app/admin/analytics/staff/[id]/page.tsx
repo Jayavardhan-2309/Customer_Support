@@ -15,21 +15,33 @@ export default function StaffAnalyticsDetailPage() {
   const [loggingOut, setLoggingOut] = useState(false);
 
   useEffect(() => {
+    const controller = new AbortController();
     const load = async () => {
       try {
-        const res = await api.get(`/admin/analytics/staff/${id}/`);
+        const res = await api.get(`/admin/analytics/staff/${id}/`, { signal: controller.signal });
+        if (controller.signal.aborted) {
+          return;
+        }
         setData(res.data);
       } catch (err) {
+        if (controller.signal.aborted) {
+          return;
+        }
         logger.error("Failed to load staff analytics", err);
       }
     };
-    load();
+    void load();
+    return () => controller.abort();
   }, [id]);
 
   const logout = async () => {
     setLoggingOut(true);
-    await safeFetch("/api/logout", { method: "POST" });
-    router.push("/login");
+    try {
+      await safeFetch("/api/logout", { method: "POST" });
+      router.push("/login");
+    } finally {
+      setLoggingOut(false);
+    }
   };
 
   if (!data) {

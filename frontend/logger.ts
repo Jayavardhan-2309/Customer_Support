@@ -1,9 +1,9 @@
-// use this file for production logging
-const isProd = process.env.NODE_ENV === "production"
-const sink = globalThis["console"]
+type LogMethod = (message: string, ...args: unknown[]) => void;
 
-export const logger={
-    info: (msg: string, ...args: unknown[]) => !isProd && sink["log"](`[INFO] ${msg}`, ...args),
-    warn: (msg: string, ...args: unknown[]) => sink.warn(`[WARN] ${msg}`, ...args),
-    error: (msg: string, ...args: unknown[]) => sink.error(`[ERROR] ${msg}`, ...args),
-}
+const noop: LogMethod = () => undefined;
+
+export const logger: Record<"info" | "warn" | "error", LogMethod> = {
+  info: noop,
+  warn: noop,
+  error: noop,
+};

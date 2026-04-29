@@ -17,15 +17,23 @@ export default function AdminAnalyticsPage() {
   const [loggingOut, setLoggingOut] = useState(false)
   const router = useRouter()
   useEffect(() => {
+    const controller = new AbortController()
     const load = async () => {
       try {
-        const res = await api.get("/admin/analytics/")
+        const res = await api.get("/admin/analytics/", { signal: controller.signal })
+        if (controller.signal.aborted) {
+          return
+        }
         setData(res.data)
       } catch (err) {
+        if (controller.signal.aborted) {
+          return
+        }
         logger.error("Failed to load analytics", err)
       }
     }
-    load()
+    void load()
+    return () => controller.abort()
   }, [])
   const logout = async () => {
     setLoggingOut(true)

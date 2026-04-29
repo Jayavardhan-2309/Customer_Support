@@ -10,19 +10,26 @@ export function useChatHistory() {
   const [loadingHistory, setLoadingHistory] = useState(true);
 
   useEffect(() => {
+    const controller = new AbortController();
     const load = async () => {
       try {
-        const res = await safeFetch("/api/chat/history", { credentials: "include" });
+        const res = await safeFetch("/api/chat/history", { credentials: "include", signal: controller.signal });
+        if (controller.signal.aborted) {
+          return;
+        }
         if (res.ok) {
           const data = (await res.json()) as ChatHistoryMessage[];
           setMessages((data ?? []).map((message) => createMessage(message.sender, message.message)));
         }
       } finally {
-        setLoadingHistory(false);
+        if (!controller.signal.aborted) {
+          setLoadingHistory(false);
+        }
       }
     };
 
-    load();
+    void load();
+    return () => controller.abort();
   }, []);
 
   const addMessage = (msg: Message) => setMessages((prev) => [...prev, msg]);
