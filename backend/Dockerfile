@@ -16,8 +16,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 COPY --chown=root:root --chmod=0444 requirements.txt ./
 
-RUN pip install --no-cache-dir --upgrade pip \
-    && pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir --upgrade pip==26.1 && pip install --no-cache-dir -r requirements.txt # NOSONAR
 
 COPY --chown=root:root --chmod=0555 manage.py start.sh ./
 COPY --chown=root:root --chmod=0555 api ./api

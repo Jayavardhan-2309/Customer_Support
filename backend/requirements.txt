@@ -9,7 +9,7 @@ sqlparse==0.5.5
 # ── Database
 psycopg2-binary==2.9.11
 dj-database-url==3.1.2
-supabase>=2.5.0
+supabase==2.29.0
 
 # ── Server
 gunicorn==25.1.0

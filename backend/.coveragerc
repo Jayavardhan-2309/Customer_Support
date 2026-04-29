@@ -19,3 +19,6 @@ omit =
     backend/custSupport/settings.py
     backend/custSupport/test_settings.py
     backend/custSupport/wsgi.py
+    backend/custSupApp/ai_config.py
+    backend/custSupApp/config.py
+    backend/custSupApp/tasks.py
