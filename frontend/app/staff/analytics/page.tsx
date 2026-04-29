@@ -14,6 +14,7 @@ import { AnalyticsResponse, StatusFilter } from "./types"
 
 export default function AnalyticsPage() {
   const [analytics, setAnalytics] = useState<AnalyticsResponse | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all")
   const [daysFilter, setDaysFilter] = useState(7)
   const router = useRouter()
@@ -30,14 +31,22 @@ export default function AnalyticsPage() {
         if (!controller.signal.aborted) {
           logger.error("Failed to load staff analytics", error)
         }
+      } finally {
+        if (!controller.signal.aborted) {
+          setIsLoading(false)
+        }
       }
     }
     void loadAnalytics()
     return () => controller.abort()
   }, [])
 
-  if (!analytics) {
+  if (isLoading) {
     return <AnalyticsLoading />
+  }
+
+  if (!analytics) {
+    return <div className="min-h-screen bg-slate-950 px-4 py-10 text-center text-slate-300">Unable to load analytics.</div>
   }
 
   const statusData = getStatusData(analytics.workload)

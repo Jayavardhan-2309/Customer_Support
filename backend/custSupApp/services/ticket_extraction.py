@@ -1,5 +1,8 @@
 import re
+from pydantic import ValidationError
+
 from custSupApp.ai import extract_ticket_structure_with_llm, validate_ticket_structure
+from custSupApp.ai_schemas import ChatHistoryMessage
 
 # rule based extraction of ticket structure
 
@@ -40,7 +43,40 @@ FILLER_WORDS = [
     "help me",
 ]
 
+
+def _normalize_query(query) -> str:
+    if query is None:
+        raise ValueError("query is required")
+    normalized = str(query).strip()
+    if not normalized:
+        raise ValueError("query cannot be empty")
+    return normalized
+
+
+def _normalize_history(history) -> list[dict[str, str]]:
+    if history is None:
+        return []
+    try:
+        return [ChatHistoryMessage.model_validate(message).model_dump() for message in history]
+    except (TypeError, ValidationError) as exc:
+        raise ValueError("history must contain role/content messages") from exc
+
+
+def _fallback_ticket_structure(query: str, history: list[dict[str, str]]):
+    return extract_ticket_structure(query, history)
+
+
+def _format_valid_llm_ticket(llm_data: dict, query: str):
+    return {
+        "category": llm_data["category"],
+        "priority": llm_data["priority"],
+        "description": llm_data["description"] or query,
+        "context": llm_data.get("context_summary", ""),
+    }
+
+
 def classify_category(text: str):
+    text = _normalize_query(text)
     text= text.lower()
     for category, keywords in CATEGORY_RULES.items():
         for keyword in keywords:
@@ -49,6 +85,7 @@ def classify_category(text: str):
     return "general"
 
 def classify_priority(text: str):
+    text = _normalize_query(text)
     text= text.lower()
     for priority, keywords in PRIORITY_RULES.items():
         for keyword in keywords:
@@ -57,6 +94,7 @@ def classify_priority(text: str):
     return "normal"
 
 def summarize_conversation(messages):
+    messages = _normalize_history(messages)
     summary_lines=[]
 
     for msg in messages:
@@ -70,22 +108,19 @@ def summarize_conversation(messages):
     return "\n".join(summary_lines)
 
 def extract_ticket_structure_smart(query, history):
+    query = _normalize_query(query)
+    history = _normalize_history(history)
     llm_data= extract_ticket_structure_with_llm(query, history)
 
     if validate_ticket_structure(llm_data):
-        return {
-            "category": llm_data.get("category", "general"),
-            "priority": llm_data.get("priority", "normal"),
-            "description": llm_data.get("description", query),
-            "context": llm_data.get("context_summary", "")
-        }
+        return _format_valid_llm_ticket(llm_data, query)
     
-    # fallback to rule-based extraction
-    return extract_ticket_structure(query, history)
+    return _fallback_ticket_structure(query, history)
 
 
 def extract_ticket_structure(query, history):
-    # extract structured ticket fields from conversation history
+    query = _normalize_query(query)
+    history = _normalize_history(history)
 
     category= classify_category(query)
     priority= classify_priority(query)
@@ -107,6 +142,7 @@ def extract_ticket_structure(query, history):
     }
 
 def clean_description(query: str):
+    query = _normalize_query(query)
 
     text = query.lower().strip()
 
@@ -121,6 +157,7 @@ def clean_description(query: str):
     return text
 
 def extract_keywords(text: str):
+    text = _normalize_query(text)
 
     text = text.lower()
     found = []

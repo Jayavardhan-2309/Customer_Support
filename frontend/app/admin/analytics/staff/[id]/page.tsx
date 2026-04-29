@@ -12,6 +12,7 @@ export default function StaffAnalyticsDetailPage() {
   const { id } = useParams();
   const router = useRouter();
   const [data, setData] = useState<StaffDetail | null>(null)
+  const [isLoading, setIsLoading] = useState(true);
   const [loggingOut, setLoggingOut] = useState(false);
 
   useEffect(() => {
@@ -28,6 +29,10 @@ export default function StaffAnalyticsDetailPage() {
           return;
         }
         logger.error("Failed to load staff analytics", err);
+      } finally {
+        if (!controller.signal.aborted) {
+          setIsLoading(false);
+        }
       }
     };
     void load();
@@ -44,10 +49,18 @@ export default function StaffAnalyticsDetailPage() {
     }
   };
 
-  if (!data) {
+  if (isLoading) {
     return (
       <div className="h-screen flex items-center justify-center bg-slate-950 text-slate-400 animate-pulse px-4 text-center">
         Loading staff analytics...
+      </div>
+    );
+  }
+
+  if (!data) {
+    return (
+      <div className="h-screen flex items-center justify-center bg-slate-950 text-slate-400 px-4 text-center">
+        Unable to load staff analytics.
       </div>
     );
   }

@@ -1,13 +1,13 @@
 import json
 import logging
 import re
-from typing import Any
+from dataclasses import dataclass
 
 from dotenv import load_dotenv
+from pydantic import ValidationError
 
 from custSupApp.ai_config import (
     ESCALATION_LIMIT_REPLY,
-    INVALID_JSON_RESPONSE,
     NO_CONTEXT_CONFIDENCE,
     NO_CONTEXT_FIRST_REPLY,
     NO_CONTEXT_SECOND_REPLY,
@@ -27,6 +27,7 @@ from custSupApp.ai_escalation import (
 from custSupApp.ai_http import call_groq, call_ollama, call_openrouter, post_with_retry
 from custSupApp.ai_knowledge import search_similar_chunks
 from custSupApp.ai_prompts import build_prompt, build_sentiment_prompt
+from custSupApp.ai_schemas import AIRequestInput, ChatLLMResponse
 from custSupApp.ai_ticketing import (
     extract_ticket_structure_with_llm as extract_ticket_structure_with_llm_impl,
     validate_ticket_structure,
@@ -40,12 +41,14 @@ _count_no_context_turns = count_no_context_turns
 _user_wants_escalation = user_wants_escalation
 _post_with_retry = post_with_retry
 
+AI_ERROR_RESPONSE = ("error", "Invalid response from AI", 0.0, False)
+AI_RETRY_RESPONSE = ("error", "Sorry, something went wrong. Please try again.", 0.0, False)
 
-def _safe_float(value: Any, default: float = 0.0) -> float:
-    try:
-        return float(value)
-    except (TypeError, ValueError):
-        return default
+
+@dataclass(frozen=True)
+class LLMParseResult:
+    data: ChatLLMResponse | None = None
+    retryable: bool = False
 
 
 def _get_history(history: list[dict] | None) -> list[dict]:
@@ -65,18 +68,26 @@ def _early_escalation_response(query: str, history: list[dict], escalation_count
     return handle_escalation(query, escalation_count) or extract_repetition(history, escalation_count)
 
 
-def _parse_ai_json(text: str) -> dict | object | None:
+def _extract_json_object(text: str) -> str | None:
     match = re.search(r"\{.*\}", text, re.DOTALL)
     if not match:
         logger.error("[ERROR] No JSON found in LLM response: %s", text)
         return None
+    return match.group().replace("\n", " ").replace("\r", " ")
 
-    json_text = match.group().replace("\n", " ").replace("\r", " ")
+
+def _parse_ai_json(text: str) -> LLMParseResult:
+    json_text = _extract_json_object(text)
+    if json_text is None:
+        return LLMParseResult()
     try:
-        return json.loads(json_text)
+        return LLMParseResult(data=ChatLLMResponse.model_validate_json(json_text))
     except json.JSONDecodeError:
         logger.error("[ERROR] Invalid JSON from LLM: %s", json_text)
-        return INVALID_JSON_RESPONSE
+        return LLMParseResult(retryable=True)
+    except ValidationError as exc:
+        logger.error("[ERROR] LLM response failed schema validation: %s", exc)
+        return LLMParseResult(retryable=True)
 
 
 def _is_greeting_or_short_message(query: str) -> bool:
@@ -95,12 +106,8 @@ def _has_no_context(query: str, docs: list[str], confidence: float) -> bool:
     )
 
 
-def _build_response_tuple(data: dict) -> tuple[str, str, float]:
-    return (
-        data.get("intent", "unknown"),
-        data.get("reply", ""),
-        _safe_float(data.get("confidence", 0.0)),
-    )
+def _build_response_tuple(data: ChatLLMResponse) -> tuple[str, str, float]:
+    return data.intent, data.reply, data.confidence
 
 
 def is_user_frustrated(message: str) -> bool:
@@ -115,33 +122,38 @@ def is_user_frustrated(message: str) -> bool:
 
 
 def get_ai_response(query: str, history: list[dict] | None = None, org_id: int | None = None, escalation_count: int = 0):
-    history = _get_history(history)
-    result = _early_escalation_response(query, history, escalation_count)
+    request = AIRequestInput.model_validate({
+        "query": query,
+        "history": _get_history(history),
+        "org_id": org_id,
+        "escalation_count": escalation_count,
+    })
+    history = request.history_dicts()
+
+    result = _early_escalation_response(request.query, history, request.escalation_count)
     if result:
         return result
 
     no_context_turns = _count_no_context_turns(history)
-    sentiment_frustrated = is_user_frustrated(query)
-    docs, context = _get_context(query, org_id)
-    text = _call_response_backend(build_prompt(context, history, query))
+    sentiment_frustrated = is_user_frustrated(request.query)
+    docs, context = _get_context(request.query, request.org_id)
+    text = _call_response_backend(build_prompt(context, history, request.query))
 
     if not text:
         logger.error("No AI backend available for response generation")
         raise RuntimeError("No AI backend available")
 
-    data = _parse_ai_json(text)
-    if data is None:
-        return ("error", "Invalid response from AI", 0.0, False)
-    if data is INVALID_JSON_RESPONSE:
-        return ("error", "Sorry, something went wrong. Please try again.", 0.0, False)
+    parsed = _parse_ai_json(text)
+    if parsed.data is None:
+        return AI_RETRY_RESPONSE if parsed.retryable else AI_ERROR_RESPONSE
 
-    intent, reply, confidence = _build_response_tuple(data)
-    if _has_no_context(query, docs, confidence):
-        return handle_no_context(no_context_turns, escalation_count, confidence)
+    intent, reply, confidence = _build_response_tuple(parsed.data)
+    if _has_no_context(request.query, docs, confidence):
+        return handle_no_context(no_context_turns, request.escalation_count, confidence)
 
-    escalated = evaluate_escalation_risk(query, intent, confidence, sentiment_frustrated)
+    escalated = evaluate_escalation_risk(request.query, intent, confidence, sentiment_frustrated)
     if escalated:
-        return handle_escalated(intent, escalation_count, confidence, escalated, sentiment_frustrated)
+        return handle_escalated(intent, request.escalation_count, confidence, escalated, sentiment_frustrated)
     return intent, reply, confidence, escalated
 
 

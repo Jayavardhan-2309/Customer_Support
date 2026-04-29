@@ -13,6 +13,7 @@ import { StatusDatum, getStaffChartData, getStatusData } from "./analyticsHelper
 
 export default function AdminAnalyticsPage() {
   const [data, setData] = useState<AdminAnalytics | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
   const [loggingOut, setLoggingOut] = useState(false)
   const router = useRouter()
 
@@ -28,6 +29,10 @@ export default function AdminAnalyticsPage() {
         if (!controller.signal.aborted) {
           logger.error("Failed to load analytics", err)
         }
+      } finally {
+        if (!controller.signal.aborted) {
+          setIsLoading(false)
+        }
       }
     }
     void load()
@@ -40,8 +45,12 @@ export default function AdminAnalyticsPage() {
     router.push("/login")
   }
 
-  if (!data) {
+  if (isLoading) {
     return <AdminAnalyticsLoading />
+  }
+
+  if (!data) {
+    return <div className="min-h-screen bg-slate-950 px-4 py-10 text-center text-slate-300">Unable to load analytics.</div>
   }
 
   const { ticket_stats, staff_performance } = data

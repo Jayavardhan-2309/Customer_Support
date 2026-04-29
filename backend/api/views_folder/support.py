@@ -4,6 +4,7 @@ from datetime import timedelta
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
 from django.utils import timezone
+from pydantic import ValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -34,6 +35,14 @@ def _ai_error_response():
         "confidence": 0.0,
         "escalated": False,
     }, status=200)
+
+
+def _validated_prompt(data):
+    prompt = data.get("prompt") if isinstance(data, dict) else None
+    if not isinstance(prompt, str):
+        return None
+    prompt = prompt.strip()
+    return prompt or None
 
 
 def _send_ticket_update(ticket):
@@ -104,7 +113,7 @@ class SupportAIView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        query = request.data.get("prompt")
+        query = _validated_prompt(request.data)
         if not query:
             return Response({"detail": "Prompt is required"}, status=400)
 
@@ -119,7 +128,7 @@ class SupportAIView(APIView):
                 org_id=request.user.organization_id,
                 escalation_count=escalation_count,
             )
-        except (RuntimeError, ValueError) as exc:
+        except (RuntimeError, ValueError, ValidationError) as exc:
             logger.error("[AI ERROR]: %s", exc)
             return _ai_error_response()
 

@@ -1,12 +1,14 @@
-import json
-
 import requests
+from pydantic import ValidationError
 
 from custSupApp.ai_config import VALID_CATEGORIES, VALID_PRIORITIES
+from custSupApp.ai_schemas import ChatHistoryMessage, TicketStructure
 
 
 def build_ticket_prompt(query: str, history: list[dict]) -> str:
-    history_text = "\n".join(f"{msg['role']}: {msg['content']}" for msg in history)
+    safe_query = str(query).strip()
+    safe_history = [ChatHistoryMessage.model_validate(msg).model_dump() for msg in history]
+    history_text = "\n".join(f"{msg['role']}: {msg['content']}" for msg in safe_history)
     return f"""
 You are a support ticket classification system.
 
@@ -21,7 +23,7 @@ Conversation:
 {history_text}
 
 Latest user query:
-{query}
+{safe_query}
 
 Return ONLY valid JSON:
 
@@ -35,27 +37,26 @@ Return ONLY valid JSON:
 
 
 def extract_ticket_structure_with_llm(query: str, history: list[dict], call_groq, call_openrouter, call_ollama):
-    text = call_groq(build_ticket_prompt(query, history)) or call_openrouter(build_ticket_prompt(query, history))
+    prompt = build_ticket_prompt(query, history)
+    text = call_groq(prompt) or call_openrouter(prompt)
 
     if not text:
         try:
-            text = call_ollama(build_ticket_prompt(query, history))
+            text = call_ollama(prompt)
         except (RuntimeError, requests.RequestException, ValueError, KeyError):
             return None
 
     try:
-        return json.loads(text)
-    except json.JSONDecodeError:
+        return TicketStructure.model_validate_json(text).model_dump()
+    except ValidationError:
         return None
 
 
 def validate_ticket_structure(data: dict | None) -> bool:
-    if not data:
+    if data is None:
         return False
-    if data.get("priority") not in VALID_PRIORITIES:
+    try:
+        ticket = TicketStructure.model_validate(data)
+    except ValidationError:
         return False
-    if data.get("category") not in VALID_CATEGORIES:
-        return False
-    if not data.get("description"):
-        return False
-    return True
+    return ticket.priority in VALID_PRIORITIES and ticket.category in VALID_CATEGORIES
