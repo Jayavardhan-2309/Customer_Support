@@ -40,42 +40,43 @@ const FeedbackModal = ({
     }
 
     document.body.style.overflow = "hidden"
-    window.addEventListener("keydown", handleKeyDown)
+    globalThis.addEventListener("keydown", handleKeyDown)
 
     return () => {
       document.body.style.overflow = ""
-      window.removeEventListener("keydown", handleKeyDown)
+      globalThis.removeEventListener("keydown", handleKeyDown)
     }
   }, [onClose])
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 px-4 py-6 backdrop-blur-sm"
-      onClick={(event) => {
-        if (event.target === event.currentTarget) {
-          onClose()
-        }
-      }}
+    <dialog
+      aria-labelledby="feedback-dialog-title"
+      aria-modal="true"
+      className="fixed inset-0 z-50 flex h-full max-h-none w-full max-w-none items-center justify-center bg-transparent px-4 py-6"
+      open
     >
-      <section
-        aria-labelledby="feedback-dialog-title"
-        aria-modal="true"
-        className="w-full max-w-md rounded-2xl border border-slate-700 bg-slate-900 px-5 py-6 shadow-2xl shadow-black/40 sm:px-7 sm:py-7"
-        role="dialog"
-      >
-      <ModalContent
-        submitted={submitted}
-        selectedTicket={selectedTicket}
-        rating={rating}
-        onRatingChange={onRatingChange}
-        comment={comment}
-        onCommentChange={onCommentChange}
-        onClose={onClose}
-        onSubmit={onSubmit}
-        submitting={submitting}
+      <button
+        aria-label="Close feedback dialog"
+        className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm"
+        onClick={onClose}
+        type="button"
       />
+      <section
+        className="relative w-full max-w-md rounded-2xl border border-slate-700 bg-slate-900 px-5 py-6 shadow-2xl shadow-black/40 sm:px-7 sm:py-7"
+      >
+        <ModalContent
+          submitted={submitted}
+          selectedTicket={selectedTicket}
+          rating={rating}
+          onRatingChange={onRatingChange}
+          comment={comment}
+          onCommentChange={onCommentChange}
+          onClose={onClose}
+          onSubmit={onSubmit}
+          submitting={submitting}
+        />
       </section>
-    </div>
+    </dialog>
   )
 }
 
