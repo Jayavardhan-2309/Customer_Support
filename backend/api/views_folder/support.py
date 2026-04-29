@@ -128,7 +128,7 @@ class SupportAIView(APIView):
                 org_id=request.user.organization_id,
                 escalation_count=escalation_count,
             )
-        except (RuntimeError, ValueError, ValidationError) as exc:
+        except (RuntimeError, ValidationError) as exc:
             logger.error("[AI ERROR]: %s", exc)
             return _ai_error_response()
 
