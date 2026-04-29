@@ -157,7 +157,7 @@ def get_ai_response(query: str, history: list[dict] | None = None, org_id: int |
     return intent, reply, confidence, escalated
 
 
-def extract_ticket_structure_with_llm(query: str, history: list[dict]) -> dict | None:
+def extract_ticket_structure_with_llm(query: str, history: list[dict]) -> dict:
     return extract_ticket_structure_with_llm_impl(query, history, call_groq, call_openrouter, call_ollama)
 
 

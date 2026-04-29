@@ -15,6 +15,12 @@ class StaffViewTests(ApiViewBaseTestCase):
         self.assertEqual(self.client.get(STAFF_URL).data["results"][0]["username"], self.staff.username)
         invalid_create = self.client.post(STAFF_URL, {"username": "", "email": "", SECRET_FIELD: ""}, format="json")
         self.assertEqual(invalid_create.status_code, 400)
+        invalid_type = self.client.post(
+            STAFF_URL,
+            {"username": ["helper"], "email": "helper@example.com", SECRET_FIELD: DEFAULT_SECRET},
+            format="json",
+        )
+        self.assertEqual(invalid_type.status_code, 400)
         create_response = self.client.post(STAFF_URL, {"username": "helper", "email": "helper@example.com", SECRET_FIELD: DEFAULT_SECRET}, format="json")
         self.assertEqual(create_response.status_code, 201)
         created_staff_id = create_response.data["id"]

@@ -31,17 +31,17 @@ class TestAITicketStructure(unittest.TestCase):
     @patch("custSupApp.ai.call_ollama", side_effect=RuntimeError("offline"))
     @patch("custSupApp.ai.call_openrouter", return_value=None)
     @patch("custSupApp.ai.call_groq", return_value=None)
-    def test_extract_ticket_structure_with_llm_returns_none_when_backends_fail(
+    def test_extract_ticket_structure_with_llm_returns_empty_dict_when_backends_fail(
         self,
         _mock_groq,
         _mock_openrouter,
         _mock_ollama,
     ):
-        self.assertIsNone(ai.extract_ticket_structure_with_llm("Billing issue", []))
+        self.assertEqual(ai.extract_ticket_structure_with_llm("Billing issue", []), {})
 
     @patch("custSupApp.ai.call_openrouter", return_value="not-json")
     @patch("custSupApp.ai.call_groq", return_value=None)
-    def test_extract_ticket_structure_with_llm_returns_none_for_invalid_json(self, _mock_groq, _mock_openrouter):
-        self.assertIsNone(ai.extract_ticket_structure_with_llm("Billing issue", []))
+    def test_extract_ticket_structure_with_llm_returns_empty_dict_for_invalid_json(self, _mock_groq, _mock_openrouter):
+        self.assertEqual(ai.extract_ticket_structure_with_llm("Billing issue", []), {})
 
 

@@ -11,7 +11,7 @@ from rest_framework.views import APIView
 from supabase import create_client
 
 from api.pagination import StaffCursorPagination
-from api.serializers import StaffSerializer
+from api.serializers import StaffCreateSerializer, StaffSerializer
 from custSupApp.authentication import CookieJWTAuthentication
 from custSupApp.config import ConfigurationError, required_env
 from custSupApp.models import UploadedPDF, User
@@ -131,18 +131,14 @@ class StaffViewSet(ListModelMixin, CreateModelMixin, DestroyModelMixin, GenericV
         return Response(serializer.data)
 
     def create(self, request):
-        username = request.data.get("username", "").strip()
-        email = request.data.get("email", "").strip()
-        password = request.data.get("password", "").strip()
-        if not username or not email or not password:
-            return Response({"detail": "Username, email and password are required"}, status=400)
-        if User.objects.filter(username=username).exists():
-            return Response({"detail": "Username already exists"}, status=400)
-        if User.objects.filter(email=email).exists():
-            return Response({"detail": "Email already exists"}, status=400)
+        serializer = StaffCreateSerializer(data=request.data)
+        if not serializer.is_valid():
+            first_error = next(iter(serializer.errors.values()))[0]
+            return Response({"detail": str(first_error)}, status=400)
+        validated = serializer.validated_data
 
         staff = User.objects.create_user(
-            username=username, email=email, password=password,
+            username=validated["username"], email=validated["email"], password=validated["password"],
             role="staff", organization=request.user.organization,
         )
         return Response({
@@ -191,4 +187,6 @@ class AdminStaffDetailView(APIView):
     permission_classes = [IsAdmin]
 
     def get(self, request, staff_id):
+        if not User.objects.filter(id=staff_id, role="staff", organization=request.user.organization).exists():
+            return Response({"detail": "Staff not found"}, status=404)
         return Response(get_staff_detail(staff_id))

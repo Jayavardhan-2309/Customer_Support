@@ -147,11 +147,11 @@ def test_llm_invalid_structure_fallback(mock_llm):
 
     assert data["category"]== "authentication"  # nosec B101
 
-# llm returns None
+# llm returns no validated structure
 
 @patch("custSupApp.services.ticket_extraction.extract_ticket_structure_with_llm")
-def test_llm_none_fallback(mock_llm):
-    mock_llm.return_value= None
+def test_llm_empty_structure_fallback(mock_llm):
+    mock_llm.return_value= {}
     query= "My payment failed"
     history= []
 

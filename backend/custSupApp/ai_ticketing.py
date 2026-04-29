@@ -44,16 +44,16 @@ def extract_ticket_structure_with_llm(query: str, history: list[dict], call_groq
         try:
             text = call_ollama(prompt)
         except (RuntimeError, requests.RequestException, ValueError, KeyError):
-            return None
+            return {}
 
     try:
         return TicketStructure.model_validate_json(text).model_dump()
     except ValidationError:
-        return None
+        return {}
 
 
-def validate_ticket_structure(data: dict | None) -> bool:
-    if data is None:
+def validate_ticket_structure(data: dict) -> bool:
+    if not data:
         return False
     try:
         ticket = TicketStructure.model_validate(data)
