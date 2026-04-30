@@ -3,19 +3,13 @@ from rest_framework.mixins import CreateModelMixin
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from rest_framework.viewsets import GenericViewSet, ModelViewSet
+from rest_framework.viewsets import GenericViewSet
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from api.models import Sample
-from api.serializers import ChatMessageSerializer, SampleSerializer, SignupSerializer
+from api.serializers import ChatMessageSerializer, SignupSerializer
 from custSupApp.authentication import CookieJWTAuthentication
 from custSupApp.models import ChatMessage, User
 from custSupApp.serializers import AdminSignupSerializer
-
-
-class SampleView(ModelViewSet):
-    queryset = Sample.objects.all()
-    serializer_class = SampleSerializer
 
 
 class SignupView(CreateModelMixin, GenericViewSet):

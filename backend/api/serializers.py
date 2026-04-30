@@ -1,9 +1,6 @@
 from rest_framework import serializers
-from .models import Sample
-from rest_framework import serializers
 from custSupApp.models import User, ChatMessage
 from custSupApp.models import SupportTicket
-from custSupApp.models import User
 
 
 class StaffSerializer(serializers.ModelSerializer):
@@ -77,13 +74,6 @@ class SupportTicketDetailSerializer(serializers.ModelSerializer):
             "resolved_at",
             "resolution_note",
         ]
-
-class SampleSerializer(serializers.ModelSerializer):
-    class Meta:
-        model= Sample
-        fields= '__all__'
-
-
 
 class SignupSerializer(serializers.ModelSerializer):
 

@@ -1,11 +1,10 @@
 from django.urls import path
-from .views import SampleView, SignupView, LoginView, SupportAIView, LogoutView, MeView, ChatHistoryView, StaffTicketViewSet, StaffAnalyticsView, AdminSignupView, OrganizationListView
+from .views import SignupView, LoginView, SupportAIView, LogoutView, MeView, ChatHistoryView, StaffTicketViewSet, StaffAnalyticsView, AdminSignupView, OrganizationListView
 from rest_framework.routers import DefaultRouter
 from . import views
 from .views import SubmitFeedbackView, UserResolvedTicketsView, AdminAnalyticsView, AdminStaffDetailView
 
 router= DefaultRouter()
-router.register(r'samples', SampleView, basename='sample')
 router.register(r'signup', SignupView, basename='signup')
 router.register(r"staff/tickets", StaffTicketViewSet, basename="staff-tickets")
 router.register(r"admin/pdfs", views.PDFViewSet, basename="pdf")
