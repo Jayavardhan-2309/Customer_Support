@@ -1,37 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { safeFetch } from "@/src/lib/safeFetch";
-import { MeResponse } from "./types";
+import { useAbortableApiData } from "@/src/lib/useAbortableApiData";
+import { Me } from "@/types/customTypes";
 
 export function useSupportAuth() {
   const router = useRouter();
-  const [checkingAuth, setCheckingAuth] = useState(true);
-  const [orgName, setOrgName] = useState("");
+  const { data: me, error, isLoading } = useAbortableApiData<Me>("me/", {
+    onError: () => router.replace("/login"),
+  });
 
-  useEffect(() => {
-    const controller = new AbortController();
-    const loadAuth = async () => {
-      const res = await safeFetch("/api/me", { credentials: "include", signal: controller.signal });
-      if (controller.signal.aborted) {
-        return
-      }
-      if (!res.ok) {
-        router.replace("/login");
-        return;
-      }
-      const data = (await res.json()) as MeResponse;
-      setOrgName(data.organization_name || "");
-      setCheckingAuth(false);
-    };
-
-    loadAuth();
-
-    return () => {
-      controller.abort();
-    };
-  }, [router]);
-
-  return { checkingAuth, orgName };
+  return { checkingAuth: isLoading || Boolean(error) || !me, orgName: me?.organization_name || "" };
 }

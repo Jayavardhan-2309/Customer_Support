@@ -1,33 +1,19 @@
-import { useEffect, useState } from "react"
+import { useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { safeFetch } from "@/src/lib/safeFetch"
+import { useAbortableApiData } from "@/src/lib/useAbortableApiData"
+import { Me } from "@/types/customTypes"
 
 export function useAdminAuth() {
   const router = useRouter()
-  const [checkingAuth, setCheckingAuth] = useState(true)
-  const [orgName, setOrgName] = useState("")
+  const { data: me, error, isLoading } = useAbortableApiData<Me>("me/", {
+    onError: () => router.replace("/login"),
+  })
 
   useEffect(() => {
-    const controller = new AbortController()
-    void safeFetch("/api/me", { credentials: "include", signal: controller.signal }).then(async (res) => {
-      if (controller.signal.aborted) {
-        return
-      }
-      if (!res.ok) {
-        router.replace("/login")
-        return
-      }
-      const data = await res.json()
-      if (data.role !== "admin") {
-        router.replace("/support")
-        return
-      }
-      setOrgName(data.organization_name || "")
-      setCheckingAuth(false)
-    })
+    if (me && me.role !== "admin") {
+      router.replace("/support")
+    }
+  }, [me, router])
 
-    return () => controller.abort()
-  }, [router])
-
-  return { checkingAuth, orgName }
+  return { checkingAuth: isLoading || Boolean(error) || me?.role !== "admin", orgName: me?.organization_name || "" }
 }

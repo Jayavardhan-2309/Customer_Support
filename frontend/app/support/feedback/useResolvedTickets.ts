@@ -1,7 +1,6 @@
 "use client";
 
 import { logger } from "@/logger";
-import api from "@/src/lib/axios";
 import { useAbortableApiData } from "@/src/lib/useAbortableApiData";
 
 export type ResolvedTicket = {
@@ -13,12 +12,8 @@ export type ResolvedTicket = {
 };
 
 export function useResolvedTickets() {
-  return useAbortableApiData<ResolvedTicket[]>({
+  return useAbortableApiData<ResolvedTicket[]>("/user/resolved-tickets/", {
     initialData: [],
-    load: async (signal) => {
-      const res = await api.get<ResolvedTicket[]>("/user/resolved-tickets/", { signal });
-      return res.data;
-    },
     onError: (err) => logger.error("Failed to load resolved tickets", err),
   });
 }

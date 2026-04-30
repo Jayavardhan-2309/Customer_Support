@@ -3,7 +3,6 @@
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { logger } from "@/logger"
-import api from "@/src/lib/axios"
 import { safeFetch } from "@/src/lib/safeFetch"
 import { useAbortableApiData } from "@/src/lib/useAbortableApiData"
 import { AdminAnalytics } from "@/types/customTypes"
@@ -15,11 +14,7 @@ import { StatusDatum, getStaffChartData, getStatusData } from "./analyticsHelper
 export default function AdminAnalyticsPage() {
   const [loggingOut, setLoggingOut] = useState(false)
   const router = useRouter()
-  const { data, isLoading } = useAbortableApiData<AdminAnalytics>({
-    load: async (signal) => {
-      const res = await api.get("/admin/analytics/", { signal })
-      return res.data
-    },
+  const { data, isLoading } = useAbortableApiData<AdminAnalytics>("/admin/analytics/", {
     onError: (err) => logger.error("Failed to load analytics", err),
   })
 

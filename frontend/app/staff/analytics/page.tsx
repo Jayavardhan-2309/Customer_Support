@@ -3,7 +3,6 @@
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { logger } from "@/logger"
-import api from "@/src/lib/axios"
 import { useAbortableApiData } from "@/src/lib/useAbortableApiData"
 import { AnalyticsLoading } from "./AnalyticsLoading"
 import { deriveMetrics, getCategoryData, getPriorityData, getStatusData, getTrendState } from "./analyticsData"
@@ -17,11 +16,7 @@ export default function AnalyticsPage() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all")
   const [daysFilter, setDaysFilter] = useState(7)
   const router = useRouter()
-  const { data: analytics, isLoading } = useAbortableApiData<AnalyticsResponse>({
-    load: async (signal) => {
-      const response = await api.get<AnalyticsResponse>("staff/analytics/", { signal })
-      return response.data
-    },
+  const { data: analytics, isLoading } = useAbortableApiData<AnalyticsResponse>("staff/analytics/", {
     onError: (error) => logger.error("Failed to load staff analytics", error),
   })
 

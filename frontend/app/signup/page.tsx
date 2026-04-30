@@ -1,10 +1,11 @@
 "use client";
 
 import axios from "axios";
-import { useEffect, useState, type SyntheticEvent } from "react";
+import { useState, type SyntheticEvent } from "react";
 import { useRouter } from "next/navigation";
 import { logger } from "@/logger";
 import api from "@/src/lib/axios";
+import { useAbortableApiData } from "@/src/lib/useAbortableApiData";
 import { Organization } from "@/types/customTypes";
 import { SignupForm } from "./SignupForm";
 
@@ -29,24 +30,12 @@ export default function SignupPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [role, setRole] = useState<"user" | "admin">("user");
-  const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [organizationId, setOrganizationId] = useState<number | null>(null);
-
-  useEffect(() => {
-    const controller = new AbortController();
-    api.get("organizations/", { signal: controller.signal })
-      .then((res) => {
-        if (!controller.signal.aborted) {
-          setOrganizations(res.data);
-        }
-      })
-      .catch((err) => {
-        if (!controller.signal.aborted) {
-          logger.error("Failed to load organizations", err);
-        }
-      });
-    return () => controller.abort();
-  }, []);
+  const { data: loadedOrganizations } = useAbortableApiData<Organization[]>("organizations/", {
+    initialData: [],
+    onError: (err) => logger.error("Failed to load organizations", err),
+  });
+  const organizations = loadedOrganizations ?? [];
 
   const handleSignup = async (event: SyntheticEvent<HTMLFormElement>) => {
     event.preventDefault();

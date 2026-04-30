@@ -3,7 +3,6 @@
 import { safeFetch } from "@/src/lib/safeFetch";
 
 import { useState } from "react";
-import api from "@/src/lib/axios";
 import { useAbortableApiData } from "@/src/lib/useAbortableApiData";
 import { useParams, useRouter } from "next/navigation";
 import { logger } from "@/logger";
@@ -13,13 +12,9 @@ export default function StaffAnalyticsDetailPage() {
   const { id } = useParams();
   const router = useRouter();
   const [loggingOut, setLoggingOut] = useState(false);
-  const { data, isLoading } = useAbortableApiData<StaffDetail>({
-    load: async (signal) => {
-      const res = await api.get(`/admin/analytics/staff/${id}/`, { signal });
-      return res.data;
-    },
+  const { data, isLoading } = useAbortableApiData<StaffDetail>(id ? `/admin/analytics/staff/${id}/` : null, {
     onError: (err) => logger.error("Failed to load staff analytics", err),
-  }, [id]);
+  });
 
   const logout = async () => {
     setLoggingOut(true);
