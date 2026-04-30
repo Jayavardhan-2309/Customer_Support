@@ -2,21 +2,17 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { PDF } from "@/types/customTypes";
 import { safeFetch } from "@/src/lib/safeFetch";
 import { AdminHeader } from "./AdminHeader";
 import { AdminPdfManager } from "./AdminPdfManager";
 import { AdminToast } from "./AdminToast";
 import { useAdminAuth } from "./useAdminAuth";
+import { useAdminPdfs } from "./useAdminPdfs";
 
 export default function AdminPage() {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [pdfs, setPdfs] = useState<PDF[]>([]);
-  const [loadingPdfs, setLoadingPdfs] = useState(true);
-  const [uploading, setUploading] = useState(false);
-  const [deletingId, setDeletingId] = useState<number | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
@@ -39,27 +35,7 @@ export default function AdminPage() {
     [],
   );
 
-  const fetchPdfs = useCallback(async (signal?: AbortSignal) => {
-    setLoadingPdfs(true);
-    try {
-      const res = await safeFetch("/api/admin/pdfs", { credentials: "include", signal });
-      if (signal?.aborted) {
-        return;
-      }
-      if (res.ok) {
-        setPdfs(await res.json());
-      }
-    } catch {
-      if (signal?.aborted) {
-        return;
-      }
-      showToast("Failed to load PDFs", "error");
-    } finally {
-      if (!signal?.aborted) {
-        setLoadingPdfs(false);
-      }
-    }
-  }, [showToast]);
+  const { deletingId, deletePdf, fetchPdfs, loadingPdfs, pdfs, uploadFile, uploading } = useAdminPdfs(fileInputRef, showToast);
 
   useEffect(() => {
     if (checkingAuth) {
@@ -69,55 +45,6 @@ export default function AdminPage() {
     void fetchPdfs(controller.signal);
     return () => controller.abort();
   }, [checkingAuth, fetchPdfs]);
-
-  const uploadFile = async (file: File) => {
-    if (!file.name.endsWith(".pdf")) {
-      showToast("Only PDF files are allowed", "error");
-      return;
-    }
-    if (file.size > 10 * 1024 * 1024) {
-      showToast("File too large. Max size is 10MB", "error");
-      return;
-    }
-
-    setUploading(true);
-    const formData = new FormData();
-    formData.append("file", file);
-    try {
-      const res = await safeFetch("/api/admin/pdfs/upload", { method: "POST", body: formData, credentials: "include" });
-      const data = await res.json();
-      if (res.ok) {
-        showToast("PDF uploaded! Re-indexing knowledge base...", "success");
-        await fetchPdfs();
-      } else {
-        showToast(data.detail ?? "Upload failed", "error");
-      }
-    } catch {
-      showToast("Upload failed. Try again.", "error");
-    } finally {
-      setUploading(false);
-      if (fileInputRef.current) fileInputRef.current.value = "";
-    }
-  };
-
-  const deletePdf = async (id: number, title: string) => {
-    if (!confirm(`Delete "${title}"? This will remove it from the knowledge base.`)) return;
-    setDeletingId(id);
-    try {
-      const res = await safeFetch(`/api/admin/pdfs/${id}`, { method: "DELETE", credentials: "include" });
-      if (res.ok) {
-        showToast("PDF deleted. Re-indexing knowledge base...", "success");
-        setPdfs((prev) => prev.filter((pdf) => pdf.id !== id));
-      } else {
-        const data = await res.json();
-        showToast(data.detail ?? "Delete failed", "error");
-      }
-    } catch {
-      showToast("Delete failed. Try again.", "error");
-    } finally {
-      setDeletingId(null);
-    }
-  };
 
   const logout = async () => {
     setIsLoggingOut(true);

@@ -1,9 +1,10 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { logger } from "@/logger"
 import api from "@/src/lib/axios"
+import { useAbortableApiData } from "@/src/lib/useAbortableApiData"
 import { AnalyticsLoading } from "./AnalyticsLoading"
 import { deriveMetrics, getCategoryData, getPriorityData, getStatusData, getTrendState } from "./analyticsData"
 import { StaffAnalyticsCharts } from "./StaffAnalyticsCharts"
@@ -13,33 +14,16 @@ import { StaffAnalyticsTrendSection } from "./StaffAnalyticsTrendSection"
 import { AnalyticsResponse, StatusFilter } from "./types"
 
 export default function AnalyticsPage() {
-  const [analytics, setAnalytics] = useState<AnalyticsResponse | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all")
   const [daysFilter, setDaysFilter] = useState(7)
   const router = useRouter()
-
-  useEffect(() => {
-    const controller = new AbortController()
-    const loadAnalytics = async () => {
-      try {
-        const response = await api.get<AnalyticsResponse>("staff/analytics/", { signal: controller.signal })
-        if (!controller.signal.aborted) {
-          setAnalytics(response.data)
-        }
-      } catch (error) {
-        if (!controller.signal.aborted) {
-          logger.error("Failed to load staff analytics", error)
-        }
-      } finally {
-        if (!controller.signal.aborted) {
-          setIsLoading(false)
-        }
-      }
-    }
-    void loadAnalytics()
-    return () => controller.abort()
-  }, [])
+  const { data: analytics, isLoading } = useAbortableApiData<AnalyticsResponse>({
+    load: async (signal) => {
+      const response = await api.get<AnalyticsResponse>("staff/analytics/", { signal })
+      return response.data
+    },
+    onError: (error) => logger.error("Failed to load staff analytics", error),
+  })
 
   if (isLoading) {
     return <AnalyticsLoading />

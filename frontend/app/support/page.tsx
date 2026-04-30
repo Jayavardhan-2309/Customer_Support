@@ -6,8 +6,8 @@ import { safeFetch } from "@/src/lib/safeFetch";
 import { SupportChatSurface } from "./SupportChatSurface";
 import { SupportHeader } from "./SupportHeader";
 import { createMessage } from "./messageUtils";
-import { MeResponse } from "./types";
 import { useChatHistory } from "./useChatHistory";
+import { useSupportAuth } from "./useSupportAuth";
 import { useSpeechRecognition } from "./useSpeechRecognition";
 
 export default function Support() {
@@ -19,33 +19,12 @@ export default function Support() {
   const isMountedRef = useRef(true);
   const bottomRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
-  const [checkingAuth, setCheckingAuth] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
-  const [orgName, setOrgName] = useState("");
   const [sendBlocked, setSendBlocked] = useState(false);
+  const { checkingAuth, orgName } = useSupportAuth();
   const speech = useSpeechRecognition();
   const chat = useChatHistory();
-
-  useEffect(() => {
-    const controller = new AbortController();
-    void safeFetch("/api/me", { credentials: "include", signal: controller.signal }).then(async (res) => {
-      if (controller.signal.aborted) {
-        return;
-      }
-      if (!res.ok) {
-        router.replace("/login");
-        return;
-      }
-      const data = (await res.json()) as MeResponse;
-      setOrgName(data.organization_name || "");
-      setCheckingAuth(false);
-    });
-
-    return () => {
-      controller.abort();
-    };
-  }, [router]);
 
   useEffect(
     () => () => {

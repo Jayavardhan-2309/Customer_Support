@@ -2,8 +2,9 @@
 
 import { safeFetch } from "@/src/lib/safeFetch";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import api from "@/src/lib/axios";
+import { useAbortableApiData } from "@/src/lib/useAbortableApiData";
 import { useParams, useRouter } from "next/navigation";
 import { logger } from "@/logger";
 import { StaffDetail, Feedback } from "@/types/customTypes";
@@ -11,32 +12,13 @@ import { StaffDetail, Feedback } from "@/types/customTypes";
 export default function StaffAnalyticsDetailPage() {
   const { id } = useParams();
   const router = useRouter();
-  const [data, setData] = useState<StaffDetail | null>(null)
-  const [isLoading, setIsLoading] = useState(true);
   const [loggingOut, setLoggingOut] = useState(false);
-
-  useEffect(() => {
-    const controller = new AbortController();
-    const load = async () => {
-      try {
-        const res = await api.get(`/admin/analytics/staff/${id}/`, { signal: controller.signal });
-        if (controller.signal.aborted) {
-          return;
-        }
-        setData(res.data);
-      } catch (err) {
-        if (controller.signal.aborted) {
-          return;
-        }
-        logger.error("Failed to load staff analytics", err);
-      } finally {
-        if (!controller.signal.aborted) {
-          setIsLoading(false);
-        }
-      }
-    };
-    void load();
-    return () => controller.abort();
+  const { data, isLoading } = useAbortableApiData<StaffDetail>({
+    load: async (signal) => {
+      const res = await api.get(`/admin/analytics/staff/${id}/`, { signal });
+      return res.data;
+    },
+    onError: (err) => logger.error("Failed to load staff analytics", err),
   }, [id]);
 
   const logout = async () => {
