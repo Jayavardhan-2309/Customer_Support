@@ -56,7 +56,7 @@ function StaffPerformanceGrid({
             className="bg-slate-900 border border-slate-800 p-4 sm:p-5 rounded-xl text-left cursor-pointer sm:hover:border-indigo-500 sm:hover:scale-[1.02] transition"
           >
             <h3 className="font-semibold text-white text-sm sm:text-base">{staff.name}</h3>
-            <p className="text-yellow-400 mt-2 text-base sm:text-lg">â­ {staff.avg_rating}</p>
+            <p className="text-yellow-400 mt-2 text-base sm:text-lg">⭐ {staff.avg_rating}</p>
             <p className="text-xs sm:text-sm text-slate-400">{staff.total_feedbacks} reviews</p>
             <p className="text-xs text-slate-500 mt-2">Rank #{index + 1}</p>
           </button>

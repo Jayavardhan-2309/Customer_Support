@@ -17,7 +17,7 @@ export function AdminAnalyticsHeader({ loggingOut, onBack, onLogout }: Props) {
             onClick={onBack}
             className="px-3 sm:px-4 py-2 text-xs sm:text-sm border border-slate-700 rounded text-slate-300 hover:border-slate-500"
           >
-            â† Dashboard
+            ← Dashboard
           </button>
           <button
             onClick={onLogout}
