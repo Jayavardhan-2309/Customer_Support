@@ -7,7 +7,7 @@ services:
       pip install -r requirements.txt
       python manage.py collectstatic --noinput
       python manage.py migrate --noinput
-    startCommand: gunicorn custSupport.wsgi:application --bind 0.0.0.0:$PORT --workers 2 --timeout 120
+    startCommand: PYTHONPATH=$PWD gunicorn custSupport.wsgi:application --bind 0.0.0.0:$PORT --workers 2 --timeout 120
     envVars:
       - key: DJANGO_SETTINGS_MODULE
         value: custSupport.settings
@@ -24,7 +24,7 @@ services:
     name: custsupport-celery
     runtime: python
     buildCommand: pip install -r requirements.txt
-    startCommand: celery -A custSupport worker --loglevel=info --concurrency=2
+    startCommand: PYTHONPATH=$PWD celery -A custSupport worker --loglevel=info --concurrency=2
     envVars:
       - key: DJANGO_SETTINGS_MODULE
         value: custSupport.settings
