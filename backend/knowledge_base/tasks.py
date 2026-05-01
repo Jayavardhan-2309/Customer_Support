@@ -1,5 +1,6 @@
 import logging
 from io import BytesIO
+from pathlib import Path
 
 import pdfplumber
 import requests
@@ -13,8 +14,13 @@ from urllib3.util.retry import Retry
 
 from custSupApp.config import ConfigurationError, required_env
 from knowledge_base.embeddings import embed_texts_batch
-from custSupApp.models import SupportTicket, UploadedPDF
+from custSupApp.models import SupportTicket, UploadedDocument, UploadedPDF
 from django.template.loader import render_to_string
+from knowledge_base.document_processor import (
+    get_document_processor,
+    process_document_from_url,
+    DocumentResult,
+)
 
 
 logger = get_task_logger(__name__)
@@ -104,25 +110,22 @@ def send_ticket_email(self, ticket_id, staff_email, conversation_text, query) ->
         raise self.retry(exc=exc)
 
 
-def _extract_pdf_batch(pdf_doc, start):
-    pages = pdf_doc.pages[start:start + PDF_BATCH_PAGES]
-    return [page_text for page in pages if (page_text := page.extract_text() or "").strip()]
+def _mark_document_completed(doc) -> None:
+    doc.status = "completed"
+    doc.is_indexed = True
+    doc.save(update_fields=["status", "is_indexed"])
+    logger.info(f"[INDEX COMPLETE] Document={doc.title} (type: {doc.file_type})")
 
 
-def _mark_pdf_completed(pdf) -> None:
-    pdf.status = "completed"
-    pdf.is_indexed = True
-    pdf.save(update_fields=["status", "is_indexed"])
-    logger.info(f"[INDEX COMPLETE] PDF={pdf.title}")
-
-
-def _process_pdf_pages(pdf, pdf_doc) -> bool:
+def _process_pdf_legacy(pdf, pdf_doc) -> bool:
+    """Legacy PDF processing using pdfplumber (for backward compatibility)"""
     if not pdf.total_pages:
         pdf.total_pages = len(pdf_doc.pages)
         pdf.save(update_fields=["total_pages"])
 
     for page_index in range(pdf.last_processed_page, len(pdf_doc.pages), PDF_BATCH_PAGES):
-        texts = _extract_pdf_batch(pdf_doc, page_index)
+        pages = pdf_doc.pages[page_index:page_index + PDF_BATCH_PAGES]
+        texts = [page_text for page in pages if (page_text := page.extract_text() or "").strip()]
         if texts:
             process_text_batch_sync(texts, pdf.organization_id, pdf.id)
 
@@ -134,27 +137,68 @@ def _process_pdf_pages(pdf, pdf_doc) -> bool:
 
 @shared_task(bind=True, max_retries=3, default_retry_delay=10)
 def index_pdf(self, pdf_id) -> None:
-    pdf = UploadedPDF.objects.get(id=pdf_id)
+    """
+    Legacy task for indexing PDFs. 
+    Now delegates to index_document for unified processing.
+    """
+    try:
+        pdf = UploadedPDF.objects.get(id=pdf_id)
+        # Delegate to the new unified document indexing
+        index_document.delay(pdf.id)
+    except UploadedPDF.DoesNotExist:
+        logger.warning(f"[INDEX ERROR] PDF #{pdf_id} not found")
 
-    logger.info(f"[INDEX START] PDF={pdf.title}")
+
+@shared_task(bind=True, max_retries=3, default_retry_delay=10)
+def index_document(self, doc_id) -> None:
+    """
+    Unified task for indexing documents (PDF, Excel, CSV, Word).
+    Uses the document_processor module for multi-format support.
+    """
+    doc = UploadedDocument.objects.get(id=doc_id)
+
+    logger.info(f"[INDEX START] Document={doc.title} (type: {doc.file_type})")
 
     try:
-        response = _retrying_session().get(pdf.file_url, timeout=15)
-        response.raise_for_status()
+        # Use the new document processor for all file types
+        result = process_document_from_url(doc.file_url)
+        
+        # Split and index the extracted text
+        texts = _split_document_text(result.text)
+        
+        for i in range(0, len(texts), EMBEDDING_BATCH_SIZE):
+            batch = texts[i:i + EMBEDDING_BATCH_SIZE]
+            vectors = embed_texts_batch(batch)
 
-        pdf_stream = BytesIO(response.content)
+            with connection.cursor() as cursor:
+                for text, vector in zip(batch, vectors):
+                    vector_str = "[" + ",".join(map(str, vector)) + "]"
+                    cursor.execute(
+                        """
+                        INSERT INTO kb_chunks (content, embedding, org_id, pdf_id)
+                        VALUES (%s, %s::vector, %s, %s)
+                        """,
+                        [text, vector_str, doc.organization_id, doc.id],
+                    )
 
-        with pdfplumber.open(pdf_stream) as pdf_doc:
-            if not _process_pdf_pages(pdf, pdf_doc):
-                index_pdf.delay(pdf.id)
-                return
-            _mark_pdf_completed(pdf)
+        _mark_document_completed(doc)
 
     except (RuntimeError, PDFSyntaxError, OSError, ValueError) as exc:
-        logger.error(f"[INDEX ERROR] {pdf.title} | {exc}", exc_info=True)
+        logger.error(f"[INDEX ERROR] {doc.title} | {exc}", exc_info=True)
         raise self.retry(exc=exc)
 
-def process_text_batch_sync(text_batch, org_id, pdf_id) -> None:
+
+def _split_document_text(text: str) -> list[str]:
+    """Split document text into chunks for embedding"""
+    splitter = CharacterTextSplitter(
+        chunk_size=TEXT_CHUNK_SIZE,
+        chunk_overlap=TEXT_CHUNK_OVERLAP
+    )
+    return splitter.split_text(text)
+
+
+def process_text_batch_sync(text_batch, org_id, doc_id) -> None:
+    """Process a batch of text chunks and embed them"""
     splitter = CharacterTextSplitter(chunk_size=TEXT_CHUNK_SIZE, chunk_overlap=TEXT_CHUNK_OVERLAP)
 
     docs = []
@@ -175,5 +219,37 @@ def process_text_batch_sync(text_batch, org_id, pdf_id) -> None:
                     INSERT INTO kb_chunks (content, embedding, org_id, pdf_id)
                     VALUES (%s, %s::vector, %s, %s)
                     """,
-                    [text, vector_str, org_id, pdf_id],
+                    [text, vector_str, org_id, doc_id],
                 )
+
+
+def detect_file_type(file_url: str) -> str:
+    """Detect file type from URL"""
+    url_lower = file_url.lower()
+    if '.pdf' in url_lower:
+        return 'pdf'
+    elif '.xlsx' in url_lower or '.xlsm' in url_lower or '.xls' in url_lower:
+        return 'excel'
+    elif '.csv' in url_lower:
+        return 'csv'
+    elif '.docx' in url_lower:
+        return 'word'
+    return 'pdf'  # Default to PDF
+
+
+@shared_task(bind=True, max_retries=3, default_retry_delay=10)
+def index_document_auto(self, doc_id, file_type=None) -> None:
+    """
+    Auto-detect file type and index document.
+    This is the recommended entry point for new document uploads.
+    """
+    doc = UploadedDocument.objects.get(id=doc_id)
+    
+    # Auto-detect file type if not provided
+    if file_type is None:
+        file_type = detect_file_type(doc.file_url)
+        doc.file_type = file_type
+        doc.save(update_fields=["file_type"])
+    
+    # Delegate to the appropriate processor
+    index_document.delay(doc_id)

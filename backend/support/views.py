@@ -63,10 +63,18 @@ def _send_ticket_update(ticket):
 
 
 def _recent_conversation_text(user):
+    """
+    Get the last 10 user-AI conversation pairs for email notification.
+    Returns a formatted string of the conversation.
+    """
+    # Get the last 20 messages (10 user messages + 10 AI responses)
     recent_messages = ChatMessage.objects.filter(
         user=user,
-        created_at__gte=timezone.now() - timedelta(minutes=15),
-    ).order_by("created_at")
+    ).order_by("-created_at")[:20]
+    
+    # Reverse to get chronological order
+    recent_messages = list(reversed(recent_messages))
+    
     lines = []
     for msg in recent_messages:
         prefix = "User" if msg.sender == "user" else "AI"

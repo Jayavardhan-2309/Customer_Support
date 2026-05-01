@@ -44,6 +44,13 @@ class ChatMessage(models.Model):
     sender = models.CharField(max_length=20)
     message = models.TextField()
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    ticket = models.ForeignKey(
+        "SupportTicket",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="chat_messages",
+    )
 
 
 class SupportTicket(models.Model):
@@ -116,18 +123,36 @@ class KnowledgeSource(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
 
-class UploadedPDF(models.Model):
+class UploadedDocument(models.Model):
+    """
+    Model for uploaded documents (PDF, Excel, CSV, Word).
+    Supports multiple file formats for knowledge base indexing.
+    """
+
+    FILE_TYPE_CHOICES = [
+        ("pdf", "PDF"),
+        ("excel", "Excel"),
+        ("csv", "CSV"),
+        ("word", "Word"),
+    ]
 
     title = models.CharField(max_length=200)
 
-    file = models.FileField(upload_to="pdfs/", null=True, blank=True)  # keep optional
+    file = models.FileField(upload_to="documents/", null=True, blank=True)
 
     file_url = models.TextField(blank=True, default="")
+
+    file_type = models.CharField(
+        max_length=20,
+        choices=FILE_TYPE_CHOICES,
+        default="pdf",
+        db_index=True
+    )
 
     organization = models.ForeignKey(
         Organization,
         on_delete=models.CASCADE,
-        related_name="pdfs",
+        related_name="documents",
         null=True,
         blank=True
     )
@@ -144,6 +169,14 @@ class UploadedPDF(models.Model):
     last_processed_page = models.IntegerField(default=0)
     total_pages = models.IntegerField(null=True, blank=True)
     is_indexed = models.BooleanField(default=False)
+
+    # Keep the old model name as an alias for backward compatibility
+    class Meta:
+        db_table = "custSupApp_uploadedpdf"  # Use existing table
+
+
+# Alias for backward compatibility
+UploadedPDF = UploadedDocument
 
 class TicketFeedback(models.Model):
     ticket = models.OneToOneField(
