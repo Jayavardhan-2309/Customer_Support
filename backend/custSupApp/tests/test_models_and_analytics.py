@@ -55,7 +55,7 @@ class ModelsAndAnalyticsTests(AnalyticsTestBase):
         self.assertEqual(default_ticket.category, "general")
         self.assertEqual(self.organization.users.count(), 3)
         self.assertEqual(self.organization.tickets.count(), 5)
-        self.assertEqual(self.organization.pdfs.count(), 1)
+        self.assertEqual(self.organization.documents.count(), 1)
         self.assertEqual(self.staff.received_feedback.count(), 1)
         self.assertEqual(self.user.given_feedback.count(), 1)
     @patch("custSupApp.services.analytics.analytics_service.timezone.now")

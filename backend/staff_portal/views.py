@@ -96,12 +96,16 @@ class StaffTicketViewSet(GenericViewSet, ListModelMixin):
                 ticket=ticket
             ).order_by("-created_at")
         else:
-            # Fallback: get messages from 15 minutes before ticket creation to now
-            # This ensures backward compatibility with existing messages
-            cutoff = ticket.created_at - timedelta(minutes=15)
+            # Fallback: get messages from 15 minutes before ticket creation to 15 minutes after
+            # This ensures backward compatibility with existing messages that aren't linked to tickets
+            # Only include messages that are not associated with any other ticket
+            cutoff_before = ticket.created_at - timedelta(minutes=15)
+            cutoff_after = ticket.created_at + timedelta(minutes=15)
             messages = ChatMessage.objects.filter(
                 user=ticket.user,
-                created_at__gte=cutoff,
+                created_at__gte=cutoff_before,
+                created_at__lte=cutoff_after,
+                ticket__isnull=True,  # Only include messages not linked to any ticket
             ).order_by("-created_at")
         
         # Paginate the results
