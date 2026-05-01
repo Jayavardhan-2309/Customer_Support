@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { useParams, useRouter, useSearchParams } from "next/navigation"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { logger } from "@/logger"
@@ -40,7 +40,7 @@ export default function TicketDetailPage() {
   })
 
   // Extract messages array from paginated response
-  const messages = messagesData?.results || []
+  const messages = useMemo(() => messagesData?.results || [], [messagesData?.results])
   const pagination = messagesData || undefined
 
   useEffect(() => {
