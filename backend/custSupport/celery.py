@@ -7,6 +7,11 @@ from celery import Celery
 BASE_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(BASE_DIR))
 
+# Fallback if Render used a repo root and placed backend inside a subdirectory.
+BACKEND_ALT = BASE_DIR / "backend"
+if BACKEND_ALT.exists() and BACKEND_ALT not in sys.path:
+    sys.path.insert(0, str(BACKEND_ALT))
+
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "custSupport.settings")
 
 app = Celery("custSupport")

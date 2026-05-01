@@ -1,5 +1,9 @@
 #!/bin/bash
 
+echo "DEBUG START PWD: $PWD"
+echo "DEBUG START LS:"
+ls -la
+
 echo "Applying migrations..."
 PYTHONPATH=$PWD python manage.py migrate
 
