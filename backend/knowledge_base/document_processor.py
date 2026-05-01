@@ -12,6 +12,7 @@ Also supports Vision AI for graph/chart understanding in PDFs.
 import base64
 import logging
 import os
+import shutil
 import tempfile
 from abc import ABC, abstractmethod
 from io import BytesIO
@@ -32,10 +33,16 @@ logger = logging.getLogger(__name__)
 # Try to import pytesseract, but make it optional
 try:
     import pytesseract
-    TESSERACT_AVAILABLE = True
 except ImportError:
+    pytesseract = None
     TESSERACT_AVAILABLE = False
-    logger.warning("pytesseract not installed. OCR for PDF images will not be available.")
+    logger.warning("pytesseract is not installed. OCR for PDF images will not be available.")
+else:
+    TESSERACT_AVAILABLE = shutil.which("tesseract") is not None
+    if not TESSERACT_AVAILABLE:
+        logger.warning(
+            "Tesseract binary is not installed or not on PATH. OCR for PDF images will be disabled."
+        )
 
 # Vision AI prompt for analyzing graphs/charts
 VISION_ANALYSIS_PROMPT = """Analyze this image which may contain a graph, chart, or data visualization. 
@@ -135,12 +142,16 @@ class PDFProcessor(BaseDocumentProcessor):
             page_image.save(img_bytes, format='PNG')
             img_bytes.seek(0)
             
-            # Use pytesseract for OCR
-            if TESSERACT_AVAILABLE:
+            # Use pytesseract for OCR when the runtime binary is available.
+            if self.use_ocr:
                 img = Image.open(img_bytes)
                 ocr_text = pytesseract.image_to_string(img).strip()
                 if ocr_text:
                     image_texts.append(f"Page {page_num} Image Text: {ocr_text}")
+            else:
+                logger.debug(
+                    f"Skipping OCR on page {page_num} because Tesseract is unavailable."
+                )
 
             # Use a text-based AI backend to summarize graph-like images when available.
             if self.vision_enabled and ocr_text:
