@@ -6,14 +6,14 @@ from django.contrib.auth import get_user_model
 from django.test import RequestFactory, SimpleTestCase, TestCase, override_settings
 from rest_framework.test import force_authenticate
 
+from accounts.serializers import ChatMessageSerializer, UserSerializer
 from custSupApp.consumers import TicketConsumer
-from custSupApp.embeddings import embed_text, embed_texts_batch, get_client
 from custSupApp.models import ChatMessage, Organization, SupportTicket
-from custSupApp.serializers import ChatMessageSerializer, UserSerializer
-from custSupApp.services.support_assignment import assign_least_busy_staff
-from custSupApp.services.ticket_service import create_structured_ticket, notify_staff
 from custSupApp.views import ChatMessageView, UserView
 from custSupport.views import backend_res
+from knowledge_base.embeddings import embed_text, embed_texts_batch, get_client
+from tickets.services.support_assignment import assign_least_busy_staff
+from tickets.services.ticket_service import create_structured_ticket, notify_staff
 
 User = get_user_model()
 SECRET_FIELD = "".join(["pass", "word"])
@@ -78,7 +78,7 @@ class SupportAssignmentAndTicketServiceTests(TestCase):
         self.assertIsNone(assigned_staff)
 
     @override_settings(DEBUG=True)
-    @patch("custSupApp.services.ticket_service.send_ticket_email")
+    @patch("tickets.services.ticket_service.send_ticket_email")
     def test_notify_staff_calls_task_directly_in_debug(self, send_ticket_email_mock):
         ticket = MagicMock(id=7)
 
@@ -93,7 +93,7 @@ class SupportAssignmentAndTicketServiceTests(TestCase):
         send_ticket_email_mock.delay.assert_not_called()
 
     @override_settings(DEBUG=False)
-    @patch("custSupApp.services.ticket_service.send_ticket_email")
+    @patch("tickets.services.ticket_service.send_ticket_email")
     def test_notify_staff_uses_delay_when_not_in_debug(self, send_ticket_email_mock):
         ticket = MagicMock(id=9)
 
@@ -106,7 +106,7 @@ class SupportAssignmentAndTicketServiceTests(TestCase):
             "Reset password",
         )
 
-    @patch("custSupApp.services.ticket_service.assign_least_busy_staff")
+    @patch("tickets.services.ticket_service.assign_least_busy_staff")
     def test_create_structured_ticket_uses_structured_values_and_defaults(self, assign_staff_mock):
         assign_staff_mock.return_value = self.free_staff
 
@@ -130,7 +130,7 @@ class SupportAssignmentAndTicketServiceTests(TestCase):
         self.assertEqual(ticket.priority, "high")
         self.assertEqual(ticket.status, "open")
 
-    @patch("custSupApp.services.ticket_service.assign_least_busy_staff", return_value=None)
+    @patch("tickets.services.ticket_service.assign_least_busy_staff", return_value=None)
     def test_create_structured_ticket_falls_back_to_query_defaults(self, _assign_staff_mock):
         ticket, staff_member = create_structured_ticket(
             self.user,
@@ -155,7 +155,7 @@ class EmbeddingHelpersTests(SimpleTestCase):
         self.assertIn("CUSTOMER_API", str(error.exception))
 
     @patch.dict("os.environ", {"CUSTOMER_API": "key-value"}, clear=True)
-    @patch("custSupApp.embeddings.genai.Client")
+    @patch("knowledge_base.embeddings.genai.Client")
     def test_get_client_builds_genai_client(self, client_mock):
         client = get_client()
 
@@ -165,7 +165,7 @@ class EmbeddingHelpersTests(SimpleTestCase):
             http_options={"timeout": 30000},
         )
 
-    @patch("custSupApp.embeddings.get_client")
+    @patch("knowledge_base.embeddings.get_client")
     def test_embed_text_returns_first_embedding_values(self, get_client_mock):
         get_client_mock.return_value.models.embed_content.return_value = SimpleNamespace(
             embeddings=[SimpleNamespace(values=[0.1, 0.2, 0.3])]
@@ -175,7 +175,7 @@ class EmbeddingHelpersTests(SimpleTestCase):
 
         self.assertEqual(result, [0.1, 0.2, 0.3])
 
-    @patch("custSupApp.embeddings.get_client")
+    @patch("knowledge_base.embeddings.get_client")
     def test_embed_texts_batch_returns_all_embedding_values(self, get_client_mock):
         get_client_mock.return_value.models.embed_content.return_value = SimpleNamespace(
             embeddings=[

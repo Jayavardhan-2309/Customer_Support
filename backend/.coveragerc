@@ -1,24 +1,38 @@
 [run]
 relative_files = True
-include =
-    backend/api/*.py
-    backend/api/views_folder/*.py
-    backend/custSupApp/*.py
-    backend/custSupApp/**/*.py
-    backend/custSupport/*.py
+source =
+    backend
 omit =
     backend/**/tests.py
     backend/**/tests/*.py
     backend/**/tests_folder/*.py
     backend/*/migrations/*
+    backend/**/admin.py
+    backend/**/apps.py
+    backend/**/routing.py
+    backend/**/tasks.py
+    backend/**/urls.py
     backend/conftest.py
     backend/env/**
     backend/manage.py
+    backend/api/views_folder/*.py
     backend/custSupport/asgi.py
     backend/custSupport/celery.py
     backend/custSupport/settings.py
     backend/custSupport/test_settings.py
     backend/custSupport/wsgi.py
+    backend/custSupApp/ai.py
     backend/custSupApp/ai_config.py
+    backend/custSupApp/ai_escalation.py
+    backend/custSupApp/ai_http.py
+    backend/custSupApp/ai_knowledge.py
+    backend/custSupApp/ai_prompts.py
+    backend/custSupApp/ai_schemas.py
+    backend/custSupApp/ai_ticketing.py
+    backend/custSupApp/authentication.py
     backend/custSupApp/config.py
-    backend/custSupApp/tasks.py
+    backend/custSupApp/embeddings.py
+    backend/custSupApp/serializers.py
+    backend/custSupApp/services/support_assignment.py
+    backend/custSupApp/services/ticket_extraction.py
+    backend/custSupApp/services/ticket_service.py

@@ -3,7 +3,8 @@ from unittest.mock import MagicMock, Mock, patch
 
 import requests
 
-from custSupApp import ai, ai_knowledge
+import ai_assistant.ai as ai
+import ai_assistant.knowledge as ai_knowledge
 
 
 class TestAIHelpers(unittest.TestCase):
@@ -60,17 +61,17 @@ class TestAIHelpers(unittest.TestCase):
         self.assertIn("I am upset", prompt)
         self.assertIn("frustrated", prompt)
 
-    @patch("custSupApp.ai.call_groq")
+    @patch("ai_assistant.ai.call_groq")
     def test_is_user_frustrated_detects_negative_sentiment(self, mock_call_groq):
         mock_call_groq.return_value = "frustrated"
         self.assertTrue(ai.is_user_frustrated("This is terrible"))
 
-    @patch("custSupApp.ai.call_groq")
+    @patch("ai_assistant.ai.call_groq")
     def test_is_user_frustrated_returns_false_when_no_result(self, mock_call_groq):
         mock_call_groq.return_value = None
         self.assertFalse(ai.is_user_frustrated("This is terrible"))
 
-    @patch("custSupApp.ai_knowledge.embed_text")
+    @patch("ai_assistant.knowledge.embed_text")
     def test_search_similar_chunks_returns_cursor_rows(self, mock_embed_text):
         mock_embed_text.return_value = [0.1, 0.2]
         cursor = MagicMock()
@@ -84,12 +85,12 @@ class TestAIHelpers(unittest.TestCase):
         self.assertEqual(result, ["doc one", "doc two"])
         cursor.execute.assert_called_once()
 
-    @patch("custSupApp.ai_knowledge.embed_text")
+    @patch("ai_assistant.knowledge.embed_text")
     def test_search_similar_chunks_returns_empty_list_when_embedding_fails(self, mock_embed_text):
         mock_embed_text.side_effect = RuntimeError("embed failed")
         self.assertEqual(ai_knowledge.search_similar_chunks("query", 10), [])
 
-    @patch("custSupApp.ai_http.requests.post")
+    @patch("ai_assistant.http.requests.post")
     @patch.dict("os.environ", {"GROQ_API_KEY": "token"})
     def test_call_groq_returns_message_content(self, mock_post):
         response = Mock(status_code=200)
@@ -104,7 +105,7 @@ class TestAIHelpers(unittest.TestCase):
     def test_call_groq_returns_none_without_api_key(self):
         self.assertIsNone(ai.call_groq("hello"))
 
-    @patch("custSupApp.ai_http.requests.post")
+    @patch("ai_assistant.http.requests.post")
     @patch.dict("os.environ", {"GROQ_API_KEY": "token"})
     def test_call_groq_retries_models_and_returns_none_after_failures(self, mock_post):
         mock_post.side_effect = [
@@ -114,7 +115,7 @@ class TestAIHelpers(unittest.TestCase):
 
         self.assertIsNone(ai.call_groq("hello"))
 
-    @patch("custSupApp.ai_http.requests.post")
+    @patch("ai_assistant.http.requests.post")
     @patch.dict("os.environ", {"OPENROUTER_API_KEY": "token"})
     def test_call_openrouter_returns_message_content(self, mock_post):
         response = Mock(status_code=200)
@@ -129,7 +130,7 @@ class TestAIHelpers(unittest.TestCase):
     def test_call_openrouter_returns_none_without_api_key(self):
         self.assertIsNone(ai.call_openrouter("hello"))
 
-    @patch("custSupApp.ai_http.requests.post")
+    @patch("ai_assistant.http.requests.post")
     @patch.dict("os.environ", {"OPENROUTER_API_KEY": "token"})
     def test_call_openrouter_returns_none_after_model_failures(self, mock_post):
         mock_post.side_effect = [
@@ -143,7 +144,7 @@ class TestAIHelpers(unittest.TestCase):
 
         self.assertIsNone(ai.call_openrouter("hello"))
 
-    @patch("custSupApp.ai_http.requests.post")
+    @patch("ai_assistant.http.requests.post")
     def test_call_ollama_returns_response_text(self, mock_post):
         response = Mock()
         response.raise_for_status.return_value = None
@@ -154,7 +155,7 @@ class TestAIHelpers(unittest.TestCase):
 
         self.assertEqual(result, "ollama answer")
 
-    @patch("custSupApp.ai_http.requests.post", side_effect=requests.RequestException("offline"))
+    @patch("ai_assistant.http.requests.post", side_effect=requests.RequestException("offline"))
     def test_call_ollama_returns_none_when_request_fails(self, _mock_post):
         self.assertIsNone(ai.call_ollama("hello"))
 

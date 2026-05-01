@@ -11,8 +11,8 @@ from api.serializers import (
     SupportTicketListSerializer,
 )
 from api.views import IsAdmin, IsStaff
+from accounts.serializers import AdminSignupSerializer, TicketFeedbackSerializer
 from custSupApp.models import ChatMessage, Organization, SupportTicket
-from custSupApp.serializers import AdminSignupSerializer, TicketFeedbackSerializer
 
 from .shared import DEFAULT_SECRET, SECRET_FIELD, create_test_user
 

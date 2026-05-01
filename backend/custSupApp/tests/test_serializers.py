@@ -3,13 +3,13 @@ Tests for serializers and model serialization.
 """
 from rest_framework.test import APITestCase
 from rest_framework import status
-from custSupApp.models import User, Organization, ChatMessage, TicketFeedback, SupportTicket
-from custSupApp.serializers import (
+from accounts.serializers import (
     UserSerializer,
     ChatMessageSerializer,
     AdminSignupSerializer,
     TicketFeedbackSerializer
 )
+from custSupApp.models import User, Organization, ChatMessage, TicketFeedback, SupportTicket
 # Test credentials - used only for unit testing
 TEST_VALUE_1 = "testjay123"
 TEST_VALUE_2 = "newjay123"

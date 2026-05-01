@@ -4,7 +4,7 @@ from django.test import SimpleTestCase
 from rest_framework.exceptions import AuthenticationFailed
 from rest_framework_simplejwt.exceptions import TokenError
 
-from custSupApp.authentication import CookieJWTAuthentication
+from accounts.authentication import CookieJWTAuthentication
 
 
 class CookieJwtAuthenticationTests(SimpleTestCase):

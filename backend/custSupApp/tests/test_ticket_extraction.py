@@ -1,6 +1,6 @@
 # unit testing using pytest python framework
 
-from custSupApp.services.ticket_extraction import extract_ticket_structure, extract_ticket_structure_smart
+from tickets.services.ticket_extraction import extract_ticket_structure, extract_ticket_structure_smart
 from unittest.mock import patch
 
 def test_login_issue():
@@ -107,7 +107,7 @@ def test_keyword_extraction():
 
 # valid llm extraction
 
-@patch("custSupApp.services.ticket_extraction.extract_ticket_structure_with_llm")
+@patch("tickets.services.ticket_extraction.extract_ticket_structure_with_llm")
 def test_llm_valid_structure(mock_llm):
     mock_llm.return_value={
         "category": "authentication",
@@ -128,7 +128,7 @@ def test_llm_valid_structure(mock_llm):
 
 # invalid llm output
 
-@patch("custSupApp.services.ticket_extraction.extract_ticket_structure_with_llm")
+@patch("tickets.services.ticket_extraction.extract_ticket_structure_with_llm")
 def test_llm_invalid_structure_fallback(mock_llm):
     
     mock_llm.return_value={
@@ -149,7 +149,7 @@ def test_llm_invalid_structure_fallback(mock_llm):
 
 # llm returns no validated structure
 
-@patch("custSupApp.services.ticket_extraction.extract_ticket_structure_with_llm")
+@patch("tickets.services.ticket_extraction.extract_ticket_structure_with_llm")
 def test_llm_empty_structure_fallback(mock_llm):
     mock_llm.return_value= {}
     query= "My payment failed"
