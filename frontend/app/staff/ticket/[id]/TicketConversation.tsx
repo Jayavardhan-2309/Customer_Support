@@ -37,12 +37,12 @@ function PaginationControls({
   onPageChange,
   isLoading,
   showCount = false
-}: {
+}: Readonly<{
   pagination: PaginatedMessagesResponse
   onPageChange?: (page: number) => void
   isLoading?: boolean
   showCount?: boolean
-}) {
+}>) {
   return (
     <div className="flex items-center justify-between px-2">
       <span className="text-xs text-slate-500">
