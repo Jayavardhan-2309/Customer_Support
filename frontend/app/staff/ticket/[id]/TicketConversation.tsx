@@ -116,6 +116,7 @@ export function TicketConversation({
   )
 }
 
+
 function ConversationBubble({ message }: Readonly<{ message: Message }>) {
   const isUser = message.sender === "user"
 
