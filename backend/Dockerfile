@@ -18,10 +18,7 @@ COPY --chown=root:root --chmod=0444 requirements.txt ./
 
 RUN pip install --no-cache-dir --upgrade pip==26.1 && pip install --no-cache-dir -r requirements.txt # NOSONAR
 
-COPY --chown=root:root --chmod=0555 manage.py start.sh ./
-COPY --chown=root:root --chmod=0555 api ./api
-COPY --chown=root:root --chmod=0555 custSupApp ./custSupApp
-COPY --chown=root:root --chmod=0555 custSupport ./custSupport
+COPY --chown=root:root --chmod=0555 . ./
 
 RUN mkdir -p /app/staticfiles /app/media \
     && chown appuser:appuser /app/staticfiles /app/media \
