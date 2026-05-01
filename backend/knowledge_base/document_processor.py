@@ -10,6 +10,7 @@ Also supports Vision AI for graph/chart understanding in PDFs.
 """
 
 import base64
+import gc
 import logging
 import os
 import shutil
@@ -103,27 +104,35 @@ class PDFProcessor(BaseDocumentProcessor):
         has_images = False
         chart_data: List[dict] = []
         
-        with pdfplumber.open(file_path) as pdf:
-            total_pages = len(pdf.pages)
-            
-            for page_num, page in enumerate(pdf.pages, 1):
-                # Extract text
-                page_text = page.extract_text() or ""
-                if page_text.strip():
-                    texts.append(f"--- Page {page_num} ---\n{page_text}")
+        try:
+            with pdfplumber.open(file_path) as pdf:
+                total_pages = len(pdf.pages)
                 
-                # Extract and process images
-                page_images = page.images
-                if page_images:
-                    has_images = True
-                    img_texts, chart_entries = self._process_page_images(page, page_num)
-                    image_descriptions.extend(img_texts)
-                    chart_data.extend(chart_entries)
-                    if chart_entries:
-                        texts.extend(
-                            f"--- Page {page_num} Chart Data ---\n{json.dumps(entry, ensure_ascii=False)}"
-                            for entry in chart_entries
-                        )
+                for page_num, page in enumerate(pdf.pages, 1):
+                    # Extract text
+                    page_text = page.extract_text() or ""
+                    if page_text.strip():
+                        texts.append(f"--- Page {page_num} ---\n{page_text}")
+                    
+                    # Extract and process images
+                    page_images = page.images
+                    if page_images:
+                        has_images = True
+                        img_texts, chart_entries = self._process_page_images(page, page_num)
+                        image_descriptions.extend(img_texts)
+                        chart_data.extend(chart_entries)
+                        if chart_entries:
+                            texts.extend(
+                                f"--- Page {page_num} Chart Data ---\n{json.dumps(entry, ensure_ascii=False)}"
+                                for entry in chart_entries
+                            )
+                    
+                    # Periodic garbage collection to prevent memory bloat on large PDFs
+                    if page_num % 5 == 0:
+                        gc.collect()
+        except Exception as e:
+            logger.error(f"Error processing PDF {file_path}: {e}", exc_info=True)
+            raise
         
         full_text = "\n\n".join(texts)
         if image_descriptions:
@@ -135,7 +144,7 @@ class PDFProcessor(BaseDocumentProcessor):
             pages=total_pages,
             has_images=has_images,
             image_descriptions=image_descriptions,
-            chart_data=page_chart_data,
+            chart_data=chart_data,
         )
     
     def _process_page_images(self, page, page_num: int) -> tuple[List[str], List[dict]]:
@@ -159,13 +168,16 @@ class PDFProcessor(BaseDocumentProcessor):
                 ocr_text = pytesseract.image_to_string(img).strip()
                 if ocr_text:
                     image_texts.append(f"Page {page_num} Image Text: {ocr_text}")
+                # Clean up image to free memory
+                del img
             else:
                 logger.debug(
                     f"Skipping OCR on page {page_num} because Tesseract is unavailable."
                 )
 
             # Use a text-based AI backend to extract structured chart data from image OCR.
-            if self.vision_enabled and ocr_text:
+            # Skip AI extraction if OCR text is too short (likely not a chart)
+            if self.vision_enabled and ocr_text and len(ocr_text) > 20:
                 chart_data = self._extract_chart_json(ocr_text, page_num)
                 if chart_data:
                     chart_entries.append(chart_data)
@@ -173,6 +185,9 @@ class PDFProcessor(BaseDocumentProcessor):
                         image_texts.append(
                             f"Page {page_num} Chart Summary: {chart_data['summary']}"
                         )
+            # Clean up resources
+            img_bytes.close()
+            del page_image
         except Exception as e:
             logger.warning(f"Failed to process images on page {page_num}: {e}")
         
