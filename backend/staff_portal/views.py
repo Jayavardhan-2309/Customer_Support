@@ -2,7 +2,6 @@ from datetime import timedelta
 
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
-from django.core.paginator import Paginator
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework.decorators import action
@@ -85,10 +84,6 @@ class StaffTicketViewSet(GenericViewSet, ListModelMixin):
         """
         ticket = get_object_or_404(SupportTicket, id=pk, assigned_to=request.user)
         
-        # Get pagination parameters
-        page = int(request.query_params.get("page", 1))
-        per_page = int(request.query_params.get("per_page", 10))
-        
         # Get messages for this ticket, ordered by created_at descending (newest first)
         # If ticket field is not set on messages, fall back to time-based filtering
         if ChatMessage.objects.filter(ticket=ticket).exists():
@@ -96,39 +91,25 @@ class StaffTicketViewSet(GenericViewSet, ListModelMixin):
                 ticket=ticket
             ).order_by("-created_at")
         else:
-            # Fallback: get messages from 15 minutes before ticket creation to 15 minutes after
+            # Fallback: get messages from 15 minutes before ticket creation up to ticket creation
             # This ensures backward compatibility with existing messages that aren't linked to tickets
             # Only include messages that are not associated with any other ticket
             cutoff_before = ticket.created_at - timedelta(minutes=15)
-            cutoff_after = ticket.created_at + timedelta(minutes=15)
             messages = ChatMessage.objects.filter(
                 user=ticket.user,
                 created_at__gte=cutoff_before,
-                created_at__lte=cutoff_after,
+                created_at__lte=ticket.created_at,
                 ticket__isnull=True,  # Only include messages not linked to any ticket
             ).order_by("-created_at")
-        
-        # Paginate the results
-        paginator = Paginator(messages, per_page)
-        page_obj = paginator.get_page(page)
         
         # Build response data
         data = [{
             "sender": m.sender,
             "message": m.message,
             "created_at": m.created_at.isoformat(),
-        } for m in page_obj.object_list]
+        } for m in messages]
         
-        return Response({
-            "results": data,
-            "count": paginator.count,
-            "total_pages": paginator.num_pages,
-            "current_page": page_obj.number,
-            "has_next": page_obj.has_next(),
-            "has_previous": page_obj.has_previous(),
-            "next_page": page_obj.next_page_number() if page_obj.has_next() else None,
-            "previous_page": page_obj.previous_page_number() if page_obj.has_previous() else None,
-        })
+        return Response(data)
 
 
 class StaffAnalyticsView(APIView):
