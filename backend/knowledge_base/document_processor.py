@@ -18,6 +18,7 @@ from abc import ABC, abstractmethod
 from io import BytesIO
 from pathlib import Path
 from typing import List, Optional, Tuple
+import json
 
 import pandas as pd
 import pdfplumber
@@ -26,7 +27,7 @@ from ai_assistant.http import call_groq, call_openrouter, call_ollama
 from docx import Document
 from pdf2image import convert_from_bytes
 from PIL import Image
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
 
@@ -61,7 +62,8 @@ class DocumentResult(BaseModel):
     file_type: str
     pages: int = 1
     has_images: bool = False
-    image_descriptions: List[str] = []
+    image_descriptions: List[str] = Field(default_factory=list)
+    chart_data: List[dict] = Field(default_factory=list)
 
 
 class BaseDocumentProcessor(ABC):
@@ -99,6 +101,7 @@ class PDFProcessor(BaseDocumentProcessor):
         texts = []
         image_descriptions = []
         has_images = False
+        chart_data: List[dict] = []
         
         with pdfplumber.open(file_path) as pdf:
             total_pages = len(pdf.pages)
@@ -113,8 +116,14 @@ class PDFProcessor(BaseDocumentProcessor):
                 page_images = page.images
                 if page_images:
                     has_images = True
-                    img_texts = self._process_page_images(page, page_num)
+                    img_texts, chart_entries = self._process_page_images(page, page_num)
                     image_descriptions.extend(img_texts)
+                    chart_data.extend(chart_entries)
+                    if chart_entries:
+                        texts.extend(
+                            f"--- Page {page_num} Chart Data ---\n{json.dumps(entry, ensure_ascii=False)}"
+                            for entry in chart_entries
+                        )
         
         full_text = "\n\n".join(texts)
         if image_descriptions:
@@ -125,12 +134,14 @@ class PDFProcessor(BaseDocumentProcessor):
             file_type="pdf",
             pages=total_pages,
             has_images=has_images,
-            image_descriptions=image_descriptions
+            image_descriptions=image_descriptions,
+            chart_data=page_chart_data,
         )
     
-    def _process_page_images(self, page, page_num: int) -> List[str]:
-        """Extract text from images on a page using OCR and summarize graphs."""
-        image_texts = []
+    def _process_page_images(self, page, page_num: int) -> tuple[List[str], List[dict]]:
+        """Extract text from images on a page using OCR and extract chart data."""
+        image_texts: List[str] = []
+        chart_entries: List[dict] = []
         ocr_text = ""
         
         try:
@@ -153,15 +164,48 @@ class PDFProcessor(BaseDocumentProcessor):
                     f"Skipping OCR on page {page_num} because Tesseract is unavailable."
                 )
 
-            # Use a text-based AI backend to summarize graph-like images when available.
+            # Use a text-based AI backend to extract structured chart data from image OCR.
             if self.vision_enabled and ocr_text:
-                graph_summary = self._summarize_image_content(ocr_text, page_num)
-                if graph_summary:
-                    image_texts.append(graph_summary)
+                chart_data = self._extract_chart_json(ocr_text, page_num)
+                if chart_data:
+                    chart_entries.append(chart_data)
+                    if chart_data.get("summary"):
+                        image_texts.append(
+                            f"Page {page_num} Chart Summary: {chart_data['summary']}"
+                        )
         except Exception as e:
             logger.warning(f"Failed to process images on page {page_num}: {e}")
         
-        return image_texts
+        return image_texts, chart_entries
+
+    def _extract_chart_json(self, image_text: str, page_num: int) -> Optional[dict]:
+        """Extract structured chart and graph data from OCR text using AI."""
+        prompt = (
+            "You are a data extraction assistant. "
+            "Analyze the following OCR text from a chart, graph, or table image. "
+            "If the text describes a chart, graph, or table, return only valid JSON with these keys: "
+            "chart_type, title, x_axis, y_axis, legend, data_points, percentages, summary. "
+            "data_points should be a list of {label, value} objects. "
+            "If no chart or graph is present, return {\"chart_type\": \"none\", \"summary\": \"no chart data detected\"}. "
+            "Do not return any explanatory text outside the JSON.\n\n"
+            f"OCR text from page {page_num}:\n{image_text}"
+        )
+        raw_response = call_groq(prompt, max_tokens=450) or call_openrouter(prompt) or call_ollama(prompt)
+        if not raw_response:
+            return None
+        try:
+            return json.loads(raw_response)
+        except ValueError:
+            try:
+                # Sometimes the model outputs JSON inside text; extract the first JSON substring.
+                start = raw_response.index("{")
+                end = raw_response.rindex("}") + 1
+                return json.loads(raw_response[start:end])
+            except (ValueError, IndexError):
+                logger.warning(
+                    "Chart extraction AI returned invalid JSON: %s", raw_response
+                )
+                return None
 
     def _summarize_image_content(self, image_text: str, page_num: int) -> Optional[str]:
         """Use an AI backend to generate a graph/chart summary from image OCR text."""

@@ -1,3 +1,4 @@
+import json
 import logging
 from io import BytesIO
 from pathlib import Path
@@ -163,8 +164,8 @@ def index_document(self, doc_id) -> None:
         # Use the new document processor for all file types
         result = process_document_from_url(doc.file_url)
         
-        # Split and index the extracted text
-        texts = _split_document_text(result.text)
+        # Split and index the extracted text and extracted chart data
+        texts = _split_document_text(result.text, result.chart_data)
         
         for i in range(0, len(texts), EMBEDDING_BATCH_SIZE):
             batch = texts[i:i + EMBEDDING_BATCH_SIZE]
@@ -188,13 +189,22 @@ def index_document(self, doc_id) -> None:
         raise self.retry(exc=exc)
 
 
-def _split_document_text(text: str) -> list[str]:
+def _split_document_text(text: str, chart_data: Optional[list[dict]] = None) -> list[str]:
     """Split document text into chunks for embedding"""
     splitter = CharacterTextSplitter(
         chunk_size=TEXT_CHUNK_SIZE,
         chunk_overlap=TEXT_CHUNK_OVERLAP
     )
-    return splitter.split_text(text)
+    chunks = splitter.split_text(text)
+    if chart_data:
+        for entry in chart_data:
+            if not isinstance(entry, dict):
+                continue
+            if entry.get("chart_type") == "none":
+                continue
+            chart_json = json.dumps(entry, ensure_ascii=False, indent=None)
+            chunks.append(f"--- Chart Data ---\n{chart_json}")
+    return chunks
 
 
 def process_text_batch_sync(text_batch, org_id, doc_id) -> None:
