@@ -6,6 +6,13 @@ import { safeFetch } from "@/src/lib/safeFetch";
 
 type ShowToast = (message: string, type: "success" | "error") => void;
 
+const supportedExtensions = [".pdf", ".xlsx", ".xls", ".xlsm", ".csv", ".docx"];
+
+function isSupportedDocument(fileName: string) {
+  const lower = fileName.toLowerCase();
+  return supportedExtensions.some((ext) => lower.endsWith(ext));
+}
+
 export function useAdminPdfs(fileInputRef: RefObject<HTMLInputElement | null>, showToast: ShowToast) {
   const [pdfs, setPdfs] = useState<PDF[]>([]);
   const [loadingPdfs, setLoadingPdfs] = useState(true);
@@ -26,7 +33,7 @@ export function useAdminPdfs(fileInputRef: RefObject<HTMLInputElement | null>, s
       if (signal?.aborted) {
         return;
       }
-      showToast("Failed to load PDFs", "error");
+      showToast("Failed to load documents", "error");
     } finally {
       if (!signal?.aborted) {
         setLoadingPdfs(false);
@@ -35,8 +42,8 @@ export function useAdminPdfs(fileInputRef: RefObject<HTMLInputElement | null>, s
   }, [showToast]);
 
   const uploadFile = async (file: File) => {
-    if (!file.name.endsWith(".pdf")) {
-      showToast("Only PDF files are allowed", "error");
+    if (!isSupportedDocument(file.name)) {
+      showToast("Only PDF, Excel, CSV, and Word files are allowed", "error");
       return;
     }
     if (file.size > 10 * 1024 * 1024) {
@@ -51,7 +58,7 @@ export function useAdminPdfs(fileInputRef: RefObject<HTMLInputElement | null>, s
       const res = await safeFetch("/api/admin/pdfs/upload", { method: "POST", body: formData, credentials: "include" });
       const data = await res.json();
       if (res.ok) {
-        showToast("PDF uploaded! Re-indexing knowledge base...", "success");
+        showToast("Document uploaded! Re-indexing knowledge base...", "success");
         await fetchPdfs();
       } else {
         showToast(data.detail ?? "Upload failed", "error");

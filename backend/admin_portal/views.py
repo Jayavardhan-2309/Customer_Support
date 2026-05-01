@@ -18,7 +18,7 @@ from custSupApp.config import ConfigurationError, required_env
 from custSupApp.models import UploadedPDF, User
 from custSupApp.services.analytics.admin_analytics import get_admin_analytics
 from custSupApp.services.analytics.staff_detail_service import get_staff_detail
-from knowledge_base.tasks import index_pdf
+from knowledge_base.tasks import detect_file_type, index_pdf
 
 logger = logging.getLogger(__name__)
 
@@ -53,8 +53,11 @@ class PDFViewSet(ListModelMixin, DestroyModelMixin, GenericViewSet):
         file = request.FILES.get("file")
         if not file:
             return Response({"detail": "No file provided"}, status=400)
-        if not file.name.endswith(".pdf"):
-            return Response({"detail": "Only PDF files are allowed"}, status=400)
+
+        supported_extensions = (".pdf", ".xlsx", ".xls", ".xlsm", ".csv", ".docx")
+        file_name_lower = file.name.lower()
+        if not file_name_lower.endswith(supported_extensions):
+            return Response({"detail": "Only PDF, Excel, CSV, and Word files are allowed"}, status=400)
         if file.size > 10 * 1024 * 1024:
             return Response({"detail": "File too large. Max size is 10MB"}, status=400)
 
@@ -62,16 +65,18 @@ class PDFViewSet(ListModelMixin, DestroyModelMixin, GenericViewSet):
             supabase = _get_supabase_client()
             supabase_url = required_env("SUPABASE_URL")
         except ConfigurationError as exc:
-            logger.error("PDF upload configuration error: %s", exc)
-            return Response({"detail": "PDF storage is not configured"}, status=503)
+            logger.error("Document upload configuration error: %s", exc)
+            return Response({"detail": "File storage is not configured"}, status=503)
 
         file_name = f"{request.user.id}_{file.name}"
         supabase.storage.from_("pdfs").upload(file_name, file.read())
         file_url = f"{supabase_url}/storage/v1/object/public/pdfs/{file_name}"
 
+        file_type = detect_file_type(file.name)
         pdf = UploadedPDF.objects.create(
             title=file.name,
             file_url=file_url,
+            file_type=file_type,
             uploaded_by=request.user,
             organization=request.user.organization,
             status="queued",
@@ -81,7 +86,7 @@ class PDFViewSet(ListModelMixin, DestroyModelMixin, GenericViewSet):
             "id": pdf.id,
             "title": pdf.title,
             "uploaded_at": pdf.uploaded_at,
-            "message": "PDF uploaded. Knowledge base is being re-indexed.",
+            "message": "Document uploaded. Knowledge base is being re-indexed.",
         }, status=201)
 
     def destroy(self, request, pk=None):
