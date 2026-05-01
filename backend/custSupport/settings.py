@@ -28,6 +28,14 @@ INSTALLED_APPS = [
     'rest_framework',
     'corsheaders',
     'custSupApp',
+    'accounts',
+    'support',
+    'staff_portal',
+    'admin_portal',
+    'feedback',
+    'ai_assistant',
+    'knowledge_base',
+    'tickets',
     'api',
     'channels',
 ]
@@ -134,7 +142,7 @@ MEDIA_ROOT = BASE_DIR / 'media'
 
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
-        "custSupApp.authentication.CookieJWTAuthentication",
+        "accounts.authentication.CookieJWTAuthentication",
     ),
     "DEFAULT_PERMISSION_CLASSES": (
         "rest_framework.permissions.IsAuthenticated",
