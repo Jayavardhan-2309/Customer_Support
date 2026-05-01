@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { useParams, useRouter } from "next/navigation"
+import { useParams, useRouter, useSearchParams } from "next/navigation"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { logger } from "@/logger"
 import { fetchers } from "@/src/lib/axios"
@@ -9,14 +9,18 @@ import { TicketConversation } from "./TicketConversation"
 import { TicketDetailHeader } from "./TicketDetailHeader"
 import { TicketInfoCard } from "./TicketInfoCard"
 import { TicketResolutionCard } from "./TicketResolutionCard"
-import { Message, Ticket } from "./types"
+import { Ticket, PaginatedMessagesResponse } from "./types"
 
 export default function TicketDetailPage() {
   const { id } = useParams()
   const router = useRouter()
+  const searchParams = useSearchParams()
   const queryClient = useQueryClient()
   const chatBottomRef = useRef<HTMLDivElement>(null)
   const [note, setNote] = useState("")
+  
+  // Get current page from URL query params
+  const currentPage = Number.parseInt(searchParams.get("page") || "1", 10)
 
   const { data: ticket } = useQuery({
     queryKey: ["ticket", id],
@@ -24,15 +28,31 @@ export default function TicketDetailPage() {
     enabled: !!id,
   })
 
-  const { data: messages = [] } = useQuery({
-    queryKey: ["ticket-messages", id],
-    queryFn: () => fetchers.get<Message[]>(`staff/tickets/${id}/messages/`),
+  const { data: messagesData, isLoading: isLoadingMessages } = useQuery<PaginatedMessagesResponse>({
+    queryKey: ["ticket-messages", id, currentPage],
+    queryFn: () => fetchers.get<PaginatedMessagesResponse>(`staff/tickets/${id}/messages/`, {
+      params: {
+        page: currentPage,
+        per_page: 10,
+      },
+    }),
     enabled: !!id,
   })
+
+  // Extract messages array from paginated response
+  const messages = messagesData?.results || []
+  const pagination = messagesData || undefined
 
   useEffect(() => {
     chatBottomRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [messages])
+
+  const handlePageChange = (page: number) => {
+    // Update URL with new page number
+    const params = new URLSearchParams(searchParams.toString())
+    params.set("page", page.toString())
+    router.push(`/staff/ticket/${id}?${params.toString()}`)
+  }
 
   const markInProgressMutation = useMutation({
     mutationFn: () => fetchers.patch(`staff/tickets/${id}/start/`),
@@ -80,7 +100,14 @@ export default function TicketDetailPage() {
       />
       <div className="max-w-4xl mx-auto px-4 sm:px-8 py-6 space-y-5">
         <TicketInfoCard ticket={ticket} />
-        <TicketConversation chatBottomRef={chatBottomRef} messages={messages} ticket={ticket} />
+        <TicketConversation 
+          chatBottomRef={chatBottomRef} 
+          messages={messages} 
+          ticket={ticket}
+          pagination={pagination}
+          onPageChange={handlePageChange}
+          isLoading={isLoadingMessages}
+        />
         <TicketResolutionCard
           isMarkingInProgress={markInProgressMutation.isPending}
           isResolving={resolveMutation.isPending}

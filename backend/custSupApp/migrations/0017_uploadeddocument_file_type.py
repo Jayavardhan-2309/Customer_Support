@@ -11,7 +11,7 @@ class Migration(migrations.Migration):
 
     operations = [
         migrations.AddField(
-            model_name='uploadeddocument',
+            model_name='uploadedpdf',
             name='file_type',
             field=models.CharField(
                 choices=[

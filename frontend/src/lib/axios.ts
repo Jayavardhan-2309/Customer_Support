@@ -42,7 +42,7 @@ export default api;
 // ─── Typed fetcher helpers used by React Query hooks ────────────────────────
 
 export const fetchers = {
-  get: <T>(url: string) => api.get<T>(url).then((r) => r.data),
+  get: <T>(url: string, config?: { params?: Record<string, unknown> }) => api.get<T>(url, config).then((r) => r.data),
   post: <T>(url: string, body?: unknown) => api.post<T>(url, body).then((r) => r.data),
   patch: <T>(url: string, body?: unknown) => api.patch<T>(url, body).then((r) => r.data),
   delete: <T>(url: string) => api.delete<T>(url).then((r) => r.data),

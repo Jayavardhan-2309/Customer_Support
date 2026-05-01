@@ -76,3 +76,5 @@ coverage.xml
 
 # local test database
 test_db.sqlite3
+
+IMPLEMENTATION_SUMMARY.md
