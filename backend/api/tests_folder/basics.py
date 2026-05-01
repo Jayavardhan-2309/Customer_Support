@@ -2,11 +2,9 @@ from unittest.mock import MagicMock
 
 from django.test import SimpleTestCase, TestCase
 
-from api.models import Sample
 from api.pagination import StaffCursorPagination, TicketCursorPagination
 from api.serializers import (
     ChatMessageSerializer,
-    SampleSerializer,
     SignupSerializer,
     StaffSerializer,
     SupportTicketDetailSerializer,
@@ -105,11 +103,8 @@ class SerializerTests(TestCase):
         self.assertEqual(StaffSerializer(self.staff).data["email"], self.staff.email)
         self.assertEqual(StaffSerializer(self.staff).data["active_tickets"], 0)
 
-    def test_sample_and_chat_message_serializers_include_model_fields(self):
-        sample = Sample.objects.create(text="hello", s_id="sample-1")
+    def test_chat_message_serializer_includes_model_fields(self):
         message = ChatMessage.objects.create(user=self.user, sender="user", message="Need help")
-        self.assertEqual(SampleSerializer(sample).data["text"], "hello")
-        self.assertEqual(SampleSerializer(sample).data["s_id"], "sample-1")
         self.assertEqual(ChatMessageSerializer(message).data["user"], self.user.id)
         self.assertEqual(ChatMessageSerializer(message).data["sender"], "user")
         self.assertEqual(ChatMessageSerializer(message).data["message"], "Need help")

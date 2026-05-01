@@ -8,6 +8,18 @@ type ResolvedTicket = {
   has_feedback: boolean
 }
 
+type ModalContentProps = {
+  readonly submitted: boolean
+  readonly selectedTicket: ResolvedTicket | null
+  readonly rating: number
+  readonly onRatingChange: (rating: number) => void
+  readonly comment: string
+  readonly onCommentChange: (comment: string) => void
+  readonly onClose: () => void
+  readonly onSubmit: () => void
+  readonly submitting: boolean
+}
+
 const ModalContent = ({
   submitted,
   selectedTicket,
@@ -18,21 +30,11 @@ const ModalContent = ({
   onClose,
   onSubmit,
   submitting
-}: {
-  submitted: boolean
-  selectedTicket: ResolvedTicket | null
-  rating: number
-  onRatingChange: (rating: number) => void
-  comment: string
-  onCommentChange: (comment: string) => void
-  onClose: () => void
-  onSubmit: () => void
-  submitting: boolean
-}) => {
+}: ModalContentProps) => {
   if (submitted) {
     return (
       <div className="text-center py-6 sm:py-8 space-y-2">
-        <div className="text-5xl">✓</div>
+        <div aria-hidden="true" className="text-4xl font-black text-green-400">Done</div>
         <p className="font-bold text-lg text-green-400 mt-2">Thank you!</p>
         <p className="text-slate-400 text-sm">Your feedback has been submitted.</p>
       </div>
@@ -42,12 +44,19 @@ const ModalContent = ({
   return (
     <>
       <div className="flex items-center justify-between mb-2">
-        <h2 className="text-base sm:text-lg font-extrabold text-white tracking-tight">Rate your experience</h2>
-        <button
-          onClick={onClose}
-          className="w-7 h-7 flex items-center justify-center bg-slate-800 hover:bg-slate-700 rounded-md text-slate-400 text-xs transition"
+        <h2
+          className="text-base sm:text-lg font-extrabold text-white tracking-tight"
+          id="feedback-dialog-title"
         >
-          ✕
+          Rate your experience
+        </h2>
+        <button
+          aria-label="Close feedback dialog"
+          className="w-7 h-7 flex items-center justify-center bg-slate-800 hover:bg-slate-700 rounded-md text-slate-400 text-xs transition"
+          onClick={onClose}
+          type="button"
+        >
+          &times;
         </button>
       </div>
 
@@ -67,25 +76,27 @@ const ModalContent = ({
 
       <textarea
         className="w-full mt-2 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white bg-slate-950 resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500 placeholder-slate-500"
-        placeholder="Tell us what went well or what could be improved…"
-        value={comment}
-        onChange={(e) => onCommentChange(e.target.value)}
+        onChange={(event) => onCommentChange(event.target.value)}
+        placeholder="Tell us what went well or what could be improved..."
         rows={3}
+        value={comment}
       />
 
       <div className="flex justify-end gap-2.5 mt-5">
         <button
-          onClick={onClose}
           className="bg-slate-800 text-slate-300 border-none rounded-lg px-4 py-2.5 text-sm font-semibold hover:bg-slate-700 transition cursor-pointer"
+          onClick={onClose}
+          type="button"
         >
           Cancel
         </button>
         <button
-          onClick={onSubmit}
-          disabled={submitting}
           className="bg-indigo-600 text-white rounded-lg px-5 py-2.5 text-sm font-semibold hover:bg-indigo-700 disabled:opacity-60 transition cursor-pointer"
+          disabled={submitting}
+          onClick={onSubmit}
+          type="button"
         >
-          {submitting ? "Submitting…" : "Submit Feedback"}
+          {submitting ? "Submitting..." : "Submit Feedback"}
         </button>
       </div>
     </>

@@ -1,3 +1,4 @@
+import { safeFetch } from "@/app/api/_lib/safeFetch";
 import { NextRequest, NextResponse } from "next/server";
 
 const baseUrl = process.env.DJANGO_BASE_URL;
@@ -7,7 +8,7 @@ export async function DELETE(
     const cookies = req.headers.get("cookie") ?? "";
     const { id } = await params;
 
-    const djangoRes = await fetch(`${baseUrl}/api/v1/admin/pdfs/${id}/`, {
+    const djangoRes = await safeFetch(`${baseUrl}/api/v1/admin/pdfs/${id}/`, {
         method: "DELETE",
         headers: { "Cookie": cookies },
     });

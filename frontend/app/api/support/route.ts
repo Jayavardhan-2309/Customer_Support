@@ -1,18 +1,25 @@
+import { safeFetch } from "@/app/api/_lib/safeFetch";
 import { NextRequest, NextResponse } from "next/server";
-import { logger } from "@/logger";
 
 const baseUrl = process.env.DJANGO_BASE_URL;
 
 export async function POST(req: NextRequest) {
-    const body = await req.json();
+    let body: { message?: string };
+    try {
+        body = (await req.json()) as { message?: string };
+    } catch {
+        return NextResponse.json({ reply: "Invalid request body." }, { status: 400 });
+    }
+
+    if (!body.message?.trim()) {
+        return NextResponse.json({ reply: "Message is required." }, { status: 400 });
+    }
 
     // Get cookies from the incoming request to forward to Django
     // Django needs these to authenticate the user (access token)
     const cookies = req.headers.get("cookie") ?? "";
-    logger.info("baseUrl:", baseUrl);
-    logger.info("cookies:", req.headers.get("cookie"));
 
-    const djangoRes = await fetch(`${baseUrl}/api/v1/support-ai/`, {
+    const djangoRes = await safeFetch(`${baseUrl}/api/v1/support-ai/`, {
         method: "POST",
         headers: {
             "Content-Type": "application/json",

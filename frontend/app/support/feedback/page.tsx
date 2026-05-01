@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import api from "@/src/lib/axios"
 import { useRouter } from "next/navigation"
 import { logger } from "@/logger"
@@ -9,39 +9,17 @@ import EmptyView from "./components/EmptyView"
 import Header from "./components/Header"
 import TicketList from "./components/TicketList"
 import FeedbackModal from "./components/FeedbackModal"
-
-type ResolvedTicket = {
-  id: number
-  query: string
-  staff_name: string
-  resolution_note: string
-  has_feedback: boolean
-}
+import { ResolvedTicket, useResolvedTickets } from "./useResolvedTickets"
 
 export default function FeedbackPage() {
-  const [tickets, setTickets] = useState<ResolvedTicket[]>([])
   const [selectedTicket, setSelectedTicket] = useState<ResolvedTicket | null>(null)
   const [rating, setRating] = useState(5)
   const [comment, setComment] = useState("")
   const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
-  const [loading, setLoading] = useState(true)
   const router = useRouter()
-
-  const loadTickets = async () => {
-    try {
-      const res = await api.get<ResolvedTicket[]>("/user/resolved-tickets/")
-      setTickets(res.data)
-    } catch (err) {
-      logger.error("Failed to load resolved tickets", err)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  useEffect(() => {
-    loadTickets()
-  }, [])
+  const { data: loadedTickets, isLoading: loading, setData: setTickets } = useResolvedTickets()
+  const tickets = loadedTickets ?? []
 
   const openModal = (ticket: ResolvedTicket) => {
     setSelectedTicket(ticket)
@@ -55,7 +33,7 @@ export default function FeedbackPage() {
   }
 
   const finalizeFeedback = (ticketId: number) => {
-    setTickets((prev) => prev.filter((t) => t.id !== ticketId))
+    setTickets((prev) => (prev ?? []).filter((t) => t.id !== ticketId))
     setSelectedTicket(null)
     setSubmitting(false)
   }

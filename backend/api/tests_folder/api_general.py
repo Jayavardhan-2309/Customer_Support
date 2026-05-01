@@ -3,7 +3,6 @@ from unittest.mock import patch
 
 from django.utils import timezone
 
-from api.models import Sample
 from api.views import get_escalation_count_today
 
 from .shared import ApiViewBaseTestCase, DEFAULT_SECRET, SECRET_FIELD, User, create_test_user
@@ -23,17 +22,6 @@ class ApiGeneralViewTests(ApiViewBaseTestCase):
 
     def test_root_backend_endpoint_rejects_non_get_requests(self):
         self.assertEqual(self.client.post("/").status_code, 405)
-
-    def test_sample_view_can_create_and_list_samples(self):
-        self.client.force_authenticate(user=self.user)
-        create_response = self.client.post(
-            "/api/v1/samples/",
-            {"text": "hello sample", "s_id": "sample-123"},
-            format="json",
-        )
-        self.assertEqual(create_response.status_code, 201)
-        self.assertTrue(Sample.objects.filter(s_id="sample-123").exists())
-        self.assertEqual(self.client.get("/api/v1/samples/").data[0]["text"], "hello sample")
 
     def test_get_escalation_count_today_counts_recent_tickets_only(self):
         old_ticket = self.open_ticket.__class__.objects.create(

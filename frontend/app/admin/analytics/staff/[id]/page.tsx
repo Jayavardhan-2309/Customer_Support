@@ -1,7 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import api from "@/src/lib/axios";
+import { safeFetch } from "@/src/lib/safeFetch";
+
+import { useState } from "react";
+import { useAbortableApiData } from "@/src/lib/useAbortableApiData";
 import { useParams, useRouter } from "next/navigation";
 import { logger } from "@/logger";
 import { StaffDetail, Feedback } from "@/types/customTypes";
@@ -9,31 +11,33 @@ import { StaffDetail, Feedback } from "@/types/customTypes";
 export default function StaffAnalyticsDetailPage() {
   const { id } = useParams();
   const router = useRouter();
-  const [data, setData] = useState<StaffDetail | null>(null)
   const [loggingOut, setLoggingOut] = useState(false);
-
-  useEffect(() => {
-    const load = async () => {
-      try {
-        const res = await api.get(`/admin/analytics/staff/${id}/`);
-        setData(res.data);
-      } catch (err) {
-        logger.error("Failed to load staff analytics", err);
-      }
-    };
-    load();
-  }, [id]);
+  const { data, isLoading } = useAbortableApiData<StaffDetail>(id ? `/admin/analytics/staff/${id}/` : null, {
+    onError: (err) => logger.error("Failed to load staff analytics", err),
+  });
 
   const logout = async () => {
     setLoggingOut(true);
-    await fetch("/api/logout", { method: "POST" });
-    router.push("/login");
+    try {
+      await safeFetch("/api/logout", { method: "POST" });
+      router.push("/login");
+    } finally {
+      setLoggingOut(false);
+    }
   };
 
-  if (!data) {
+  if (isLoading) {
     return (
       <div className="h-screen flex items-center justify-center bg-slate-950 text-slate-400 animate-pulse px-4 text-center">
         Loading staff analytics...
+      </div>
+    );
+  }
+
+  if (!data) {
+    return (
+      <div className="h-screen flex items-center justify-center bg-slate-950 text-slate-400 px-4 text-center">
+        Unable to load staff analytics.
       </div>
     );
   }

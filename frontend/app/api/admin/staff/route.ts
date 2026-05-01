@@ -1,3 +1,4 @@
+import { safeFetch } from "@/app/api/_lib/safeFetch";
 import { NextRequest, NextResponse } from "next/server";
 
 const baseUrl = process.env.DJANGO_BASE_URL;
@@ -6,7 +7,7 @@ const baseUrl = process.env.DJANGO_BASE_URL;
 export async function GET(req: NextRequest) {
     const cookies = req.headers.get("cookie") ?? "";
 
-    const djangoRes = await fetch(`${baseUrl}/api/v1/admin/staff/`, {
+    const djangoRes = await safeFetch(`${baseUrl}/api/v1/admin/staff/`, {
         method: "GET",
         headers: { "Cookie": cookies },
         credentials: "include",
@@ -22,7 +23,7 @@ export async function POST(req: NextRequest) {
     const cookies = req.headers.get("cookie") ?? "";
     const body = await req.json();
 
-    const djangoRes = await fetch(`${baseUrl}/api/v1/admin/staff/`, {
+    const djangoRes = await safeFetch(`${baseUrl}/api/v1/admin/staff/`, {
         method: "POST",
         headers: {
             "Cookie": cookies,

@@ -1,3 +1,4 @@
+import { safeFetch } from "@/app/api/_lib/safeFetch";
 import { logger } from "@/logger";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -5,7 +6,7 @@ const baseUrl = process.env.DJANGO_BASE_URL;
 
 export async function GET(req: NextRequest) {
   try {
-    const backendRes = await fetch(`${baseUrl}/api/v1/chat/history/`, {
+    const backendRes = await safeFetch(`${baseUrl}/api/v1/chat/history/`, {
       headers: {
         "Cookie": req.headers.get("cookie") || "",
       },

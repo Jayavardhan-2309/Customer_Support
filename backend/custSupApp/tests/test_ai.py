@@ -3,7 +3,7 @@ from unittest.mock import MagicMock, Mock, patch
 
 import requests
 
-from custSupApp import ai
+from custSupApp import ai, ai_knowledge
 
 
 class TestAIHelpers(unittest.TestCase):
@@ -70,7 +70,7 @@ class TestAIHelpers(unittest.TestCase):
         mock_call_groq.return_value = None
         self.assertFalse(ai.is_user_frustrated("This is terrible"))
 
-    @patch("custSupApp.ai.embed_text")
+    @patch("custSupApp.ai_knowledge.embed_text")
     def test_search_similar_chunks_returns_cursor_rows(self, mock_embed_text):
         mock_embed_text.return_value = [0.1, 0.2]
         cursor = MagicMock()
@@ -78,18 +78,18 @@ class TestAIHelpers(unittest.TestCase):
         fake_connection = MagicMock()
         fake_connection.cursor.return_value.__enter__.return_value = cursor
 
-        with patch.object(ai, "connection", fake_connection):
-            result = ai.search_similar_chunks("query", 10, k=2)
+        with patch.object(ai_knowledge, "connection", fake_connection):
+            result = ai_knowledge.search_similar_chunks("query", 10, k=2)
 
         self.assertEqual(result, ["doc one", "doc two"])
         cursor.execute.assert_called_once()
 
-    @patch("custSupApp.ai.embed_text")
+    @patch("custSupApp.ai_knowledge.embed_text")
     def test_search_similar_chunks_returns_empty_list_when_embedding_fails(self, mock_embed_text):
         mock_embed_text.side_effect = RuntimeError("embed failed")
-        self.assertEqual(ai.search_similar_chunks("query", 10), [])
+        self.assertEqual(ai_knowledge.search_similar_chunks("query", 10), [])
 
-    @patch("custSupApp.ai.requests.post")
+    @patch("custSupApp.ai_http.requests.post")
     @patch.dict("os.environ", {"GROQ_API_KEY": "token"})
     def test_call_groq_returns_message_content(self, mock_post):
         response = Mock(status_code=200)
@@ -104,7 +104,7 @@ class TestAIHelpers(unittest.TestCase):
     def test_call_groq_returns_none_without_api_key(self):
         self.assertIsNone(ai.call_groq("hello"))
 
-    @patch("custSupApp.ai.requests.post")
+    @patch("custSupApp.ai_http.requests.post")
     @patch.dict("os.environ", {"GROQ_API_KEY": "token"})
     def test_call_groq_retries_models_and_returns_none_after_failures(self, mock_post):
         mock_post.side_effect = [
@@ -114,7 +114,7 @@ class TestAIHelpers(unittest.TestCase):
 
         self.assertIsNone(ai.call_groq("hello"))
 
-    @patch("custSupApp.ai.requests.post")
+    @patch("custSupApp.ai_http.requests.post")
     @patch.dict("os.environ", {"OPENROUTER_API_KEY": "token"})
     def test_call_openrouter_returns_message_content(self, mock_post):
         response = Mock(status_code=200)
@@ -129,7 +129,7 @@ class TestAIHelpers(unittest.TestCase):
     def test_call_openrouter_returns_none_without_api_key(self):
         self.assertIsNone(ai.call_openrouter("hello"))
 
-    @patch("custSupApp.ai.requests.post")
+    @patch("custSupApp.ai_http.requests.post")
     @patch.dict("os.environ", {"OPENROUTER_API_KEY": "token"})
     def test_call_openrouter_returns_none_after_model_failures(self, mock_post):
         mock_post.side_effect = [
@@ -143,7 +143,7 @@ class TestAIHelpers(unittest.TestCase):
 
         self.assertIsNone(ai.call_openrouter("hello"))
 
-    @patch("custSupApp.ai.requests.post")
+    @patch("custSupApp.ai_http.requests.post")
     def test_call_ollama_returns_response_text(self, mock_post):
         response = Mock()
         response.raise_for_status.return_value = None
@@ -154,7 +154,7 @@ class TestAIHelpers(unittest.TestCase):
 
         self.assertEqual(result, "ollama answer")
 
-    @patch("custSupApp.ai.requests.post", side_effect=Exception("offline"))
+    @patch("custSupApp.ai_http.requests.post", side_effect=requests.RequestException("offline"))
     def test_call_ollama_returns_none_when_request_fails(self, _mock_post):
         self.assertIsNone(ai.call_ollama("hello"))
 
@@ -235,195 +235,3 @@ class TestAIHelpers(unittest.TestCase):
             ("escalation_limit", ai.ESCALATION_LIMIT_REPLY, 0.2, False),
         )
 
-    def test_validate_ticket_structure_checks_required_fields(self):
-        valid = {
-            "priority": "high",
-            "category": "billing",
-            "description": "Payment failed",
-        }
-        invalid = {"priority": "urgent", "category": "billing", "description": ""}
-        self.assertTrue(ai.validate_ticket_structure(valid))
-        self.assertFalse(ai.validate_ticket_structure(invalid))
-
-    def test_validate_ticket_structure_requires_description_even_when_other_fields_are_valid(self):
-        self.assertFalse(ai.validate_ticket_structure({"priority": "high", "category": "billing"}))
-
-    @patch("custSupApp.ai.call_openrouter", return_value='{"priority": "high", "category": "billing", "description": "Issue", "context_summary": "Summary"}')
-    @patch("custSupApp.ai.call_groq", return_value=None)
-    def test_extract_ticket_structure_with_llm_falls_back_to_openrouter(self, _mock_groq, _mock_openrouter):
-        result = ai.extract_ticket_structure_with_llm("Billing issue", [{"role": "user", "content": "Help"}])
-
-        self.assertEqual(result["priority"], "high")
-        self.assertEqual(result["category"], "billing")
-
-    @patch("custSupApp.ai.call_ollama", side_effect=RuntimeError("offline"))
-    @patch("custSupApp.ai.call_openrouter", return_value=None)
-    @patch("custSupApp.ai.call_groq", return_value=None)
-    def test_extract_ticket_structure_with_llm_returns_none_when_backends_fail(
-        self,
-        _mock_groq,
-        _mock_openrouter,
-        _mock_ollama,
-    ):
-        self.assertIsNone(ai.extract_ticket_structure_with_llm("Billing issue", []))
-
-    @patch("custSupApp.ai.call_openrouter", return_value="not-json")
-    @patch("custSupApp.ai.call_groq", return_value=None)
-    def test_extract_ticket_structure_with_llm_returns_none_for_invalid_json(self, _mock_groq, _mock_openrouter):
-        self.assertIsNone(ai.extract_ticket_structure_with_llm("Billing issue", []))
-
-
-class TestAIResponseFlow(unittest.TestCase):
-    @patch("custSupApp.ai.handle_escalation", return_value=None)
-    @patch("custSupApp.ai.extract_repetition", return_value=None)
-    @patch("custSupApp.ai.is_user_frustrated", return_value=False)
-    @patch("custSupApp.ai.search_similar_chunks", return_value=["doc"])
-    @patch("custSupApp.ai.call_groq", return_value='{"intent":"general","reply":"answer","confidence":0.8}')
-    @patch("custSupApp.ai.evaluate_escalation_risk", return_value=False)
-    def test_get_ai_response_defaults_history_when_none(
-        self,
-        _mock_risk,
-        _mock_call_groq,
-        _mock_search,
-        _mock_frustrated,
-        _mock_repetition,
-        _mock_escalation,
-    ):
-        result = ai.get_ai_response("normal question", history=None, org_id=1, escalation_count=0)
-        self.assertEqual(result, ("general", "answer", 0.8, False))
-
-    @patch("custSupApp.ai.handle_escalation")
-    def test_get_ai_response_returns_explicit_escalation_result(self, mock_handle_escalation):
-        mock_handle_escalation.return_value = ("escalation", "connecting", 1.0, True)
-
-        result = ai.get_ai_response("need human", [])
-
-        self.assertEqual(result, ("escalation", "connecting", 1.0, True))
-
-    @patch("custSupApp.ai.handle_escalation", return_value=None)
-    @patch("custSupApp.ai.extract_repetition", return_value=None)
-    @patch("custSupApp.ai.is_user_frustrated", return_value=False)
-    @patch("custSupApp.ai.search_similar_chunks", return_value=[])
-    @patch("custSupApp.ai.call_groq", return_value='{"intent":"unknown","reply":"no answer","confidence":0.2}')
-    def test_get_ai_response_handles_no_context(
-        self,
-        _mock_call_groq,
-        _mock_search,
-        _mock_frustrated,
-        _mock_repetition,
-        _mock_escalation,
-    ):
-        result = ai.get_ai_response("Where is the legal refund form?", history=[], org_id=1, escalation_count=0)
-        self.assertEqual(result, ("no_context", ai.NO_CONTEXT_FIRST_REPLY, 0.2, False))
-
-    @patch("custSupApp.ai.handle_escalation", return_value=None)
-    @patch("custSupApp.ai.extract_repetition", return_value=None)
-    @patch("custSupApp.ai.is_user_frustrated", return_value=False)
-    @patch("custSupApp.ai.search_similar_chunks", return_value=["doc"])
-    @patch("custSupApp.ai.call_groq", return_value='{"intent":"general","reply":"answer","confidence":0.8}')
-    @patch("custSupApp.ai.evaluate_escalation_risk", return_value=False)
-    def test_get_ai_response_returns_normal_llm_result(
-        self,
-        _mock_risk,
-        _mock_call_groq,
-        _mock_search,
-        _mock_frustrated,
-        _mock_repetition,
-        _mock_escalation,
-    ):
-        result = ai.get_ai_response("normal question", history=[], org_id=1, escalation_count=0)
-        self.assertEqual(result, ("general", "answer", 0.8, False))
-
-    @patch("custSupApp.ai.handle_escalation", return_value=None)
-    @patch("custSupApp.ai.extract_repetition", return_value=("escalation", "repeat", 0.0, True))
-    def test_get_ai_response_returns_repetition_result(self, _mock_repetition, _mock_escalation):
-        result = ai.get_ai_response("same question", history=[], org_id=1, escalation_count=0)
-
-        self.assertEqual(result, ("escalation", "repeat", 0.0, True))
-
-    @patch("custSupApp.ai.handle_escalation", return_value=None)
-    @patch("custSupApp.ai.extract_repetition", return_value=None)
-    @patch("custSupApp.ai.is_user_frustrated", return_value=False)
-    @patch("custSupApp.ai.search_similar_chunks", return_value=["doc"])
-    @patch("custSupApp.ai.call_groq", return_value='{"intent":"billing","reply":"needs help","confidence":0.4}')
-    @patch("custSupApp.ai.evaluate_escalation_risk", return_value=True)
-    def test_get_ai_response_returns_escalated_result(
-        self,
-        _mock_risk,
-        _mock_call_groq,
-        _mock_search,
-        _mock_frustrated,
-        _mock_repetition,
-        _mock_escalation,
-    ):
-        result = ai.get_ai_response("billing issue", history=[], org_id=1, escalation_count=0)
-        self.assertEqual(result[0], "billing")
-        self.assertTrue(result[3])
-
-    @patch("custSupApp.ai.handle_escalation", return_value=None)
-    @patch("custSupApp.ai.extract_repetition", return_value=None)
-    @patch("custSupApp.ai.is_user_frustrated", return_value=False)
-    @patch("custSupApp.ai.search_similar_chunks", return_value=[])
-    @patch("custSupApp.ai.call_groq", return_value='{"intent":"general","reply":"hello there","confidence":0.9}')
-    def test_get_ai_response_skips_no_context_ladder_for_greetings(
-        self,
-        _mock_call_groq,
-        _mock_search,
-        _mock_frustrated,
-        _mock_repetition,
-        _mock_escalation,
-    ):
-        result = ai.get_ai_response("hello", history=[], org_id=1, escalation_count=0)
-        self.assertEqual(result, ("general", "hello there", 0.9, False))
-
-    @patch("custSupApp.ai.handle_escalation", return_value=None)
-    @patch("custSupApp.ai.extract_repetition", return_value=None)
-    @patch("custSupApp.ai.is_user_frustrated", return_value=False)
-    @patch("custSupApp.ai.search_similar_chunks", return_value=["doc"])
-    @patch("custSupApp.ai.call_groq", return_value="not json")
-    def test_get_ai_response_handles_missing_json(
-        self,
-        _mock_call_groq,
-        _mock_search,
-        _mock_frustrated,
-        _mock_repetition,
-        _mock_escalation,
-    ):
-        result = ai.get_ai_response("normal question", history=[], org_id=1, escalation_count=0)
-        self.assertEqual(result, ("error", "Invalid response from AI", 0.0, False))
-
-    @patch("custSupApp.ai.handle_escalation", return_value=None)
-    @patch("custSupApp.ai.extract_repetition", return_value=None)
-    @patch("custSupApp.ai.is_user_frustrated", return_value=False)
-    @patch("custSupApp.ai.search_similar_chunks", return_value=["doc"])
-    @patch("custSupApp.ai.call_groq", return_value="{bad json}")
-    def test_get_ai_response_handles_invalid_json(
-        self,
-        _mock_call_groq,
-        _mock_search,
-        _mock_frustrated,
-        _mock_repetition,
-        _mock_escalation,
-    ):
-        result = ai.get_ai_response("normal question", history=[], org_id=1, escalation_count=0)
-        self.assertEqual(result, ("error", "Sorry, something went wrong. Please try again.", 0.0, False))
-
-    @patch("custSupApp.ai.handle_escalation", return_value=None)
-    @patch("custSupApp.ai.extract_repetition", return_value=None)
-    @patch("custSupApp.ai.is_user_frustrated", return_value=False)
-    @patch("custSupApp.ai.search_similar_chunks", return_value=["doc"])
-    @patch("custSupApp.ai.call_groq", return_value=None)
-    @patch("custSupApp.ai.call_openrouter", return_value=None)
-    @patch("custSupApp.ai.call_ollama", return_value=None)
-    def test_get_ai_response_raises_when_no_backend_available(
-        self,
-        _mock_ollama,
-        _mock_openrouter,
-        _mock_groq,
-        _mock_search,
-        _mock_frustrated,
-        _mock_repetition,
-        _mock_escalation,
-    ):
-        with self.assertRaises(RuntimeError):
-            ai.get_ai_response("normal question", history=[], org_id=1, escalation_count=0)

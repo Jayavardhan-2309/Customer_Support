@@ -1,3 +1,4 @@
+import { safeFetch } from "@/app/api/_lib/safeFetch";
 import { NextRequest, NextResponse } from "next/server";
 
 // DELETE /api/staff/{id} — remove a staff member
@@ -9,7 +10,7 @@ export async function DELETE(
     const cookies = req.headers.get("cookie") ?? "";
     const { id } = await params;
 
-    const djangoRes = await fetch(`${baseUrl}/api/v1/admin/staff/${id}/`, {
+    const djangoRes = await safeFetch(`${baseUrl}/api/v1/admin/staff/${id}/`, {
         method: "DELETE",
         headers: { "Cookie": cookies },
     });
@@ -34,7 +35,7 @@ export async function PATCH(
     const cookies = req.headers.get("cookie") ?? "";
     const { id } = await params;
 
-    const djangoRes = await fetch(
+    const djangoRes = await safeFetch(
         `${baseUrl}/api/v1/admin/staff/${id}/toggle/`,
         {
             method: "PATCH",

@@ -1,123 +1,64 @@
 "use client";
 
-import { useState, useEffect, type SyntheticEvent } from "react";
-import { useRouter } from "next/navigation";
-import api from "@/src/lib/axios";
-import { logger } from "@/logger";
 import axios from "axios";
+import { useState, type SyntheticEvent } from "react";
+import { useRouter } from "next/navigation";
+import { logger } from "@/logger";
+import api from "@/src/lib/axios";
+import { useAbortableApiData } from "@/src/lib/useAbortableApiData";
 import { Organization } from "@/types/customTypes";
+import { SignupForm } from "./SignupForm";
 
-/* ALLOWED EMAIL DOMAINS */
-const ALLOWED_EMAIL_DOMAINS = new Set([
-  "gmail.com",
-  "outlook.com",
-  "hotmail.com",
-  "live.com",
-  "yahoo.com",
-]);
+const ALLOWED_EMAIL_DOMAINS = new Set(["gmail.com", "outlook.com", "hotmail.com", "live.com", "yahoo.com"]);
 
-/* EMAIL VALIDATION FUNCTION */
 const isAllowedEmail = (email: string): boolean => {
-  // Reject any whitespace
   if (/\s/.test(email)) return false;
-
-  // Ensure exactly one '@' and non-empty local + domain parts
   const parts = email.split("@");
   if (parts.length !== 2 || !parts[0] || !parts[1]) return false;
-
   const domain = parts[1].toLowerCase();
-
-  // Validate domain structure
-  if (
-    !domain.includes(".") ||
-    domain.endsWith(".") ||
-    domain.startsWith(".")
-  ) {
-    return false;
-  }
-
-  // Allow only trusted domains
+  if (!domain.includes(".") || domain.endsWith(".") || domain.startsWith(".")) return false;
   return ALLOWED_EMAIL_DOMAINS.has(domain);
 };
 
 export default function SignupPage() {
   const router = useRouter();
-
-  const [email, setEmail] = useState<string>("");
-  const [username, setUsername] = useState<string>("");
-  const [password, setPassword] = useState<string>("");
-  const [organizationName, setOrganizationName] = useState<string>("");
-  const [showPassword, setShowPassword] = useState<boolean>(false);
-
-  const [error, setError] = useState<string>("");
-  const [loading, setLoading] = useState<boolean>(false);
-
+  const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [organizationName, setOrganizationName] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
   const [role, setRole] = useState<"user" | "admin">("user");
-
-  const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [organizationId, setOrganizationId] = useState<number | null>(null);
+  const { data: loadedOrganizations } = useAbortableApiData<Organization[]>("organizations/", {
+    initialData: [],
+    onError: (err) => logger.error("Failed to load organizations", err),
+  });
+  const organizations = loadedOrganizations ?? [];
 
-  useEffect(() => {
-    api.get("organizations/")
-      .then(res => {
-        logger.info("SUCCESS:", res.data);
-        setOrganizations(res.data);
-      })
-      .catch(err => {
-        logger.error("FULL ERROR:", err);
-
-        if (err.response) {
-          logger.error("STATUS:", err.response.status);
-          logger.error("DATA:", err.response.data);
-          logger.error("HEADERS:", err.response.headers);
-        } else if (err.request) {
-          logger.error("NO RESPONSE RECEIVED:", err.request);
-        } else {
-          logger.error("REQUEST SETUP ERROR:", err.message);
-        }
-      });
-  }, []);
-
-  const handleSignup = async (e: SyntheticEvent<HTMLFormElement>) => {
-    e.preventDefault();
+  const handleSignup = async (event: SyntheticEvent<HTMLFormElement>) => {
+    event.preventDefault();
     setError("");
-
     if (!isAllowedEmail(email)) {
-      setError(
-        "Only Gmail, Outlook, Hotmail, Live, or Yahoo email addresses are allowed."
-      );
+      setError("Only Gmail, Outlook, Hotmail, Live, or Yahoo email addresses are allowed.");
       return;
     }
 
     setLoading(true);
-
     try {
       if (role === "admin") {
-        await api.post("admin-signup/", {
-          email,
-          username,
-          password,
-          organization_name: organizationName,
-        });
+        await api.post("admin-signup/", { email, username, password, organization_name: organizationName });
       } else {
-        await api.post("signup/", {
-          email,
-          username,
-          password,
-          organization: organizationId
-        });
+        await api.post("signup/", { email, username, password, organization: organizationId });
       }
-
       router.push("/login");
-
-    }
-    catch (err: unknown) {
+    } catch (err: unknown) {
       setLoading(false);
       if (axios.isAxiosError(err)) {
         logger.error(err.response?.data);
         setError(JSON.stringify(err.response?.data));
-      } 
-      else {
+      } else {
         logger.error("something went wrong");
         setError("Something went wrong");
       }
@@ -127,169 +68,39 @@ export default function SignupPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-950 text-white px-4">
       <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl shadow-xl p-8">
-
-        <h1 className="text-3xl font-bold text-center text-white">
-          Create Account
-        </h1>
-        <p className="text-center text-slate-400 mt-2">
-          Sign up to get started
-        </p>
-
-        <form onSubmit={handleSignup} className="mt-8 space-y-5">
-
-          {/* EMAIL */}
-          <div>
-            <label htmlFor="signup-email" className="block text-sm font-medium text-slate-400 mb-1">
-              Email
-            </label>
-            <input
-              id="signup-email"
-              type="email"
-              placeholder="you@something.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              className="w-full rounded-lg border border-slate-700 bg-slate-950 px-4 py-2 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            />
-          </div>
-
-          {/* USERNAME */}
-          <div>
-            <label htmlFor="signup-username" className="block text-sm font-medium text-slate-400 mb-1">
-              Username
-            </label>
-            <input
-              id="signup-username"
-              placeholder="your username"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              required
-              className="w-full rounded-lg border border-slate-700 bg-slate-950 px-4 py-2 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            />
-          </div>
-
-          {/* PASSWORD */}
-          <div>
-            <label htmlFor="signup-password" className="block text-sm font-medium text-slate-400 mb-1">
-              Password
-            </label>
-
-            <div className="relative">
-              <input
-                id="signup-password"
-                type={showPassword ? "text" : "password"}
-                placeholder="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                className="w-full rounded-lg border border-slate-700 bg-slate-950 px-4 py-2 pr-10 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              />
-
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
-              >
-                {showPassword ? "🙈" : "👁️"}
-              </button>
-            </div>
-          </div>
-
-          {/* ROLE */}
-          <div>
-            <label htmlFor="signup-role" className="block text-sm font-medium text-slate-400 mb-1">
-              Role
-            </label>
-            <select
-              id="signup-role"
-              value={role}
-              onChange={(e) => setRole(e.target.value as "user" | "admin")}
-              className="w-full rounded-lg border border-slate-700 bg-slate-950 px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            >
-              <option value="user">User</option>
-              <option value="admin">Admin</option>
-            </select>
-          </div>
-
-          {/* ORGANIZATION (ADMIN) */}
-          {role === "admin" && (
-            <div>
-              <label htmlFor="signup-organization-name" className="block text-sm font-medium text-slate-400 mb-1">
-                Organization Name
-              </label>
-              <input
-                id="signup-organization-name"
-                placeholder="Your company / bank name"
-                value={organizationName}
-                onChange={(e) => setOrganizationName(e.target.value)}
-                required
-                className="w-full rounded-lg border border-slate-700 bg-slate-950 px-4 py-2 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              />
-            </div>
-          )}
-
-          {/* ORGANIZATION (USER) */}
-          {role === "user" && (
-            <div>
-              <label htmlFor="signup-organization" className="block text-sm font-medium text-slate-400 mb-1">
-                Organization
-              </label>
-
-              <select
-                id="signup-organization"
-                value={organizationId ?? ""}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  setOrganizationId(val ? Number(val) : null);
-                }}
-                required
-                className="w-full rounded-lg border border-slate-700 bg-slate-950 px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              >
-                <option value="">Select organization</option>
-
-                {organizations.map((org: Organization) => (
-                  <option key={org.id} value={org.id}>
-                    {org.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-
-          {error && (
-            <p className="text-sm text-red-400 text-center">
-              {error}
-            </p>
-          )}
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white font-semibold py-2.5 rounded-lg transition-all"
-          >
-            {loading ? "Signing up..." : "Sign Up"}
-          </button>
+        <h1 className="text-3xl font-bold text-center text-white">Create Account</h1>
+        <p className="text-center text-slate-400 mt-2">Sign up to get started</p>
+        <form onSubmit={handleSignup}>
+          <SignupForm
+            email={email}
+            error={error}
+            loading={loading}
+            organizationId={organizationId}
+            organizationName={organizationName}
+            organizations={organizations}
+            password={password}
+            role={role}
+            setEmail={setEmail}
+            setOrganizationId={setOrganizationId}
+            setOrganizationName={setOrganizationName}
+            setPassword={setPassword}
+            setRole={setRole}
+            setShowPassword={setShowPassword}
+            setUsername={setUsername}
+            showPassword={showPassword}
+            username={username}
+          />
         </form>
-
         <div className="flex flex-col items-center gap-2 mt-6">
           <p className="text-slate-300 text-sm">
             Already have an account?{" "}
-            <button
-              type="button"
-              onClick={() => router.push("/login")}
-              className="text-indigo-400 hover:underline font-medium"
-            >
+            <button type="button" onClick={() => router.push("/login")} className="text-indigo-400 hover:underline font-medium">
               Login
             </button>
           </p>
-
           <p className="text-slate-300 text-sm">
-            <button
-              type="button"
-              onClick={() => router.push("/")}
-              className="text-indigo-400 hover:underline"
-            >
-              ← Back to Home
+            <button type="button" onClick={() => router.push("/")} className="text-indigo-400 hover:underline">
+              Back to Home
             </button>
           </p>
         </div>

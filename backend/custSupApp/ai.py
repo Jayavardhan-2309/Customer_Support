@@ -1,267 +1,113 @@
-import os
-import requests
 import json
+import logging
 import re
+from dataclasses import dataclass
 
 from dotenv import load_dotenv
+from pydantic import ValidationError
+
+from custSupApp.ai_config import (
+    ESCALATION_LIMIT_REPLY,
+    NO_CONTEXT_CONFIDENCE,
+    NO_CONTEXT_FIRST_REPLY,
+    NO_CONTEXT_SECOND_REPLY,
+    VALID_CATEGORIES,
+    VALID_PRIORITIES,
+)
+from custSupApp.ai_escalation import (
+    count_no_context_turns,
+    escalation_limit_reached,
+    evaluate_escalation_risk,
+    extract_repetition,
+    handle_escalated,
+    handle_escalation,
+    handle_no_context,
+    user_wants_escalation,
+)
+from custSupApp.ai_http import call_groq, call_ollama, call_openrouter, post_with_retry
+from custSupApp.ai_knowledge import search_similar_chunks
+from custSupApp.ai_prompts import build_prompt, build_sentiment_prompt
+from custSupApp.ai_schemas import AIRequestInput, ChatLLMResponse
+from custSupApp.ai_ticketing import (
+    extract_ticket_structure_with_llm as extract_ticket_structure_with_llm_impl,
+    validate_ticket_structure,
+)
+
 load_dotenv()
-
-from django.db import connection
-
-from custSupApp.embeddings import embed_text
-import logging
-
 logger = logging.getLogger(__name__)
 
-# ── CONFIG ──────────────────────────────────────────────────────────────────
+_escalation_limit_reached = escalation_limit_reached
+_count_no_context_turns = count_no_context_turns
+_user_wants_escalation = user_wants_escalation
+_post_with_retry = post_with_retry
 
-OLLAMA_URL = "http://localhost:11434/api/generate"
-OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
-GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
-
-MAX_DAILY_ESCALATIONS = 3
-NO_CONTEXT_CONFIDENCE = 0.35
-CRITICAL_KEYWORDS = ["legal", "sue", "lawyer", "refund", "cancel subscription", "data breach"]
-
-SUPPORT_STAFF_EMAIL = os.environ.get("SUPPORT_STAFF_EMAIL", "support@yourcompany.com")
-
-OPENROUTER_FREE_MODELS = [
-    "meta-llama/llama-3-8b-instruct:free",
-    "qwen/qwen-2.5-7b-instruct:free",
-    "google/gemma-7b-it:free",
-    "microsoft/phi-2:free",
-    "nousresearch/hermes-2-pro-llama-3-8b:free",
-    "openchat/openchat-7b:free",
-]
-
-GROQ_MODELS = [
-    "llama-3.1-8b-instant",
-    "mixtral-8x7b-32768",
-]
-
-JSON_CONTENT_TYPE = "application/json"
-
-# ── ESCALATION LIMIT REPLY ───────────────────────────────────────────────────
-
-ESCALATION_LIMIT_REPLY = (
-    "You've reached the maximum of 3 escalations today. "
-    "Our team will follow up on your earlier tickets. "
-    "If this is urgent, please email us directly."
-)
-
-# ── NO-CONTEXT REPLIES ───────────────────────────────────────────────────────
-
-NO_CONTEXT_FIRST_REPLY = (
-    "I don't have enough information in my knowledge base to answer that confidently. "
-    "Could you give me a bit more detail or rephrase your question?"
-)
-
-NO_CONTEXT_SECOND_REPLY = (
-    "I still don't have a good answer for that — it may be outside what I currently know. "
-    "You can try asking something else, or I can escalate this to a human agent if you'd like."
-)
-
-# ── HELPERS ──────────────────────────────────────────────────────────────────
-
-def _escalation_limit_reached(escalation_count: int) -> bool:
-    return escalation_count >= MAX_DAILY_ESCALATIONS
+AI_ERROR_RESPONSE = ("error", "Invalid response from AI", 0.0, False)
+AI_RETRY_RESPONSE = ("error", "Sorry, something went wrong. Please try again.", 0.0, False)
 
 
-def _count_no_context_turns(history: list[dict]) -> int:
-    """
-    Count how many of the AI's recent replies were no-context responses,
-    scanning backwards through the full history (skipping user messages).
-    We stop as soon as we find an AI reply that was NOT a no-context reply,
-    so the count reflects the current unbroken no-context streak.
-    """
-    no_context_markers = [NO_CONTEXT_FIRST_REPLY[:40], NO_CONTEXT_SECOND_REPLY[:40]]
-    count = 0
-    for msg in reversed(history):
-        # Skip user messages — we only care about what the AI said
-        if msg["role"] not in ("assistant", "ai"):  # DB stores "ai", OpenAI-style uses "assistant"
-            continue
-        if any(msg["content"].startswith(marker) for marker in no_context_markers):
-            count += 1
-        else:
-            # Hit a normal AI reply — streak is over
-            break
-    return count
+@dataclass(frozen=True)
+class LLMParseResult:
+    data: ChatLLMResponse | None = None
+    retryable: bool = False
 
 
-def _user_wants_escalation(query: str) -> bool:
-    triggers = [
-        "escalate", "human agent", "talk to someone", "speak to agent",
-        "real person", "transfer me", "get support", "yes please",
-        "yes escalate", "connect me",
-    ]
-    return any(t in query.lower() for t in triggers)
+def _get_history(history: list[dict] | None) -> list[dict]:
+    return history if history is not None else []
 
-# ── ESCALATION RISK ──────────────────────────────────────────────────────────
 
-def evaluate_escalation_risk(query, intent, confidence, sentiment_frustrated):
+def _get_context(query: str, org_id: int | None) -> tuple[list[str], str]:
+    docs = search_similar_chunks(query, org_id, k=2)
+    return docs, "\n".join(docs)
+
+
+def _call_response_backend(prompt: str) -> str | None:
+    return call_groq(prompt) or call_openrouter(prompt) or call_ollama(prompt)
+
+
+def _early_escalation_response(query: str, history: list[dict], escalation_count: int):
+    return handle_escalation(query, escalation_count) or extract_repetition(history, escalation_count)
+
+
+def _extract_json_object(text: str) -> str | None:
+    match = re.search(r"\{.*\}", text, re.DOTALL)
+    if not match:
+        logger.error("[ERROR] No JSON found in LLM response: %s", text)
+        return None
+    return match.group().replace("\n", " ").replace("\r", " ")
+
+
+def _parse_ai_json(text: str) -> LLMParseResult:
+    json_text = _extract_json_object(text)
+    if json_text is None:
+        return LLMParseResult()
+    try:
+        return LLMParseResult(data=ChatLLMResponse.model_validate_json(json_text))
+    except json.JSONDecodeError:
+        logger.error("[ERROR] Invalid JSON from LLM: %s", json_text)
+        return LLMParseResult(retryable=True)
+    except ValidationError as exc:
+        logger.error("[ERROR] LLM response failed schema validation: %s", exc)
+        return LLMParseResult(retryable=True)
+
+
+def _is_greeting_or_short_message(query: str) -> bool:
     query_lower = query.lower().strip()
-
-    greetings = {"hello", "hi", "hey", "test", "anyone there", "hello?"}
-    if len(query_lower) < 10 or query_lower in greetings:
-        return False
-
-    if any(keyword in query_lower for keyword in CRITICAL_KEYWORDS):
-        logger.info("Escalating due to critical keyword: %s", query[:50])
-        return True
-
-    if sentiment_frustrated and confidence < 0.5:
-        logger.info("Escalating: frustrated user + confidence %.2f", confidence)
-        return True
-
-    if confidence < 0.2:
-        logger.warning("Escalating: confidence %.2f below absolute floor", confidence)
-        return True
-
-    if intent in ["billing_dispute", "account_security"]:
-        logger.info("Escalating: sensitive intent '%s'", intent)
-        return True
-
-    return False
-
-# ── VECTOR SEARCH ────────────────────────────────────────────────────────────
-
-def search_similar_chunks(query, org_id, k=2):
-    try:
-        query_vector = embed_text(query)
-    except Exception as e:
-        logger.info("[EMBED ERROR QUERY] %s", e)
-        return []
-
-    with connection.cursor() as cursor:
-        query_vector_str = "[" + ",".join(map(str, query_vector)) + "]"
-        cursor.execute(
-            """
-            SELECT content
-            FROM kb_chunks
-            WHERE org_id = %s
-            ORDER BY embedding <-> %s::vector
-            LIMIT %s
-            """,
-            [org_id, query_vector_str, k],
-        )
-        return [row[0] for row in cursor.fetchall()]
-
-# ── PROMPT BUILDER ───────────────────────────────────────────────────────────
-
-def build_prompt(context: str, history: list[dict], query: str) -> str:
-    recent_history = history[-10:] if len(history) > 10 else history
-    if recent_history:
-        history_lines = []
-        for msg in recent_history:
-            role_label = "User" if msg["role"] == "user" else "assistant"  # covers both "ai" and "assistant"
-            history_lines.append(f"{role_label}: {msg['content']}")
-        history_block = "\n".join(history_lines)
-    else:
-        history_block = "No previous conversation."
-
-    return f"""You are a customer support AI. Be concise and honest.
-
-STRICT RULES:
-1. Answer ONLY using the Knowledge Context below. Do NOT infer, assume, or make up information.
-2. If the Knowledge Context does not contain a direct answer to the question, you MUST set confidence below 0.35 and reply that you don't have that specific information.
-3. Pay close attention to WHAT the user is asking. "why" and "where" are different questions — do not answer a different question than what was asked.
-4. Use conversation history only to understand follow-up context, NOT as a source of facts.
-
-Knowledge Context:
-{context}
-
-Conversation History:
-{history_block}
-
-Current User Query:
-{query}
-
-Return ONLY valid JSON:
-{{"intent": "...", "reply": "...", "confidence": 0.0}}"""
+    greeting_words = {
+        "hello", "hi", "hey", "sup", "yo", "howdy", "greetings",
+        "good morning", "good afternoon", "good evening",
+    }
+    return query_lower in greeting_words or len(query_lower) < 10
 
 
-def build_sentiment_prompt(message: str) -> str:
-    return f"""Analyze the sentiment of this customer support message.
-Reply with ONLY one word: "frustrated", "negative", or "neutral".
-
-Message: "{message}"
-
-Reply:"""
-
-# ── LLM CALLERS ─────────────────────────────────────────────────────────────
-
-def call_groq(prompt, max_tokens=300, system_prompt=None):
-    api_key = os.environ.get("GROQ_API_KEY")
-    if not api_key:
-        return None
-    if system_prompt is None:
-        system_prompt = "You are a customer support AI. Be concise. Always reply in valid JSON only."
-
-    for model in GROQ_MODELS:
-        try:
-            response = requests.post(
-                GROQ_URL,
-                headers={"Authorization": f"Bearer {api_key}", "Content-Type": JSON_CONTENT_TYPE},
-                json={
-                    "model": model,
-                    "messages": [
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": prompt},
-                    ],
-                    "temperature": 0.2,
-                    "max_tokens": max_tokens,
-                },
-                timeout=8,
-            )
-            if response.status_code == 200:
-                return response.json()["choices"][0]["message"]["content"]
-        except (requests.RequestException, ValueError, KeyError, IndexError) as exc:
-            logger.warning("Groq call failed for model %s: %s", model, exc)
-            continue
-    return None
+def _has_no_context(query: str, docs: list[str], confidence: float) -> bool:
+    return (
+        not _is_greeting_or_short_message(query)
+        and (not docs or confidence < NO_CONTEXT_CONFIDENCE)
+    )
 
 
-def call_openrouter(prompt):
-    api_key = os.environ.get("OPENROUTER_API_KEY")
-    if not api_key:
-        return None
-
-    for model in OPENROUTER_FREE_MODELS:
-        try:
-            response = requests.post(
-                OPENROUTER_URL,
-                headers={
-                    "Authorization": f"Bearer {api_key}",
-                    "Content-Type": JSON_CONTENT_TYPE,
-                    "Accept": JSON_CONTENT_TYPE,
-                },
-                json={
-                    "model": model,
-                    "messages": [{"role": "user", "content": prompt}],
-                    "temperature": 0.2,
-                    "max_tokens": 300,
-                },
-                timeout=8,
-            )
-            if response.status_code == 200:
-                return response.json()["choices"][0]["message"]["content"]
-        except (requests.RequestException, ValueError, KeyError, IndexError) as exc:
-            logger.warning("OpenRouter call failed for model %s: %s", model, exc)
-            continue
-    return None
-
-
-def call_ollama(prompt):
-    try:
-        response = requests.post(
-            OLLAMA_URL,
-            json={"model": "mistral", "prompt": prompt, "stream": False},
-            timeout=8,
-        )
-        response.raise_for_status()
-        return response.json()["response"]
-    except Exception:
-        return None
+def _build_response_tuple(data: ChatLLMResponse) -> tuple[str, str, float]:
+    return data.intent, data.reply, data.confidence
 
 
 def is_user_frustrated(message: str) -> bool:
@@ -274,230 +120,70 @@ def is_user_frustrated(message: str) -> bool:
         return False
     return any(word in result.strip().lower() for word in ["frustrated", "negative", "angry", "upset"])
 
-# ── MAIN ─────────────────────────────────────────────────────────────────────
 
-def get_ai_response(query, history=None, org_id=None, escalation_count=0):
-    """
-    Returns: (intent, reply, confidence, escalated)
-    escalation_count – number of support tickets the user has already
-                       created in the last 24 hours (passed in from the view).
-    """
-    if history is None:
-        history = []
+def get_ai_response(query: str, history: list[dict] | None = None, org_id: int | None = None, escalation_count: int = 0):
+    request = AIRequestInput.model_validate({
+        "query": query,
+        "history": _get_history(history),
+        "org_id": org_id,
+        "escalation_count": escalation_count,
+    })
+    history = request.history_dicts()
 
-    # ── 1. Explicit user escalation request ──────────────────────────────────
-    result = handle_escalation(query, escalation_count)
+    result = _early_escalation_response(request.query, history, request.escalation_count)
     if result:
         return result
 
-    # ── 2. Repetitive AI reply detection ─────────────────────────────────────
-    result = extract_repetition(history, escalation_count)
-    if result:
-        return result
-    
-    # ── 3. No-context turn counter ────────────────────────────────────────────
     no_context_turns = _count_no_context_turns(history)
-
-    # ── 4. Sentiment ──────────────────────────────────────────────────────────
-    sentiment_frustrated = is_user_frustrated(query)
-
-    # ── 5. Vector search ──────────────────────────────────────────────────────
-    docs = search_similar_chunks(query, org_id, k=2)
-    context = "\n".join(docs)
-
-    # ── 6. Call LLM ───────────────────────────────────────────────────────────
-    prompt = build_prompt(context, history, query)
-    text = call_groq(prompt) or call_openrouter(prompt) or call_ollama(prompt)
+    sentiment_frustrated = is_user_frustrated(request.query)
+    docs, context = _get_context(request.query, request.org_id)
+    text = _call_response_backend(build_prompt(context, history, request.query))
 
     if not text:
         logger.error("No AI backend available for response generation")
         raise RuntimeError("No AI backend available")
 
-    match = re.search(r"\{.*\}", text, re.DOTALL)
-    if not match:
-        logger.error("[ERROR] No JSON found in LLM response: %s", text)
-        return ("error", "Invalid response from AI", 0.0, False)
+    parsed = _parse_ai_json(text)
+    if parsed.data is None:
+        return AI_RETRY_RESPONSE if parsed.retryable else AI_ERROR_RESPONSE
 
-    json_text = match.group().replace("\n", " ").replace("\r", " ")
-    try:
-        data = json.loads(json_text)
-    except json.JSONDecodeError:
-        logger.error("[ERROR] Invalid JSON from LLM: %s", json_text)
-        return ("error", "Sorry, something went wrong. Please try again.", 0.0, False)
+    intent, reply, confidence = _build_response_tuple(parsed.data)
+    if _has_no_context(request.query, docs, confidence):
+        return handle_no_context(no_context_turns, request.escalation_count, confidence)
 
-    intent = data.get("intent", "unknown")
-    reply = data.get("reply", "")
-    confidence = float(data.get("confidence", 0.0))
-
-    # ── 7. No-context ladder ──────────────────────────────────────────────────
-    # Greetings and very short messages are conversational — the AI can reply
-    # without any KB docs, so skip the no-context ladder entirely for them.
-    _query_lower = query.lower().strip()
-    _greeting_words = {
-        "hello", "hi", "hey", "sup", "yo", "howdy", "greetings",
-        "good morning", "good afternoon", "good evening",
-    }
-    _is_greeting = _query_lower in _greeting_words or len(_query_lower) < 10
-
-    has_no_context = (not _is_greeting) and (not docs or confidence < NO_CONTEXT_CONFIDENCE)
-
-    if has_no_context:
-        return handle_no_context(no_context_turns, escalation_count, confidence)
-
-    # ── 8. Normal escalation risk evaluation ─────────────────────────────────
-    escalated = evaluate_escalation_risk(query, intent, confidence, sentiment_frustrated)
-
+    escalated = evaluate_escalation_risk(request.query, intent, confidence, sentiment_frustrated)
     if escalated:
-        return handle_escalated(intent, escalation_count, confidence, escalated, sentiment_frustrated)
-
+        return handle_escalated(intent, request.escalation_count, confidence, escalated, sentiment_frustrated)
     return intent, reply, confidence, escalated
 
 
-# ── HELPERS ─────────────────────────────────────────────────────────────────────
-
-def handle_escalated(intent, escalation_count, confidence, escalated, sentiment_frustrated):
-    if _escalation_limit_reached(escalation_count):
-            logger.info("Escalation warranted but daily limit reached.")
-            return ("escalation_limit", ESCALATION_LIMIT_REPLY, confidence, False)
-    if sentiment_frustrated:
-            reply = (
-                "I'm sorry you're experiencing this. "
-                "I've escalated this to our team for immediate attention."
-            )
-            return intent, reply, confidence, escalated
-    return (
-        intent,
-        "This issue needs human attention, so I've escalated it to our support team.",
-        confidence,
-        escalated,
-    )
+def extract_ticket_structure_with_llm(query: str, history: list[dict]) -> dict:
+    return extract_ticket_structure_with_llm_impl(query, history, call_groq, call_openrouter, call_ollama)
 
 
-def handle_escalation(query, escalation_count):
-    if _user_wants_escalation(query):
-        if _escalation_limit_reached(escalation_count):
-            logger.info("User requested escalation but daily limit reached.")
-            return ("escalation_limit", ESCALATION_LIMIT_REPLY, 1.0, False)
-        return ("escalation", "Sure, let me connect you with a human agent right away.", 1.0, True)
-
-
-def extract_repetition(history, escalation_count):
-    # Scan ALL assistant messages in history, not just the last two positional
-    # slots — the 10-message window means the pair could appear anywhere.
-    # We flag it if any substantive reply (>60 chars) has appeared 2+ times.
-
-    assistant_msgs = [m["content"].strip() for m in history if m["role"] in ("assistant", "ai")]
-    # CHANGE: We now filter out the standardized "no-context" ladder replies.
-    # We only want to detect repetition of "substantive" factual answers 
-    # that might be wrong or unhelpful.
-    no_context_markers = [NO_CONTEXT_FIRST_REPLY[:40], NO_CONTEXT_SECOND_REPLY[:40]]
-    
-    substantive = [
-        m for m in assistant_msgs 
-        if len(m) > 60 and not any(m.startswith(marker) for marker in no_context_markers)
-    ]
-
-    if len(substantive) >= 1:
-        most_recent = substantive[-1]
-        
-
-        escalation_phrase = "I noticed I'm giving you the same answer repeatedly"
-        if escalation_phrase not in most_recent:
-            repeat_count = substantive.count(most_recent)
-            if repeat_count >= 2:
-                logger.warning("AI repeated factual reply %d times.", repeat_count)
-                if _escalation_limit_reached(escalation_count):
-                    return ("escalation_limit", ESCALATION_LIMIT_REPLY, 0.0, False)
-                
-                return (
-                    "escalation",
-                    "I noticed I'm giving you the same answer repeatedly, which means "
-                    "I don't have better information on this. Let me get a human agent "
-                    "to help you properly.",
-                    0.0,
-                    True,
-                )
-
-def handle_no_context(no_context_turns, escalation_count, confidence):
-    if no_context_turns == 0:
-        # Turn 1: AI has no answer — ask the user to rephrase or elaborate
-        logger.info("No context — asking user to elaborate (turn 1).")
-        return ("no_context", NO_CONTEXT_FIRST_REPLY, confidence, False)
-    elif no_context_turns == 1:
-        # Turn 2: still no answer — explicitly offer escalation
-        logger.info("No context again — offering escalation choice (turn 2).")
-        return ("no_context", NO_CONTEXT_SECOND_REPLY, confidence, False)
-    else:
-        # Turn 3+: user is stuck, AI has no answer — escalate automatically
-        logger.info("Persistent no-context after %d turns — auto-escalating.", no_context_turns)
-        if _escalation_limit_reached(escalation_count):
-            return ("escalation_limit", ESCALATION_LIMIT_REPLY, confidence, False)
-        return (
-            "escalation",
-            "I've asked a couple of times but I still don't have a good answer for this. "
-            "I'm escalating this to our support team now so they can help you directly.",
-            confidence,
-            True,
-        )
-
-# ── TICKET STRUCTURE ──────────────────────────────────────────────────────────
-
-VALID_PRIORITIES = {"low", "normal", "high"}
-VALID_CATEGORIES = {"authentication", "billing", "technical", "general"}
-
-
-def extract_ticket_structure_with_llm(query, history):
-    history_text = "\n".join(
-        f"{msg['role']}: {msg['content']}" for msg in history
-    )
-
-    prompt = f"""
-You are a support ticket classification system.
-
-Analyze the conversation and extract a structured ticket.
-
-Rules for priority:
-- high → user is frustrated, urgent, blocked
-- normal → user reports a problem but not blocked
-- low → informational or minor question
-
-Conversation:
-{history_text}
-
-Latest user query:
-{query}
-
-Return ONLY valid JSON:
-
-{{
-"category": "authentication | billing | technical | general",
-"priority": "low | normal | high",
-"description": "short issue description",
-"context_summary": "brief conversation summary"
-}}
-"""
-
-    text = call_groq(prompt) or call_openrouter(prompt)
-
-    if not text:
-        try:
-            text = call_ollama(prompt)
-        except Exception:
-            return None
-
-    try:
-        return json.loads(text)
-    except Exception:
-        return None
-
-
-def validate_ticket_structure(data):
-    if not data:
-        return False
-    if data.get("priority") not in VALID_PRIORITIES:
-        return False
-    if data.get("category") not in VALID_CATEGORIES:
-        return False
-    if not data.get("description"):
-        return False
-    return True
+__all__ = [
+    "ESCALATION_LIMIT_REPLY",
+    "NO_CONTEXT_FIRST_REPLY",
+    "NO_CONTEXT_SECOND_REPLY",
+    "VALID_CATEGORIES",
+    "VALID_PRIORITIES",
+    "_count_no_context_turns",
+    "_escalation_limit_reached",
+    "_post_with_retry",
+    "_user_wants_escalation",
+    "build_prompt",
+    "build_sentiment_prompt",
+    "call_groq",
+    "call_ollama",
+    "call_openrouter",
+    "evaluate_escalation_risk",
+    "extract_repetition",
+    "extract_ticket_structure_with_llm",
+    "get_ai_response",
+    "handle_escalated",
+    "handle_escalation",
+    "handle_no_context",
+    "is_user_frustrated",
+    "search_similar_chunks",
+    "validate_ticket_structure",
+]

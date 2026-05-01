@@ -5,7 +5,6 @@ from .views_folder.auth import (
     LoginView,
     LogoutView,
     MeView,
-    SampleView,
     SignupView,
 )
 from .views_folder.feedback import OrganizationListView, SubmitFeedbackView, UserResolvedTicketsView

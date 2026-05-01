@@ -1,8 +1,9 @@
+import { safeFetch } from "@/app/api/_lib/safeFetch";
 import { NextResponse } from "next/server";
 
 const baseUrl = process.env.DJANGO_BASE_URL;
 export async function POST(req: Request) {
-  const backendRes = await fetch(
+  const backendRes = await safeFetch(
     `${baseUrl}/api/v1/logout/`,
     {
       method: "POST",

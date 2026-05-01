@@ -1,20 +1,21 @@
+import { safeFetch } from "@/app/api/_lib/safeFetch";
 import { NextRequest, NextResponse } from "next/server";
-import { logger } from "@/logger";
 
 const baseUrl = process.env.DJANGO_BASE_URL;
 
 export async function POST(req: NextRequest) {
-  const body = await req.json();
+  let body: unknown;
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ detail: "Invalid request body" }, { status: 400 });
+  }
 
-
-  const djangoRes = await fetch(`${baseUrl}/api/v1/login/`, {
+  const djangoRes = await safeFetch(`${baseUrl}/api/v1/login/`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
-
-  logger.info("django status:", djangoRes.status);
-  logger.info("django set-cookie:", djangoRes.headers.get("set-cookie"));
 
   const data = await djangoRes.json();
 
@@ -27,7 +28,6 @@ export async function POST(req: NextRequest) {
   // Forward every Set-Cookie header Django sends
   djangoRes.headers.forEach((value, key) => {
     if (key.toLowerCase() === "set-cookie") {
-      logger.info("forwarding cookie:", value);
       response.headers.append("Set-Cookie", value);
     }
   });

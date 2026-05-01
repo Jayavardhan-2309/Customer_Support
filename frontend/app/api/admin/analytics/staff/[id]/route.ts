@@ -1,3 +1,4 @@
+import { safeFetch } from "@/app/api/_lib/safeFetch";
 import { logger } from "@/logger";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -11,7 +12,7 @@ export async function GET(
   const { id } = await params;
 
   try {
-    const res = await fetch(
+    const res = await safeFetch(
       `${baseUrl}/api/v1/admin/analytics/staff/${id}/`, // ← fix path
       {
         method: "GET",
