@@ -21,6 +21,7 @@ from typing import List, Optional, Tuple
 import pandas as pd
 import pdfplumber
 import requests
+from ai_assistant.http import call_groq, call_openrouter, call_ollama
 from docx import Document
 from pdf2image import convert_from_bytes
 from PIL import Image
@@ -76,6 +77,12 @@ class PDFProcessor(BaseDocumentProcessor):
     def __init__(self, use_ocr: bool = True, vision_api_key: Optional[str] = None):
         self.use_ocr = use_ocr and TESSERACT_AVAILABLE
         self.vision_api_key = vision_api_key
+        self.vision_enabled = bool(
+            self.vision_api_key
+            or os.environ.get("GROQ_API_KEY")
+            or os.environ.get("OPENROUTER_API_KEY")
+            or os.environ.get("OLLAMA_URL")
+        )
     
     def can_process(self, file_path: str) -> bool:
         return file_path.lower().endswith('.pdf')
@@ -96,12 +103,11 @@ class PDFProcessor(BaseDocumentProcessor):
                     texts.append(f"--- Page {page_num} ---\n{page_text}")
                 
                 # Extract and process images
-                if self.use_ocr:
-                    page_images = page.images
-                    if page_images:
-                        has_images = True
-                        img_texts = self._process_page_images(page, page_num)
-                        image_descriptions.extend(img_texts)
+                page_images = page.images
+                if page_images:
+                    has_images = True
+                    img_texts = self._process_page_images(page, page_num)
+                    image_descriptions.extend(img_texts)
         
         full_text = "\n\n".join(texts)
         if image_descriptions:
@@ -116,8 +122,9 @@ class PDFProcessor(BaseDocumentProcessor):
         )
     
     def _process_page_images(self, page, page_num: int) -> List[str]:
-        """Extract text from images on a page using OCR"""
+        """Extract text from images on a page using OCR and summarize graphs."""
         image_texts = []
+        ocr_text = ""
         
         try:
             # Get page as image
@@ -131,13 +138,32 @@ class PDFProcessor(BaseDocumentProcessor):
             # Use pytesseract for OCR
             if TESSERACT_AVAILABLE:
                 img = Image.open(img_bytes)
-                ocr_text = pytesseract.image_to_string(img)
-                if ocr_text.strip():
-                    image_texts.append(f"Page {page_num} Image Text: {ocr_text.strip()}")
+                ocr_text = pytesseract.image_to_string(img).strip()
+                if ocr_text:
+                    image_texts.append(f"Page {page_num} Image Text: {ocr_text}")
+
+            # Use a text-based AI backend to summarize graph-like images when available.
+            if self.vision_enabled and ocr_text:
+                graph_summary = self._summarize_image_content(ocr_text, page_num)
+                if graph_summary:
+                    image_texts.append(graph_summary)
         except Exception as e:
             logger.warning(f"Failed to process images on page {page_num}: {e}")
         
         return image_texts
+
+    def _summarize_image_content(self, image_text: str, page_num: int) -> Optional[str]:
+        """Use an AI backend to generate a graph/chart summary from image OCR text."""
+        prompt = (
+            VISION_ANALYSIS_PROMPT
+            + "\n\nExtracted text from the image:\n"
+            + image_text
+            + "\n\nProvide a concise summary that can be indexed for search."
+        )
+        response = call_groq(prompt) or call_openrouter(prompt) or call_ollama(prompt)
+        if not response:
+            return None
+        return f"Page {page_num} Image Summary: {response.strip()}"
     
     def process_from_url(self, file_url: str) -> DocumentResult:
         """Process PDF from a URL"""
