@@ -32,6 +32,43 @@ function renderMessagesContent(messages: Message[], isLoading: boolean): ReactEl
   )
 }
 
+function PaginationControls({
+  pagination,
+  onPageChange,
+  isLoading,
+  showCount = false
+}: {
+  pagination: PaginatedMessagesResponse
+  onPageChange?: (page: number) => void
+  isLoading?: boolean
+  showCount?: boolean
+}) {
+  return (
+    <div className="flex items-center justify-between px-2">
+      <span className="text-xs text-slate-500">
+        Page {pagination.current_page} of {pagination.total_pages}
+        {showCount ? ` (${pagination.count} messages)` : ""}
+      </span>
+      <div className="flex gap-2">
+        <button
+          onClick={() => onPageChange && pagination.previous_page && onPageChange(pagination.previous_page)}
+          disabled={!pagination.has_previous || isLoading}
+          className="px-3 py-1 text-xs bg-slate-800 hover:bg-slate-700 disabled:bg-slate-900 disabled:text-slate-600 rounded-lg transition-colors"
+        >
+          ← Previous
+        </button>
+        <button
+          onClick={() => onPageChange && pagination.next_page && onPageChange(pagination.next_page)}
+          disabled={!pagination.has_next || isLoading}
+          className="px-3 py-1 text-xs bg-slate-800 hover:bg-slate-700 disabled:bg-slate-900 disabled:text-slate-600 rounded-lg transition-colors"
+        >
+          Next →
+        </button>
+      </div>
+    </div>
+  )
+}
+
 export function TicketConversation({
   chatBottomRef,
   messages,
@@ -53,26 +90,13 @@ export function TicketConversation({
 
         {/* Pagination Controls - Top */}
         {pagination && pagination.total_pages > 1 && (
-          <div className="flex items-center justify-between mb-4 px-2">
-            <span className="text-xs text-slate-500">
-              Page {pagination.current_page} of {pagination.total_pages} ({pagination.count} messages)
-            </span>
-            <div className="flex gap-2">
-              <button
-                onClick={() => onPageChange && pagination.previous_page && onPageChange(pagination.previous_page)}
-                disabled={!pagination.has_previous || isLoading}
-                className="px-3 py-1 text-xs bg-slate-800 hover:bg-slate-700 disabled:bg-slate-900 disabled:text-slate-600 rounded-lg transition-colors"
-              >
-                ← Previous
-              </button>
-              <button
-                onClick={() => onPageChange && pagination.next_page && onPageChange(pagination.next_page)}
-                disabled={!pagination.has_next || isLoading}
-                className="px-3 py-1 text-xs bg-slate-800 hover:bg-slate-700 disabled:bg-slate-900 disabled:text-slate-600 rounded-lg transition-colors"
-              >
-                Next →
-              </button>
-            </div>
+          <div className="mb-4">
+            <PaginationControls
+              pagination={pagination}
+              onPageChange={onPageChange}
+              isLoading={isLoading}
+              showCount
+            />
           </div>
         )}
 
@@ -83,26 +107,8 @@ export function TicketConversation({
 
         {/* Pagination Controls - Bottom */}
         {pagination && pagination.total_pages > 1 && (
-          <div className="flex items-center justify-between mt-4 px-2">
-            <span className="text-xs text-slate-500">
-              Page {pagination.current_page} of {pagination.total_pages}
-            </span>
-            <div className="flex gap-2">
-              <button
-                onClick={() => onPageChange && pagination.previous_page && onPageChange(pagination.previous_page)}
-                disabled={!pagination.has_previous || isLoading}
-                className="px-3 py-1 text-xs bg-slate-800 hover:bg-slate-700 disabled:bg-slate-900 disabled:text-slate-600 rounded-lg transition-colors"
-              >
-                ← Previous
-              </button>
-              <button
-                onClick={() => onPageChange && pagination.next_page && onPageChange(pagination.next_page)}
-                disabled={!pagination.has_next || isLoading}
-                className="px-3 py-1 text-xs bg-slate-800 hover:bg-slate-700 disabled:bg-slate-900 disabled:text-slate-600 rounded-lg transition-colors"
-              >
-                Next →
-              </button>
-            </div>
+          <div className="mt-4">
+            <PaginationControls pagination={pagination} onPageChange={onPageChange} isLoading={isLoading} />
           </div>
         )}
       </div>
